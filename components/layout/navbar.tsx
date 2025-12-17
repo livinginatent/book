@@ -4,10 +4,11 @@ import { BookOpenText, LogOut, Menu, User, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { signOutClient } from "@/app/actions/auth-client";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { signOutClient } from "@/app/actions/auth-client";
-import { Button } from "../ui/button";
 
 
 const navLinks = [
@@ -49,8 +50,9 @@ export function Navbar() {
             ))}
           </nav>
 
-          {/* Auth Buttons */}
+          {/* Auth Buttons & Theme Toggle */}
           <div className="hidden md:flex items-center gap-3">
+            <ThemeToggle />
             {loading ? (
               <div className="h-9 w-20 bg-secondary animate-pulse rounded-md" />
             ) : user ? (
@@ -91,17 +93,20 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden p-2 text-foreground"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? (
-              <X className="w-6 h-6" />
-            ) : (
-              <Menu className="w-6 h-6" />
-            )}
-          </button>
+          {/* Mobile: Theme Toggle & Menu Button */}
+          <div className="md:hidden flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              className="p-2 text-foreground"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Menu */}
