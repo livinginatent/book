@@ -1,22 +1,27 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Nunito, Merriweather } from "next/font/google";
+import type React from "react";
+
+import { Navbar } from "@/components/layout/navbar";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import "./globals.css";
-import { Navbar } from "@/components/layout/navbar";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Initialize fonts from your first code block
+const nunito = Nunito({
   subsets: ["latin"],
+  variable: "--font-nunito",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const merriweather = Merriweather({
   subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-merriweather",
 });
 
 export const metadata: Metadata = {
-  title: "Book Tracker",
-  description: "Track and manage your reading journey",
+  title: "Bookly - Track Your Reading Journey",
+  description:
+    "A joyful way to track your books, discover new reads, and celebrate your reading journey.",
 };
 
 export default function RootLayout({
@@ -27,15 +32,15 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${nunito.variable} ${merriweather.variable} font-sans antialiased`}
       >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
-          >
-          <Navbar/>
+        >
+          <Navbar />
           {children}
         </ThemeProvider>
       </body>

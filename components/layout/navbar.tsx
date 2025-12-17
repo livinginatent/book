@@ -1,10 +1,12 @@
 "use client";
 
-import { BookOpenText, Menu, X } from "lucide-react";
+import { BookOpenText, LogOut, Menu, User, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { signOutClient } from "@/app/actions/auth-client";
 import { Button } from "../ui/button";
 
 
@@ -16,6 +18,11 @@ const navLinks = [
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, loading } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOutClient();
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-lg">
@@ -44,15 +51,44 @@ export function Navbar() {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <Button
-              variant="ghost"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              Sign in
-            </Button>
-            <Button className="rounded-full px-6 bg-primary hover:bg-primary/90 text-primary-foreground">
-              Get Started
-            </Button>
+            {loading ? (
+              <div className="h-9 w-20 bg-secondary animate-pulse rounded-md" />
+            ) : user ? (
+              <>
+                <Link href="/profile">
+                  <Button
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    {user.email?.split("@")[0]}
+                  </Button>
+                </Link>
+                <Button
+                  variant="ghost"
+                  onClick={handleSignOut}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    Sign in
+                  </Button>
+                </Link>
+                <Link href="/register">
+                  <Button className="rounded-full px-6 bg-primary hover:bg-primary/90 text-primary-foreground">
+                    Get Started
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -86,12 +122,39 @@ export function Navbar() {
               </Link>
             ))}
             <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-border">
-              <Button variant="ghost" className="justify-start">
-                Sign in
-              </Button>
-              <Button className="bg-primary text-primary-foreground">
-                Get Started
-              </Button>
+              {loading ? (
+                <div className="h-9 bg-secondary animate-pulse rounded-md" />
+              ) : user ? (
+                <>
+                  <Link href="/profile">
+                    <Button variant="ghost" className="justify-start w-full">
+                      <User className="w-4 h-4 mr-2" />
+                      {user.email?.split("@")[0]}
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    onClick={handleSignOut}
+                    className="justify-start w-full"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login">
+                    <Button variant="ghost" className="justify-start w-full">
+                      Sign in
+                    </Button>
+                  </Link>
+                  <Link href="/register">
+                    <Button className="bg-primary text-primary-foreground w-full">
+                      Get Started
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </nav>
         </div>
