@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import { dodo, BIBLIOPHILE_PRODUCT_ID } from "@/lib/dodo/server";
 import { createClient } from "@/lib/supabase/server";
 
+// Add runtime config to prevent static generation
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function POST() {
   try {
     // Check if product ID is configured
@@ -15,7 +19,7 @@ export async function POST() {
       );
     }
 
-    const cookieStore = cookies();
+    const cookieStore =  cookies();
     const supabase = createClient(cookieStore);
 
     // Get the current user
