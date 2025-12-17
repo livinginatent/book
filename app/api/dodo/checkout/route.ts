@@ -54,7 +54,10 @@ export async function POST() {
       profileEmail = profile?.email || null;
     } catch (profileError) {
       // Profile table might not exist - that's okay, continue without it
-      console.log("Could not fetch profile (table may not exist):", profileError);
+      console.log(
+        "Could not fetch profile (table may not exist):",
+        profileError
+      );
     }
 
     const customerEmail = user.email || profileEmail || "";
@@ -89,21 +92,9 @@ export async function POST() {
       }
     }
 
-    // Create a Dodo Payments checkout session (payment link)
+    // Create a Dodo Payments checkout session
     try {
-      const paymentLink = await dodo.payments.create({
-        billing: {
-          city: "",
-          country: "US",
-          state: "",
-          street: "",
-          zipcode: "",
-        },
-        customer: {
-          customer_id: customerId,
-          email: customerEmail,
-          name: customerName,
-        },
+      const checkoutSession = await dodo.checkoutSessions.create({
         product_cart: [
           {
             product_id: BIBLIOPHILE_PRODUCT_ID,
@@ -111,31 +102,38 @@ export async function POST() {
           },
         ],
         return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success`,
+        customer: {
+          customer_id: customerId,
+        },
         metadata: {
           supabase_user_id: user.id,
         },
       });
 
-      if (!paymentLink.payment_link) {
-        console.error("No payment link returned from Dodo:", paymentLink);
+      if (!checkoutSession.checkout_url) {
+        console.error("No checkout URL returned from Dodo:", checkoutSession);
         return NextResponse.json(
-          { error: "Failed to generate payment link" },
+          { error: "Failed to generate checkout URL" },
           { status: 500 }
         );
       }
 
-      return NextResponse.json({ url: paymentLink.payment_link });
-    } catch (paymentError: unknown) {
-      console.error("Error creating Dodo payment:", paymentError);
-      const errorMessage = paymentError instanceof Error ? paymentError.message : "Unknown error";
+      return NextResponse.json({ url: checkoutSession.checkout_url });
+    } catch (checkoutError: unknown) {
+      console.error("Error creating Dodo checkout session:", checkoutError);
+      const errorMessage =
+        checkoutError instanceof Error
+          ? checkoutError.message
+          : "Unknown error";
       return NextResponse.json(
-        { error: `Payment creation failed: ${errorMessage}` },
+        { error: `Checkout creation failed: ${errorMessage}` },
         { status: 500 }
       );
     }
   } catch (error: unknown) {
     console.error("Unexpected error in checkout:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
       { error: `Checkout failed: ${errorMessage}` },
       { status: 500 }
