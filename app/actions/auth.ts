@@ -37,7 +37,7 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
-  const { error } = await supabase.auth.signUp({
+  const { data: signUpData, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -58,7 +58,30 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
     return { error: error.message };
   }
 
-  return { success: true };
+  // Check if user already exists (Supabase returns user with empty identities for existing emails)
+  // This happens when "Confirm email" is enabled and the email is already registered
+  if (signUpData?.user?.identities?.length === 0) {
+    return { error: "An account with this email already exists" };
+  }
+
+  // Also check if user exists but email is not confirmed (no session returned)
+  if (
+    signUpData?.user &&
+    !signUpData.session &&
+    signUpData.user.identities &&
+    signUpData.user.identities.length > 0
+  ) {
+    // This is a legitimate new signup waiting for email confirmation
+    return { success: true };
+  }
+
+  // If we got a user back, it's successful
+  if (signUpData?.user) {
+    return { success: true };
+  }
+
+  // Fallback error
+  return { error: "Something went wrong. Please try again." };
 }
 
 export async function signIn(
