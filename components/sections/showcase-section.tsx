@@ -52,7 +52,7 @@ const stats = [
 
 export function ShowcaseSection() {
   return (
-    <section className="py-20 md:py-32">
+    <section className="py-8">
       <div className="container mx-auto px-4">
         <SectionHeading
           title="Your reading dashboard, at a glance"

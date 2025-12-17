@@ -3,6 +3,7 @@
 
 import { BookOpen, Sparkles, TrendingUp, Users } from "lucide-react";
 import { Button } from "../ui/button";
+import Link from "next/link";
 
 
 const floatingBooks = [
@@ -78,16 +79,18 @@ export function HeroSection() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+            <Link href="#pricing">
             <Button
               size="lg"
               className="rounded-full px-8 py-6 text-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5"
-            >
+              >
               Start tracking free
             </Button>
+              </Link>
             <Button
               size="lg"
               variant="outline"
-              className="rounded-full px-8 py-6 text-lg border-2 hover:bg-secondary bg-transparent"
+              className="rounded-full px-8 py-6 text-lg border-2 hover:bg-secondary hover:text-black bg-transparent"
             >
               See how it works
             </Button>

@@ -9,9 +9,11 @@ import {
   Loader2,
   BookOpenText,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 
 import { signUp } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,10 @@ import { registerSchema } from "@/lib/validations/auth";
 type FormState = "form" | "success";
 
 export function RegisterForm() {
+  const searchParams = useSearchParams();
+  const plan = searchParams.get("plan");
+  const isPaidPlan = plan === "bibliophile";
+
   const [formState, setFormState] = useState<FormState>("form");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +40,13 @@ export function RegisterForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  // Store plan intent in sessionStorage for after registration
+  useEffect(() => {
+    if (isPaidPlan) {
+      sessionStorage.setItem("pendingPlan", "bibliophile");
+    }
+  }, [isPaidPlan]);
 
   const validateField = (field: string, value: string) => {
     const data = { email, password, confirmPassword, [field]: value };
@@ -97,52 +110,105 @@ export function RegisterForm() {
           {/* Success animation */}
           <div className="relative">
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-32 h-32 rounded-full bg-green-100 dark:bg-green-900/30 animate-ping opacity-50" />
+              <div
+                className={cn(
+                  "w-32 h-32 rounded-full animate-ping opacity-50",
+                  isPaidPlan
+                    ? "bg-primary/20"
+                    : "bg-green-100 dark:bg-green-900/30"
+                )}
+              />
             </div>
-            <div className="relative inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-green-400 to-green-600 shadow-xl shadow-green-500/25">
-              <CheckCircle2 className="w-12 h-12 text-white" />
+            <div
+              className={cn(
+                "relative inline-flex items-center justify-center w-24 h-24 rounded-full shadow-xl",
+                isPaidPlan
+                  ? "bg-gradient-to-br from-primary to-primary/80 shadow-primary/25"
+                  : "bg-gradient-to-br from-green-400 to-green-600 shadow-green-500/25"
+              )}
+            >
+              {isPaidPlan ? (
+                <Sparkles className="w-12 h-12 text-white" />
+              ) : (
+                <CheckCircle2 className="w-12 h-12 text-white" />
+              )}
             </div>
           </div>
 
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">
-              Check your email
+              {isPaidPlan ? "Almost there!" : "Check your email"}
             </h1>
             <p className="text-muted-foreground max-w-sm mx-auto">
-              We&apos;ve sent a verification link to{" "}
-              <span className="font-medium text-foreground">{email}</span>.
-              Click the link to activate your account.
+              {isPaidPlan ? (
+                <>
+                  We&apos;ve sent a verification link to{" "}
+                  <span className="font-medium text-foreground">{email}</span>.
+                  Complete checkout to unlock all Bibliophile features.
+                </>
+              ) : (
+                <>
+                  We&apos;ve sent a verification link to{" "}
+                  <span className="font-medium text-foreground">{email}</span>.
+                  Click the link to activate your account.
+                </>
+              )}
             </p>
           </div>
 
           <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-muted/50 border border-border">
-              <p className="text-sm text-muted-foreground">
-                Didn&apos;t receive the email? Check your spam folder or{" "}
-                <button
-                  onClick={() => setFormState("form")}
-                  className="text-primary hover:underline font-medium"
+            {isPaidPlan ? (
+              <>
+                <Link
+                  href="/checkout"
+                  className={cn(
+                    "inline-flex items-center justify-center w-full h-12 rounded-xl",
+                    "bg-gradient-to-r from-primary to-primary/90",
+                    "text-primary-foreground font-semibold",
+                    "shadow-lg shadow-primary/25",
+                    "hover:shadow-xl hover:shadow-primary/30",
+                    "transition-all duration-300",
+                    "group"
+                  )}
                 >
-                  try again
-                </button>
-              </p>
-            </div>
+                  Continue to checkout
+                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </Link>
+                <p className="text-xs text-muted-foreground">
+                  You can also verify your email first, then upgrade later
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                  <p className="text-sm text-muted-foreground">
+                    Didn&apos;t receive the email? Check your spam folder or{" "}
+                    <button
+                      onClick={() => setFormState("form")}
+                      className="text-primary hover:underline font-medium"
+                    >
+                      try again
+                    </button>
+                  </p>
+                </div>
 
-            <Link
-              href="/login"
-              className={cn(
-                "inline-flex items-center justify-center w-full h-12 rounded-xl",
-                "bg-gradient-to-r from-primary to-primary/90",
-                "text-primary-foreground font-semibold",
-                "shadow-lg shadow-primary/25",
-                "hover:shadow-xl hover:shadow-primary/30",
-                "transition-all duration-300",
-                "group"
-              )}
-            >
-              Continue to sign in
-              <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-            </Link>
+                <Link
+                  href="/login"
+                  className={cn(
+                    "inline-flex items-center justify-center w-full h-12 rounded-xl",
+                    "bg-gradient-to-r from-primary to-primary/90",
+                    "text-primary-foreground font-semibold",
+                    "shadow-lg shadow-primary/25",
+                    "hover:shadow-xl hover:shadow-primary/30",
+                    "transition-all duration-300",
+                    "group"
+                  )}
+                >
+                  Continue to sign in
+                  <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -160,16 +226,46 @@ export function RegisterForm() {
       <div className="relative space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-accent/80 shadow-lg shadow-accent/25 mb-4">
-            <BookOpenText className="w-8 h-8 text-accent-foreground" />
+          <div
+            className={cn(
+              "inline-flex items-center justify-center w-16 h-16 rounded-2xl shadow-lg mb-4",
+              isPaidPlan
+                ? "bg-gradient-to-br from-primary to-primary/80 shadow-primary/25"
+                : "bg-gradient-to-br from-accent to-accent/80 shadow-accent/25"
+            )}
+          >
+            {isPaidPlan ? (
+              <Sparkles className="w-8 h-8 text-primary-foreground" />
+            ) : (
+              <BookOpenText className="w-8 h-8 text-accent-foreground" />
+            )}
           </div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Create an account
+            {isPaidPlan ? "Join Bibliophile" : "Create an account"}
           </h1>
           <p className="text-muted-foreground">
-            Start tracking your reading journey today
+            {isPaidPlan
+              ? "Create your account, then complete checkout"
+              : "Start tracking your reading journey today"}
           </p>
         </div>
+
+        {/* Paid plan notice */}
+        {isPaidPlan && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/10 border border-primary/20">
+            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Bibliophile Plan
+              </p>
+              <p className="text-xs text-muted-foreground">
+                $4.99/month · You&apos;ll complete payment after signup
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">

@@ -1,13 +1,14 @@
-import { SectionHeading } from "@/components/ui/section-heading";
-import { FeatureCard } from "@/components/ui/feature-card";
 import {
   BookMarked,
   Target,
   BarChart3,
-  Users,
   Sparkles,
   Bell,
+  GlobeLock,
 } from "lucide-react";
+
+import { FeatureCard } from "@/components/ui/feature-card";
+import { SectionHeading } from "@/components/ui/section-heading";
 
 const features = [
   {
@@ -29,10 +30,10 @@ const features = [
       "Discover your reading patterns with playful charts. Pages read, genres explored, and more.",
   },
   {
-    icon: Users,
-    title: "Book Clubs",
+    icon: GlobeLock,
+    title: "Privacy & Data Portability",
     description:
-      "Join reading challenges and book clubs. Share your favorites with friends.",
+      "We believe your reading history is personal. Enjoy a platform with zero third-party tracking and no ads.",
   },
   {
     icon: Sparkles,
@@ -50,7 +51,7 @@ const features = [
 
 export function FeaturesSection() {
   return (
-    <section className="py-20 md:py-32 bg-secondary/30">
+    <section className="py-2 bg-secondary/30">
       <div className="container mx-auto px-4">
         <SectionHeading
           title="Everything you need to love reading again"

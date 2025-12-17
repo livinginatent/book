@@ -5,6 +5,7 @@ import { Footer } from "@/components/layout/footer";
 import { CTASection } from "@/components/sections/cta-section";
 import { FeaturesSection } from "@/components/sections/features-section";
 import { HeroSection } from "@/components/sections/hero-section";
+import { PricingSection } from "@/components/sections/pricing-section";
 import { ShowcaseSection } from "@/components/sections/showcase-section";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -34,6 +35,7 @@ export default function HomePage() {
       <main className="flex-1">
         <HeroSection />
         <FeaturesSection />
+        <PricingSection/>
         <ShowcaseSection />
         <CTASection />
       </main>
