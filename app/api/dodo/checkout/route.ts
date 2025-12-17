@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { dodo, BIBLIOPHILE_PRODUCT_ID } from "@/lib/dodo/server";
+import { getDodo, BIBLIOPHILE_PRODUCT_ID } from "@/lib/dodo/server";
 import { createClient } from "@/lib/supabase/server";
 
 // Add runtime config to prevent static generation
@@ -66,6 +66,8 @@ export async function POST() {
 
     const customerEmail = user.email || profileEmail || "";
     const customerName = user.email?.split("@")[0] || "Customer";
+
+    const dodo = getDodo();
 
     // Create a new Dodo customer if they don't have one
     if (!customerId) {
