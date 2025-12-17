@@ -6,13 +6,31 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function POST() {
   try {
+    // Check if product ID is configured
+    if (!BIBLIOPHILE_PRODUCT_ID) {
+      console.error("DODO_BIBLIOPHILE_PRODUCT_ID is not set");
+      return NextResponse.json(
+        { error: "Payment system not configured" },
+        { status: 500 }
+      );
+    }
+
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
 
     // Get the current user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
+
+    if (authError) {
+      console.error("Auth error:", authError);
+      return NextResponse.json(
+        { error: "Authentication failed" },
+        { status: 401 }
+      );
+    }
 
     if (!user) {
       return NextResponse.json(
@@ -21,64 +39,106 @@ export async function POST() {
       );
     }
 
-    // Check if user already has a Dodo customer ID
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("stripe_customer_id, email")
-      .eq("id", user.id)
-      .single();
+    // Try to get existing profile (might not exist if profiles table isn't set up)
+    let customerId: string | null = null;
+    let profileEmail: string | null = null;
 
-    let customerId = profile?.stripe_customer_id; // We'll reuse this field for Dodo customer ID
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("stripe_customer_id, email")
+        .eq("id", user.id)
+        .single();
+
+      customerId = profile?.stripe_customer_id || null;
+      profileEmail = profile?.email || null;
+    } catch (profileError) {
+      // Profile table might not exist - that's okay, continue without it
+      console.log("Could not fetch profile (table may not exist):", profileError);
+    }
+
+    const customerEmail = user.email || profileEmail || "";
+    const customerName = user.email?.split("@")[0] || "Customer";
 
     // Create a new Dodo customer if they don't have one
     if (!customerId) {
-      const customer = await dodo.customers.create({
-        email: user.email || profile?.email || "",
-        name: user.email?.split("@")[0] || "Customer",
-      });
+      try {
+        const customer = await dodo.customers.create({
+          email: customerEmail,
+          name: customerName,
+        });
 
-      customerId = customer.customer_id;
+        customerId = customer.customer_id;
 
-      // Save the customer ID to the profile
-      await supabase
-        .from("profiles")
-        .update({ stripe_customer_id: customerId }) // Reusing the field name
-        .eq("id", user.id);
+        // Try to save the customer ID to the profile (if table exists)
+        try {
+          await supabase
+            .from("profiles")
+            .update({ stripe_customer_id: customerId })
+            .eq("id", user.id);
+        } catch {
+          // Profile update failed - that's okay
+          console.log("Could not update profile with customer ID");
+        }
+      } catch (customerError) {
+        console.error("Error creating Dodo customer:", customerError);
+        return NextResponse.json(
+          { error: "Failed to create customer account" },
+          { status: 500 }
+        );
+      }
     }
 
     // Create a Dodo Payments checkout session (payment link)
-    const paymentLink = await dodo.payments.create({
-      billing: {
-        city: "",
-        country: "US", // Default, Dodo will detect actual location
-        state: "",
-        street: "",
-        zipcode: "",
-      },
-      customer: {
-        customer_id: customerId,
-        email: user.email || profile?.email || "",
-        name: user.email?.split("@")[0] || "Customer",
-      },
-      product_cart: [
-        {
-          product_id: BIBLIOPHILE_PRODUCT_ID,
-          quantity: 1,
+    try {
+      const paymentLink = await dodo.payments.create({
+        billing: {
+          city: "",
+          country: "US",
+          state: "",
+          street: "",
+          zipcode: "",
         },
-      ],
-      return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success`,
-      metadata: {
-        supabase_user_id: user.id,
-      },
-    });
+        customer: {
+          customer_id: customerId,
+          email: customerEmail,
+          name: customerName,
+        },
+        product_cart: [
+          {
+            product_id: BIBLIOPHILE_PRODUCT_ID,
+            quantity: 1,
+          },
+        ],
+        return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success`,
+        metadata: {
+          supabase_user_id: user.id,
+        },
+      });
 
-    return NextResponse.json({ url: paymentLink.payment_link });
-  } catch (error) {
-    console.error("Error creating checkout session:", error);
+      if (!paymentLink.payment_link) {
+        console.error("No payment link returned from Dodo:", paymentLink);
+        return NextResponse.json(
+          { error: "Failed to generate payment link" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ url: paymentLink.payment_link });
+    } catch (paymentError: unknown) {
+      console.error("Error creating Dodo payment:", paymentError);
+      const errorMessage = paymentError instanceof Error ? paymentError.message : "Unknown error";
+      return NextResponse.json(
+        { error: `Payment creation failed: ${errorMessage}` },
+        { status: 500 }
+      );
+    }
+  } catch (error: unknown) {
+    console.error("Unexpected error in checkout:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to create checkout session" },
+      { error: `Checkout failed: ${errorMessage}` },
       { status: 500 }
     );
   }
 }
-
