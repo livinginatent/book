@@ -44,6 +44,9 @@ export async function POST() {
 
     const dodo = getDodo();
 
+    console.log(`[Checkout] Creating session for user ${user.id} (${customerEmail})`);
+    console.log(`[Checkout] Product ID: ${BIBLIOPHILE_PRODUCT_ID}`);
+
     // Create a Dodo Payments Checkout Session (correct API per docs)
     try {
       const session = await dodo.checkoutSessions.create({
