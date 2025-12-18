@@ -21,10 +21,11 @@ const navLinks = [
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, loading } = useAuth();
-  const { profile } = useProfile();
+  const { user, loading: authLoading } = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   const router = useRouter();
 
+  const loading = authLoading || profileLoading;
   const displayName = profile?.username || user?.email?.split("@")[0] || "User";
 
   const handleSignOut = async () => {

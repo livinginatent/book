@@ -63,8 +63,8 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
 
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
-/*   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
- */
+  /*   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+   */
   // emailRedirectTo becomes {{ .RedirectTo }} in the email template
   // Template should use: {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next={{ .RedirectTo }}
   const { data: signUpData, error } = await supabase.auth.signUp({
