@@ -155,11 +155,12 @@ export async function forgotPassword(
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
-  // Pass the full redirect URL - this becomes {{ .RedirectTo }} in the email template
+  // For PKCE flow, redirectTo becomes {{ .RedirectTo }} in the email template
+  // Route through /auth/callback to exchange the code, then redirect to /reset-password
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${siteUrl}/auth/confirm?type=recovery&next=/reset-password`,
+    redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
   });
 
   if (error) {
