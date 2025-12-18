@@ -37,13 +37,13 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
   const { data: signUpData, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${
-        process.env.NEXT_PUBLIC_SITE_URL || "https://book-psi-swart.vercel.app"
-      }/auth/callback`,
+      emailRedirectTo: `${siteUrl}/auth/confirm?type=email&next=/login?message=email-verified`,
     },
   });
 
@@ -155,9 +155,12 @@ export async function forgotPassword(
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
-  // Don't specify redirectTo - let the email template handle the URL
-  // The email template should use: {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password
-  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  // Pass the full redirect URL - this becomes {{ .RedirectTo }} in the email template
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl}/auth/confirm?type=recovery&next=/reset-password`,
+  });
 
   if (error) {
     if (error.message.includes("rate limit")) {

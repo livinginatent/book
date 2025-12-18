@@ -1,6 +1,13 @@
 "use client";
 
-import { Mail, ArrowRight, Loader2, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
+import {
+  Mail,
+  ArrowRight,
+  Loader2,
+  ArrowLeft,
+  KeyRound,
+  CheckCircle2,
+} from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -92,11 +99,13 @@ export function ForgotPasswordForm() {
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Check your email</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Check your email
+            </h1>
             <p className="text-muted-foreground max-w-sm mx-auto">
               We&apos;ve sent a password reset link to{" "}
-              <span className="font-medium text-foreground">{email}</span>. Click the
-              link to reset your password.
+              <span className="font-medium text-foreground">{email}</span>.
+              Click the link to reset your password.
             </p>
           </div>
 
@@ -147,7 +156,9 @@ export function ForgotPasswordForm() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/80 to-primary shadow-lg shadow-primary/25 mb-4">
             <KeyRound className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Forgot password?</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Forgot password?
+          </h1>
           <p className="text-muted-foreground">
             No worries, we&apos;ll send you reset instructions
           </p>
@@ -233,4 +244,3 @@ export function ForgotPasswordForm() {
     </div>
   );
 }
-
