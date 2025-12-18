@@ -71,7 +71,7 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
     email,
     password,
     options: {
-      emailRedirectTo: `${siteUrl}/login?message=email-verified`,
+      emailRedirectTo: `${siteUrl}/auth/callback?next=/login?message=email-verified`,
       data: {
         username: username.toLowerCase(),
       },
