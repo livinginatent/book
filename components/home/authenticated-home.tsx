@@ -15,7 +15,10 @@ import { useProfile } from "@/hooks/use-profile";
 
 export function AuthenticatedHome() {
   const { user } = useAuth();
-  const { loading: profileLoading, isPremium, isFree } = useProfile();
+  const { profile, loading: profileLoading, isPremium, isFree } = useProfile();
+
+  const displayName =
+    profile?.username || user?.email?.split("@")[0] || "there";
 
   // Mock data - replace with real data from your backend
   const mockBooks = [
@@ -68,11 +71,10 @@ export function AuthenticatedHome() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-4xl font-bold">
-                Welcome back
-                {user?.email ? `, ${user.email.split("@")[0]}` : ""}!
+                Welcome back, {displayName}!
               </h1>
               {isPremium && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full  border border-primary/30">
                   <Crown className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium text-primary">
                     Bibliophile

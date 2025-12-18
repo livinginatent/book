@@ -34,6 +34,7 @@ export function ForgotPasswordForm() {
   useEffect(() => {
     const urlError = searchParams.get("error");
     if (urlError) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(decodeURIComponent(urlError));
     }
   }, [searchParams]);

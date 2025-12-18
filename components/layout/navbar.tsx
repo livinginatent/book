@@ -9,6 +9,7 @@ import { signOutClient } from "@/app/actions/auth-client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
+import { useProfile } from "@/hooks/use-profile";
 import { cn } from "@/lib/utils";
 
 
@@ -21,7 +22,10 @@ const navLinks = [
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, loading } = useAuth();
+  const { profile } = useProfile();
   const router = useRouter();
+
+  const displayName = profile?.username || user?.email?.split("@")[0] || "User";
 
   const handleSignOut = async () => {
     await signOutClient();
@@ -66,7 +70,7 @@ export function Navbar() {
                     className="text-muted-foreground hover:text-foreground"
                   >
                     <User className="w-4 h-4 mr-2" />
-                    {user.email?.split("@")[0]}
+                    {displayName}
                   </Button>
                 </Link>
                 <Button
@@ -137,7 +141,7 @@ export function Navbar() {
                   <Link href="/profile">
                     <Button variant="ghost" className="justify-start w-full">
                       <User className="w-4 h-4 mr-2" />
-                      {user.email?.split("@")[0]}
+                      {displayName}
                     </Button>
                   </Link>
                   <Button

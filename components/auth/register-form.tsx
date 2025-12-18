@@ -10,12 +10,13 @@ import {
   BookOpenText,
   CheckCircle2,
   Sparkles,
+  User,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 
-import { signUp } from "@/app/actions/auth";
+import { signUp, checkExists } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ export function RegisterForm() {
 
   const [formState, setFormState] = useState<FormState>("form");
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -40,6 +42,8 @@ export function RegisterForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
 
   // Store plan intent in sessionStorage for after registration
   useEffect(() => {
@@ -49,7 +53,7 @@ export function RegisterForm() {
   }, [isPaidPlan]);
 
   const validateField = (field: string, value: string) => {
-    const data = { email, password, confirmPassword, [field]: value };
+    const data = { email, username, password, confirmPassword, [field]: value };
     const result = registerSchema.safeParse(data);
 
     if (!result.success) {
@@ -59,16 +63,37 @@ export function RegisterForm() {
     return [];
   };
 
-  const handleBlur = (field: string) => {
+  const handleBlur = async (field: string) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
     const value =
       field === "email"
         ? email
+        : field === "username"
+        ? username
         : field === "password"
         ? password
         : confirmPassword;
     const errors = validateField(field, value);
     setFieldErrors((prev) => ({ ...prev, [field]: errors }));
+
+    // Check uniqueness for email and username on blur
+    if (field === "email" && value && errors.length === 0) {
+      setCheckingEmail(true);
+      const { exists } = await checkExists("email", value);
+      setCheckingEmail(false);
+      if (exists) {
+        setFieldErrors((prev) => ({ ...prev, email: ["This email is already registered"] }));
+      }
+    }
+
+    if (field === "username" && value && errors.length === 0) {
+      setCheckingUsername(true);
+      const { exists } = await checkExists("username", value);
+      setCheckingUsername(false);
+      if (exists) {
+        setFieldErrors((prev) => ({ ...prev, username: ["This username is already taken"] }));
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,6 +104,7 @@ export function RegisterForm() {
     // Client-side validation
     const result = registerSchema.safeParse({
       email,
+      username,
       password,
       confirmPassword,
     });
@@ -89,7 +115,7 @@ export function RegisterForm() {
 
     setLoading(true);
 
-    const response = await signUp({ email, password, confirmPassword });
+    const response = await signUp({ email, username, password, confirmPassword });
 
     if (response?.error) {
       setError(response.error);
@@ -294,10 +320,50 @@ export function RegisterForm() {
               error={fieldErrors.email?.[0]}
               disabled={loading}
               autoComplete="email"
+              rightIcon={
+                checkingEmail ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : undefined
+              }
             />
             {touched.email && fieldErrors.email?.[0] && (
               <p className="text-xs text-destructive animate-in fade-in slide-in-from-top-1">
                 {fieldErrors.email[0]}
+              </p>
+            )}
+          </div>
+
+          {/* Username field */}
+          <div className="space-y-2">
+            <label htmlFor="username" className="text-sm font-medium">
+              Username
+            </label>
+            <Input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                if (touched.username) {
+                  const errors = validateField("username", e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, username: errors }));
+                }
+              }}
+              onBlur={() => handleBlur("username")}
+              placeholder="johndoe"
+              icon={<User className="w-4 h-4" />}
+              error={fieldErrors.username?.[0]}
+              disabled={loading}
+              autoComplete="username"
+              rightIcon={
+                checkingUsername ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : undefined
+              }
+            />
+            {touched.username && fieldErrors.username?.[0] && (
+              <p className="text-xs text-destructive animate-in fade-in slide-in-from-top-1">
+                {fieldErrors.username[0]}
               </p>
             )}
           </div>
@@ -328,7 +394,7 @@ export function RegisterForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-muted-foreground justify-center items-center flex hover:text-foreground transition-colors"
                   tabIndex={-1}
                 >
                   {showPassword ? (
@@ -380,7 +446,7 @@ export function RegisterForm() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-muted-foreground justify-center items-center flex hover:text-foreground transition-colors"
                   tabIndex={-1}
                 >
                   {showConfirmPassword ? (

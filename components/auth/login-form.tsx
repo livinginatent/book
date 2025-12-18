@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, Mail, Lock, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { Eye, EyeOff, User, Lock, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -14,7 +14,7 @@ import { loginSchema } from "@/lib/validations/auth";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +39,7 @@ export function LoginForm() {
   };
 
   const validateField = (field: string, value: string) => {
-    const data = { email, password, [field]: value };
+    const data = { identifier, password, [field]: value };
     const result = loginSchema.safeParse(data);
     
     if (!result.success) {
@@ -51,7 +51,7 @@ export function LoginForm() {
 
   const handleBlur = (field: string) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
-    const errors = validateField(field, field === "email" ? email : password);
+    const errors = validateField(field, field === "identifier" ? identifier : password);
     setFieldErrors((prev) => ({ ...prev, [field]: errors }));
   };
 
@@ -61,7 +61,7 @@ export function LoginForm() {
     setFieldErrors({});
 
     // Client-side validation
-    const result = loginSchema.safeParse({ email, password });
+    const result = loginSchema.safeParse({ identifier, password });
     if (!result.success) {
       setFieldErrors(result.error.flatten().fieldErrors);
       return;
@@ -69,7 +69,7 @@ export function LoginForm() {
 
     setLoading(true);
 
-    const response = await signIn({ email, password }, redirectTo || undefined);
+    const response = await signIn({ identifier, password }, redirectTo || undefined);
 
     if (response?.error) {
       setError(response.error);
@@ -139,32 +139,32 @@ export function LoginForm() {
           {/* Global error */}
           {error && <FormMessage type="error" message={error} />}
 
-          {/* Email field */}
+          {/* Email or Username field */}
           <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
+            <label htmlFor="identifier" className="text-sm font-medium">
+              Email or Username
             </label>
             <Input
-              id="email"
-              type="email"
-              value={email}
+              id="identifier"
+              type="text"
+              value={identifier}
               onChange={(e) => {
-                setEmail(e.target.value);
-                if (touched.email) {
-                  const errors = validateField("email", e.target.value);
-                  setFieldErrors((prev) => ({ ...prev, email: errors }));
+                setIdentifier(e.target.value);
+                if (touched.identifier) {
+                  const errors = validateField("identifier", e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, identifier: errors }));
                 }
               }}
-              onBlur={() => handleBlur("email")}
-              placeholder="you@example.com"
-              icon={<Mail className="w-4 h-4" />}
-              error={fieldErrors.email?.[0]}
+              onBlur={() => handleBlur("identifier")}
+              placeholder="you@example.com or username"
+              icon={<User className="w-4 h-4" />}
+              error={fieldErrors.identifier?.[0]}
               disabled={loading}
-              autoComplete="email"
+              autoComplete="username"
             />
-            {touched.email && fieldErrors.email?.[0] && (
+            {touched.identifier && fieldErrors.identifier?.[0] && (
               <p className="text-xs text-destructive animate-in fade-in slide-in-from-top-1">
-                {fieldErrors.email[0]}
+                {fieldErrors.identifier[0]}
               </p>
             )}
           </div>

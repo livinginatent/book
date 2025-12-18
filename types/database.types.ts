@@ -15,6 +15,7 @@ export interface Database {
         Row: {
           id: string;
           email: string | null;
+          username: string | null;
           full_name: string | null;
           avatar_url: string | null;
           subscription_tier: SubscriptionTier;
@@ -25,6 +26,7 @@ export interface Database {
         Insert: {
           id: string;
           email?: string | null;
+          username?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
           subscription_tier?: SubscriptionTier;
@@ -35,6 +37,7 @@ export interface Database {
         Update: {
           id?: string;
           email?: string | null;
+          username?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
           subscription_tier?: SubscriptionTier;

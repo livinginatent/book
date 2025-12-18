@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   loginSchema,
@@ -22,6 +23,20 @@ type AuthResult = {
   errors?: Record<string, string[]>;
 };
 
+// Check if email or username already exists
+export async function checkExists(
+  field: "email" | "username",
+  value: string
+): Promise<{ exists: boolean }> {
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq(field, value.toLowerCase())
+    .single();
+
+  return { exists: !!data };
+}
+
 export async function signUp(data: RegisterInput): Promise<AuthResult> {
   // Validate input
   const validatedFields = registerSchema.safeParse(data);
@@ -32,7 +47,19 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
     };
   }
 
-  const { email, password } = validatedFields.data;
+  const { email, username, password } = validatedFields.data;
+
+  // Check if email already exists
+  const { exists: emailExists } = await checkExists("email", email);
+  if (emailExists) {
+    return { error: "An account with this email already exists" };
+  }
+
+  // Check if username already exists
+  const { exists: usernameExists } = await checkExists("username", username);
+  if (usernameExists) {
+    return { error: "This username is already taken" };
+  }
 
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
@@ -44,6 +71,9 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
     password,
     options: {
       emailRedirectTo: `${siteUrl}/auth/confirm?type=email&next=/login?message=email-verified`,
+      data: {
+        username: username.toLowerCase(),
+      },
     },
   });
 
@@ -97,10 +127,28 @@ export async function signIn(
     };
   }
 
-  const { email, password } = validatedFields.data;
+  const { identifier, password } = validatedFields.data;
 
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
+
+  // Determine if identifier is email or username
+  const isEmail = identifier.includes("@");
+  let email = identifier;
+
+  if (!isEmail) {
+    // Look up email by username
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .eq("username", identifier.toLowerCase())
+      .single();
+
+    if (!profile?.email) {
+      return { error: "Invalid username or password" };
+    }
+    email = profile.email;
+  }
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -110,7 +158,7 @@ export async function signIn(
   if (error) {
     // Handle specific Supabase errors
     if (error.message.includes("Invalid login credentials")) {
-      return { error: "Invalid email or password" };
+      return { error: "Invalid email/username or password" };
     }
     if (error.message.includes("Email not confirmed")) {
       return { error: "Please verify your email before signing in" };
@@ -158,8 +206,6 @@ export async function forgotPassword(
   // For PKCE flow, redirectTo becomes {{ .RedirectTo }} in the email template
   // Route through /auth/callback to exchange the code, then redirect to /reset-password
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-
-
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,

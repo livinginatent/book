@@ -35,7 +35,7 @@ export function BookRecommendations({
             key={book.title}
             className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
           >
-            <div className="w-10 h-14 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center shrink-0">
+            <div className="w-10 h-14 rounded-lg  flex items-center justify-center shrink-0">
               <span className="text-xs font-bold text-primary">
                 {index + 1}
               </span>
