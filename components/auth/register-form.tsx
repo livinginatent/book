@@ -456,7 +456,7 @@ export function RegisterForm() {
         {/* Sign in link */}
         <div className="text-center">
           <Link
-            href="/login"
+            href={isPaidPlan ? "/login?redirect=/checkout" : "/login"}
             className={cn(
               "inline-flex items-center justify-center w-full h-12 rounded-xl",
               "border-2 border-primary/20 hover:border-primary/40",

@@ -6,34 +6,39 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const webhookSecret = process.env.DODO_WEBHOOK_SECRET!;
 
-// Dodo Payments webhook event types
+// Dodo Payments webhook event types (based on official docs)
 type DodoWebhookEvent = {
+  business_id: string;
+  timestamp: string;
   type: string;
   data: {
-    payload: {
-      customer?: {
-        customer_id: string;
-        email: string;
-      };
-      product_id?: string;
-      payment_id?: string;
-      subscription_id?: string;
-      status?: string;
-      metadata?: Record<string, string>;
+    // Subscription data
+    subscription_id?: string;
+    status?: string;
+    customer?: {
+      customer_id: string;
+      email: string;
+      name?: string;
     };
+    product_id?: string;
+    // Payment data
+    payment_id?: string;
+    // Metadata we pass
+    metadata?: Record<string, string>;
   };
 };
 
 export async function POST(request: Request) {
   const body = await request.text();
   const headersList = await headers();
-  
+
   // Get webhook headers
   const webhookId = headersList.get("webhook-id");
   const webhookTimestamp = headersList.get("webhook-timestamp");
   const webhookSignature = headersList.get("webhook-signature");
 
   if (!webhookId || !webhookTimestamp || !webhookSignature) {
+    console.error("Missing webhook headers");
     return NextResponse.json(
       { error: "Missing webhook headers" },
       { status: 400 }
@@ -42,9 +47,9 @@ export async function POST(request: Request) {
 
   // Verify webhook signature using standardwebhooks
   const webhook = new Webhook(webhookSecret);
-  
+
   let event: DodoWebhookEvent;
-  
+
   try {
     event = webhook.verify(body, {
       "webhook-id": webhookId,
@@ -59,52 +64,60 @@ export async function POST(request: Request) {
     );
   }
 
-  console.log(`Received webhook event: ${event.type}`, JSON.stringify(event.data, null, 2));
+  console.log(`[Dodo Webhook] Received event: ${event.type}`);
+  console.log(`[Dodo Webhook] Event data:`, JSON.stringify(event.data, null, 2));
 
   try {
     switch (event.type) {
-      case "payment.succeeded": {
-        await handlePaymentSucceeded(event);
-        break;
-      }
-
-      // Handle subscription creation (including trials!)
-      case "subscription.created":
+      // Subscription activated (including trials) - upgrade user
       case "subscription.active": {
         await handleSubscriptionActive(event);
         break;
       }
 
-      // Handle trial started - upgrade user immediately
-      case "subscription.trial_started": {
-        await handleSubscriptionActive(event);
+      // Subscription renewed - confirm continued access
+      case "subscription.renewed": {
+        await handleSubscriptionRenewed(event);
         break;
       }
 
-      case "subscription.cancelled":
-      case "subscription.expired":
+      // Subscription on hold - payment issue, notify user but don't downgrade yet
       case "subscription.on_hold": {
-        await handleSubscriptionEnded(event);
+        await handleSubscriptionOnHold(event);
         break;
       }
 
+      // Subscription failed to create
+      case "subscription.failed": {
+        await handleSubscriptionFailed(event);
+        break;
+      }
+
+      // Payment succeeded
+      case "payment.succeeded": {
+        await handlePaymentSucceeded(event);
+        break;
+      }
+
+      // Payment failed
       case "payment.failed": {
         await handlePaymentFailed(event);
         break;
       }
 
-      case "refund.succeeded": {
-        await handleRefund(event);
+      // Subscription updated (catches cancellations and other changes)
+      case "subscription.updated": {
+        await handleSubscriptionUpdated(event);
         break;
       }
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        console.log(`[Dodo Webhook] Unhandled event type: ${event.type}`);
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Error processing webhook:", error);
+    console.error("[Dodo Webhook] Error processing:", error);
     return NextResponse.json(
       { error: "Webhook processing failed" },
       { status: 500 }
@@ -113,184 +126,179 @@ export async function POST(request: Request) {
 }
 
 /**
- * Handle successful payment - upgrade user to Bibliophile
+ * Find user by metadata or customer ID
  */
-async function handlePaymentSucceeded(event: DodoWebhookEvent) {
-  const { payload } = event.data;
-  const userId = payload.metadata?.supabase_user_id;
-  const customerId = payload.customer?.customer_id;
+async function findUserProfile(event: DodoWebhookEvent) {
+  const userId = event.data.metadata?.supabase_user_id;
+  const customerId = event.data.customer?.customer_id;
 
-  if (!userId && !customerId) {
-    console.error("No user ID or customer ID in payment event");
-    return;
-  }
-
-  // Try to find user by metadata first, then by customer ID
-  let profileId = userId;
-  
-  if (!profileId && customerId) {
+  // Try metadata first (most reliable for new subscriptions)
+  if (userId) {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("id")
-      .eq("dodo_customer_id", customerId)
+      .select("id, email, subscription_tier")
+      .eq("id", userId)
       .single();
-    
-    profileId = profile?.id;
+
+    if (profile) return profile;
   }
 
-  if (!profileId) {
-    console.error("Could not find user for payment");
+  // Fall back to customer ID lookup
+  if (customerId) {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, email, subscription_tier")
+      .eq("dodo_customer_id", customerId)
+      .single();
+
+    if (profile) return profile;
+  }
+
+  return null;
+}
+
+/**
+ * Subscription is active (includes trial starts)
+ */
+async function handleSubscriptionActive(event: DodoWebhookEvent) {
+  const profile = await findUserProfile(event);
+  const customerId = event.data.customer?.customer_id;
+
+  if (!profile) {
+    console.error("[Dodo Webhook] No user found for subscription.active");
     return;
   }
 
-  // Update the user's subscription tier
   const { error } = await supabaseAdmin
     .from("profiles")
     .update({
       subscription_tier: "bibliophile",
-      dodo_customer_id: customerId, // Store Dodo customer ID
-    })
-    .eq("id", profileId);
-
-  if (error) {
-    console.error("Error updating profile after payment:", error);
-    throw error;
-  }
-
-  console.log(`User ${profileId} upgraded to Bibliophile`);
-}
-
-/**
- * Handle subscription becoming active (including trials)
- */
-async function handleSubscriptionActive(event: DodoWebhookEvent) {
-  const { payload } = event.data;
-  const customerId = payload.customer?.customer_id;
-  const userId = payload.metadata?.supabase_user_id;
-
-  console.log(`Processing subscription activation for customer: ${customerId}, user: ${userId}`);
-
-  // Try to find user by metadata first (more reliable for new subscriptions)
-  let profileId = userId;
-
-  if (!profileId && customerId) {
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("id")
-      .eq("dodo_customer_id", customerId)
-      .single();
-
-    profileId = profile?.id;
-  }
-
-  if (!profileId) {
-    console.error("Could not find user for subscription activation");
-    return;
-  }
-
-  // Update user to Bibliophile tier
-  const { error } = await supabaseAdmin
-    .from("profiles")
-    .update({ 
-      subscription_tier: "bibliophile",
       dodo_customer_id: customerId,
     })
-    .eq("id", profileId);
+    .eq("id", profile.id);
 
   if (error) {
-    console.error("Error updating profile:", error);
+    console.error("[Dodo Webhook] Error upgrading user:", error);
     throw error;
   }
 
-  console.log(`User ${profileId} upgraded to Bibliophile (subscription active/trial)`);
+  console.log(`[Dodo Webhook] User ${profile.email} upgraded to Bibliophile`);
 }
 
 /**
- * Handle subscription cancellation or expiration - downgrade to free
+ * Subscription renewed successfully
  */
-async function handleSubscriptionEnded(event: DodoWebhookEvent) {
-  const { payload } = event.data;
-  const customerId = payload.customer?.customer_id;
-
-  if (!customerId) {
-    console.error("No customer ID in subscription end event");
-    return;
-  }
-
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("dodo_customer_id", customerId)
-    .single();
+async function handleSubscriptionRenewed(event: DodoWebhookEvent) {
+  const profile = await findUserProfile(event);
 
   if (!profile) {
-    console.error("Could not find user for subscription end");
+    console.error("[Dodo Webhook] No user found for subscription.renewed");
     return;
   }
 
+  // Ensure they stay on Bibliophile tier
+  if (profile.subscription_tier !== "bibliophile") {
+    await supabaseAdmin
+      .from("profiles")
+      .update({ subscription_tier: "bibliophile" })
+      .eq("id", profile.id);
+  }
+
+  console.log(`[Dodo Webhook] User ${profile.email} subscription renewed`);
+}
+
+/**
+ * Subscription is on hold (payment failed)
+ */
+async function handleSubscriptionOnHold(event: DodoWebhookEvent) {
+  const profile = await findUserProfile(event);
+
+  if (!profile) {
+    console.error("[Dodo Webhook] No user found for subscription.on_hold");
+    return;
+  }
+
+  // Don't downgrade immediately - give them time to fix payment
+  // You could send an email here or set a flag
+  console.log(`[Dodo Webhook] User ${profile.email} subscription on hold - payment issue`);
+}
+
+/**
+ * Subscription failed to create
+ */
+async function handleSubscriptionFailed(event: DodoWebhookEvent) {
+  const profile = await findUserProfile(event);
+
+  if (!profile) {
+    console.error("[Dodo Webhook] No user found for subscription.failed");
+    return;
+  }
+
+  // Ensure they're on free tier
   await supabaseAdmin
     .from("profiles")
     .update({ subscription_tier: "free" })
     .eq("id", profile.id);
 
-  console.log(`User ${profile.id} downgraded to free (subscription ended)`);
+  console.log(`[Dodo Webhook] User ${profile.email} subscription creation failed`);
 }
 
 /**
- * Handle failed payment
+ * Payment succeeded
+ */
+async function handlePaymentSucceeded(event: DodoWebhookEvent) {
+  const profile = await findUserProfile(event);
+
+  if (!profile) {
+    console.log("[Dodo Webhook] No user found for payment.succeeded (may be handled by subscription.active)");
+    return;
+  }
+
+  // Ensure they have Bibliophile access
+  if (profile.subscription_tier !== "bibliophile") {
+    await supabaseAdmin
+      .from("profiles")
+      .update({ subscription_tier: "bibliophile" })
+      .eq("id", profile.id);
+  }
+
+  console.log(`[Dodo Webhook] Payment succeeded for ${profile.email}`);
+}
+
+/**
+ * Payment failed
  */
 async function handlePaymentFailed(event: DodoWebhookEvent) {
-  const { payload } = event.data;
-  const customerId = payload.customer?.customer_id;
-
-  if (!customerId) {
-    console.error("No customer ID in payment failed event");
-    return;
-  }
-
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("id, email")
-    .eq("dodo_customer_id", customerId)
-    .single();
+  const profile = await findUserProfile(event);
 
   if (!profile) {
-    console.error("Could not find user for payment failure");
+    console.error("[Dodo Webhook] No user found for payment.failed");
     return;
   }
 
-  // Log the failure - you could send an email notification here
-  console.log(`Payment failed for user ${profile.id} (${profile.email})`);
+  console.log(`[Dodo Webhook] Payment failed for ${profile.email}`);
 }
 
 /**
- * Handle refund - downgrade user
+ * Subscription updated (can include cancellations)
  */
-async function handleRefund(event: DodoWebhookEvent) {
-  const { payload } = event.data;
-  const customerId = payload.customer?.customer_id;
-
-  if (!customerId) {
-    console.error("No customer ID in refund event");
-    return;
-  }
-
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("dodo_customer_id", customerId)
-    .single();
+async function handleSubscriptionUpdated(event: DodoWebhookEvent) {
+  const profile = await findUserProfile(event);
+  const status = event.data.status;
 
   if (!profile) {
-    console.error("Could not find user for refund");
+    console.error("[Dodo Webhook] No user found for subscription.updated");
     return;
   }
 
-  await supabaseAdmin
-    .from("profiles")
-    .update({ subscription_tier: "free" })
-    .eq("id", profile.id);
-
-  console.log(`User ${profile.id} downgraded to free (refund processed)`);
+  // Handle based on new status
+  if (status === "cancelled" || status === "expired") {
+    await supabaseAdmin
+      .from("profiles")
+      .update({ subscription_tier: "free" })
+      .eq("id", profile.id);
+    console.log(`[Dodo Webhook] User ${profile.email} downgraded (subscription ${status})`);
+  } else {
+    console.log(`[Dodo Webhook] User ${profile.email} subscription updated to status: ${status}`);
+  }
 }
-

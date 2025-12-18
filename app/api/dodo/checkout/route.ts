@@ -4,10 +4,6 @@ import { NextResponse } from "next/server";
 import { getDodo, BIBLIOPHILE_PRODUCT_ID } from "@/lib/dodo/server";
 import { createClient } from "@/lib/supabase/server";
 
-// Add runtime config to prevent static generation
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
 export async function POST() {
   try {
     // Check if product ID is configured
@@ -19,7 +15,7 @@ export async function POST() {
       );
     }
 
-    const cookieStore =  cookies();
+    const cookieStore = cookies();
     const supabase = createClient(cookieStore);
 
     // Get the current user
@@ -43,94 +39,44 @@ export async function POST() {
       );
     }
 
-    // Try to get existing profile (might not exist if profiles table isn't set up)
-    let customerId: string | null = null;
-    let profileEmail: string | null = null;
-
-    try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("dodo_customer_id, email")
-        .eq("id", user.id)
-        .single();
-
-      customerId = profile?.dodo_customer_id || null;
-      profileEmail = profile?.email || null;
-    } catch (profileError) {
-      // Profile table might not exist - that's okay, continue without it
-      console.log(
-        "Could not fetch profile (table may not exist):",
-        profileError
-      );
-    }
-
-    const customerEmail = user.email || profileEmail || "";
+    const customerEmail = user.email || "";
     const customerName = user.email?.split("@")[0] || "Customer";
 
     const dodo = getDodo();
 
-    // Create a new Dodo customer if they don't have one
-    if (!customerId) {
-      try {
-        const customer = await dodo.customers.create({
-          email: customerEmail,
-          name: customerName,
-        });
-
-        customerId = customer.customer_id;
-
-        // Try to save the customer ID to the profile (if table exists)
-        try {
-          await supabase
-            .from("profiles")
-            .update({ dodo_customer_id: customerId })
-            .eq("id", user.id);
-        } catch {
-          // Profile update failed - that's okay
-          console.log("Could not update profile with customer ID");
-        }
-      } catch (customerError) {
-        console.error("Error creating Dodo customer:", customerError);
-        return NextResponse.json(
-          { error: "Failed to create customer account" },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Create a Dodo Payments checkout session
+    // Create a Dodo Payments Checkout Session (correct API per docs)
     try {
-      const checkoutSession = await dodo.checkoutSessions.create({
+      const session = await dodo.checkoutSessions.create({
         product_cart: [
           {
             product_id: BIBLIOPHILE_PRODUCT_ID,
             quantity: 1,
           },
         ],
-        return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success`,
         customer: {
-          customer_id: customerId,
+          email: customerEmail,
+          name: customerName,
         },
+        // Return URL after successful payment
+        return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success`,
+        // Pass user ID in metadata for webhook
         metadata: {
           supabase_user_id: user.id,
         },
       });
 
-      if (!checkoutSession.checkout_url) {
-        console.error("No checkout URL returned from Dodo:", checkoutSession);
+      if (!session.checkout_url) {
+        console.error("No checkout URL returned from Dodo:", session);
         return NextResponse.json(
           { error: "Failed to generate checkout URL" },
           { status: 500 }
         );
       }
 
-      return NextResponse.json({ url: checkoutSession.checkout_url });
-    } catch (checkoutError: unknown) {
-      console.error("Error creating Dodo checkout session:", checkoutError);
-      const errorMessage =
-        checkoutError instanceof Error
-          ? checkoutError.message
-          : "Unknown error";
+      return NextResponse.json({ url: session.checkout_url });
+    } catch (paymentError: unknown) {
+      console.error("Error creating Dodo checkout session:", paymentError);
+      const errorMessage = paymentError instanceof Error ? paymentError.message : "Unknown error";
       return NextResponse.json(
         { error: `Checkout creation failed: ${errorMessage}` },
         { status: 500 }
@@ -138,8 +84,7 @@ export async function POST() {
     }
   } catch (error: unknown) {
     console.error("Unexpected error in checkout:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
       { error: `Checkout failed: ${errorMessage}` },
       { status: 500 }

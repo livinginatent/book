@@ -157,7 +157,7 @@ export async function forgotPassword(
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${
-      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+      process.env.NEXT_PUBLIC_SITE_URL || "https://book-psi-swart.vercel.app"
     }/auth/callback?next=/reset-password`,
   });
 

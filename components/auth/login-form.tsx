@@ -114,11 +114,25 @@ export function LoginForm() {
         )}
 
         {/* Redirect notice */}
-        {redirectTo && (
+        {redirectTo === "/checkout" ? (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/10 border border-primary/20">
+            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Sign in to continue to checkout
+              </p>
+              <p className="text-xs text-muted-foreground">
+                You&apos;ll be redirected to complete your Bibliophile subscription
+              </p>
+            </div>
+          </div>
+        ) : redirectTo ? (
           <div className="p-3 rounded-xl bg-muted/50 border border-border text-sm text-muted-foreground">
             Please sign in to access that page.
           </div>
-        )}
+        ) : null}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
