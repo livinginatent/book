@@ -8,6 +8,9 @@ const protectedRoutes = ["/profile", "/dashboard", "/settings", "/my-books"];
 // (login/register pages - no need to show these to logged in users)
 const authOnlyRoutes = ["/login", "/register", "/forgot-password"];
 
+// Routes that should be accessible to authenticated users for special flows
+const specialAuthRoutes = ["/reset-password", "/checkout"];
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -66,9 +69,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Check if it's a special auth route (accessible whether logged in or not)
+  const isSpecialAuthRoute = specialAuthRoutes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
+
   // Redirect to home if accessing auth-only routes (login/register) while already authenticated
-  // Exception: reset-password needs to be accessible for authenticated users
-  if (isAuthOnlyRoute && user && pathname !== "/reset-password") {
+  // Exception: special auth routes need to be accessible for authenticated users
+  if (isAuthOnlyRoute && user && !isSpecialAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);

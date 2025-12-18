@@ -155,11 +155,9 @@ export async function forgotPassword(
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${
-      process.env.NEXT_PUBLIC_SITE_URL || "https://book-psi-swart.vercel.app"
-    }/auth/callback?next=/reset-password`,
-  });
+  // Don't specify redirectTo - let the email template handle the URL
+  // The email template should use: {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password
+  const { error } = await supabase.auth.resetPasswordForEmail(email);
 
   if (error) {
     if (error.message.includes("rate limit")) {

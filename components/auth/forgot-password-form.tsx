@@ -2,7 +2,8 @@
 
 import { Mail, ArrowRight, Loader2, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 
 import { forgotPassword } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -14,12 +15,21 @@ import { forgotPasswordSchema } from "@/lib/validations/auth";
 type FormState = "form" | "success";
 
 export function ForgotPasswordForm() {
+  const searchParams = useSearchParams();
   const [formState, setFormState] = useState<FormState>("form");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  // Check for error from URL (e.g., expired reset link)
+  useEffect(() => {
+    const urlError = searchParams.get("error");
+    if (urlError) {
+      setError(decodeURIComponent(urlError));
+    }
+  }, [searchParams]);
 
   const validateField = (field: string, value: string) => {
     const data = { [field]: value };
@@ -62,6 +72,7 @@ export function ForgotPasswordForm() {
       setLoading(false);
     } else if (response?.success) {
       setFormState("success");
+      setLoading(false);
     }
   };
 
