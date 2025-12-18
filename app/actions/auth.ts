@@ -42,7 +42,7 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
     password,
     options: {
       emailRedirectTo: `${
-        process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+        process.env.NEXT_PUBLIC_SITE_URL || "https://book-psi-swart.vercel.app"
       }/auth/callback`,
     },
   });

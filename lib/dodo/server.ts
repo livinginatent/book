@@ -11,7 +11,7 @@ export function getDodo(): DodoPayments {
 
     // Determine environment mode
     // Set DODO_LIVE_MODE=true in production when ready to go live
-    const isLiveMode = process.env.DODO_LIVE_MODE === "true";
+    const isLiveMode = process.env.DODO_LIVE_MODE === "false";
 
     _dodo = new DodoPayments({
       bearerToken: process.env.DODO_PAYMENTS_API_KEY,
