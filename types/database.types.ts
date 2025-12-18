@@ -18,7 +18,7 @@ export interface Database {
           full_name: string | null;
           avatar_url: string | null;
           subscription_tier: SubscriptionTier;
-          stripe_customer_id: string | null;
+          dodo_customer_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -28,7 +28,7 @@ export interface Database {
           full_name?: string | null;
           avatar_url?: string | null;
           subscription_tier?: SubscriptionTier;
-          stripe_customer_id?: string | null;
+          dodo_customer_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -38,7 +38,7 @@ export interface Database {
           full_name?: string | null;
           avatar_url?: string | null;
           subscription_tier?: SubscriptionTier;
-          stripe_customer_id?: string | null;
+          dodo_customer_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };

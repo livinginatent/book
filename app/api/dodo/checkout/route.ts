@@ -50,11 +50,11 @@ export async function POST() {
     try {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("stripe_customer_id, email")
+        .select("dodo_customer_id, email")
         .eq("id", user.id)
         .single();
 
-      customerId = profile?.stripe_customer_id || null;
+      customerId = profile?.dodo_customer_id || null;
       profileEmail = profile?.email || null;
     } catch (profileError) {
       // Profile table might not exist - that's okay, continue without it
@@ -83,7 +83,7 @@ export async function POST() {
         try {
           await supabase
             .from("profiles")
-            .update({ stripe_customer_id: customerId })
+            .update({ dodo_customer_id: customerId })
             .eq("id", user.id);
         } catch {
           // Profile update failed - that's okay

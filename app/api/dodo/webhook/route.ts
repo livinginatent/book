@@ -59,6 +59,8 @@ export async function POST(request: Request) {
     );
   }
 
+  console.log(`Received webhook event: ${event.type}`, JSON.stringify(event.data, null, 2));
+
   try {
     switch (event.type) {
       case "payment.succeeded": {
@@ -66,13 +68,22 @@ export async function POST(request: Request) {
         break;
       }
 
+      // Handle subscription creation (including trials!)
+      case "subscription.created":
       case "subscription.active": {
         await handleSubscriptionActive(event);
         break;
       }
 
+      // Handle trial started - upgrade user immediately
+      case "subscription.trial_started": {
+        await handleSubscriptionActive(event);
+        break;
+      }
+
       case "subscription.cancelled":
-      case "subscription.expired": {
+      case "subscription.expired":
+      case "subscription.on_hold": {
         await handleSubscriptionEnded(event);
         break;
       }
@@ -121,7 +132,7 @@ async function handlePaymentSucceeded(event: DodoWebhookEvent) {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("id")
-      .eq("stripe_customer_id", customerId)
+      .eq("dodo_customer_id", customerId)
       .single();
     
     profileId = profile?.id;
@@ -137,7 +148,7 @@ async function handlePaymentSucceeded(event: DodoWebhookEvent) {
     .from("profiles")
     .update({
       subscription_tier: "bibliophile",
-      stripe_customer_id: customerId, // Store Dodo customer ID
+      dodo_customer_id: customerId, // Store Dodo customer ID
     })
     .eq("id", profileId);
 
@@ -150,34 +161,48 @@ async function handlePaymentSucceeded(event: DodoWebhookEvent) {
 }
 
 /**
- * Handle subscription becoming active
+ * Handle subscription becoming active (including trials)
  */
 async function handleSubscriptionActive(event: DodoWebhookEvent) {
   const { payload } = event.data;
   const customerId = payload.customer?.customer_id;
+  const userId = payload.metadata?.supabase_user_id;
 
-  if (!customerId) {
-    console.error("No customer ID in subscription event");
-    return;
+  console.log(`Processing subscription activation for customer: ${customerId}, user: ${userId}`);
+
+  // Try to find user by metadata first (more reliable for new subscriptions)
+  let profileId = userId;
+
+  if (!profileId && customerId) {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("dodo_customer_id", customerId)
+      .single();
+
+    profileId = profile?.id;
   }
 
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("stripe_customer_id", customerId)
-    .single();
-
-  if (!profile) {
+  if (!profileId) {
     console.error("Could not find user for subscription activation");
     return;
   }
 
-  await supabaseAdmin
+  // Update user to Bibliophile tier
+  const { error } = await supabaseAdmin
     .from("profiles")
-    .update({ subscription_tier: "bibliophile" })
-    .eq("id", profile.id);
+    .update({ 
+      subscription_tier: "bibliophile",
+      dodo_customer_id: customerId,
+    })
+    .eq("id", profileId);
 
-  console.log(`User ${profile.id} subscription activated`);
+  if (error) {
+    console.error("Error updating profile:", error);
+    throw error;
+  }
+
+  console.log(`User ${profileId} upgraded to Bibliophile (subscription active/trial)`);
 }
 
 /**
@@ -195,7 +220,7 @@ async function handleSubscriptionEnded(event: DodoWebhookEvent) {
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("id")
-    .eq("stripe_customer_id", customerId)
+    .eq("dodo_customer_id", customerId)
     .single();
 
   if (!profile) {
@@ -226,7 +251,7 @@ async function handlePaymentFailed(event: DodoWebhookEvent) {
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("id, email")
-    .eq("stripe_customer_id", customerId)
+    .eq("dodo_customer_id", customerId)
     .single();
 
   if (!profile) {
@@ -253,7 +278,7 @@ async function handleRefund(event: DodoWebhookEvent) {
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("id")
-    .eq("stripe_customer_id", customerId)
+    .eq("dodo_customer_id", customerId)
     .single();
 
   if (!profile) {
