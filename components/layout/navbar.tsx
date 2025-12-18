@@ -2,6 +2,7 @@
 
 import { BookOpenText, LogOut, Menu, User, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { signOutClient } from "@/app/actions/auth-client";
@@ -20,9 +21,11 @@ const navLinks = [
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, loading } = useAuth();
+  const router = useRouter();
 
   const handleSignOut = async () => {
     await signOutClient();
+    router.refresh();
   };
 
   return (
