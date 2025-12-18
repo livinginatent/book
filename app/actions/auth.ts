@@ -63,6 +63,7 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
 
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
   // emailRedirectTo becomes {{ .RedirectTo }} in the email template
   // Template should use: {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next={{ .RedirectTo }}
@@ -70,7 +71,7 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
     email,
     password,
     options: {
-      emailRedirectTo: "/login?message=email-verified",
+      emailRedirectTo: `${siteUrl}/login?message=email-verified`,
       data: {
         username: username.toLowerCase(),
       },
