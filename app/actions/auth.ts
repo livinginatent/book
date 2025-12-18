@@ -64,13 +64,12 @@ export async function signUp(data: RegisterInput): Promise<AuthResult> {
   const cookieStore = cookies();
   const supabase = createClient(cookieStore);
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-
+  // Don't pass emailRedirectTo - let the Supabase email template handle the URL
+  // Template should use: {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/login?message=email-verified
   const { data: signUpData, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${siteUrl}/auth/confirm?type=email&next=/login?message=email-verified`,
       data: {
         username: username.toLowerCase(),
       },
