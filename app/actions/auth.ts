@@ -159,15 +159,7 @@ export async function forgotPassword(
   // Route through /auth/callback to exchange the code, then redirect to /reset-password
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
-  console.log(
-    "[forgotPassword] NEXT_PUBLIC_SITE_URL:",
-    process.env.NEXT_PUBLIC_SITE_URL
-  );
-  console.log("[forgotPassword] siteUrl:", siteUrl);
-  console.log(
-    "[forgotPassword] redirectTo:",
-    `${siteUrl}/auth/callback?next=/reset-password`
-  );
+
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,

@@ -1,9 +1,10 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { usePathname } from "next/navigation";
-
 import type { User } from "@supabase/supabase-js";
+import { usePathname } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+
 
 import { createClient } from "@/lib/supabase/client";
 
