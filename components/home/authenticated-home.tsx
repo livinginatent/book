@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { AdvancedInsights } from "@/components/dashboard/advanced-insights";
 import { BookRecommendations } from "@/components/dashboard/book-recommendations";
-import { BookSearch } from "@/components/dashboard/book-search";
+import { BookSearch } from "@/components/search/book-search";
 import { CurrentlyReading } from "@/components/dashboard/currently-reading";
 import { MoodTracker } from "@/components/dashboard/mood-tracker";
 import { PrivateShelves } from "@/components/dashboard/private-shelves";
