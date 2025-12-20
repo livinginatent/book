@@ -1,10 +1,11 @@
 "use client";
 
-import { BookCard } from "@/components/ui/book-card";
-import { DashboardCard } from "@/components/ui/dashboard-card";
 import { BookOpen, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+
+import { BookCard } from "@/components/ui/book-card";
 import type { BookStatus } from "@/components/ui/book-progress-editor";
+import { Button } from "@/components/ui/button";
+import { DashboardCard } from "@/components/ui/dashboard-card";
 
 interface Book {
   id: string;

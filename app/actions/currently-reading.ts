@@ -1,12 +1,17 @@
 "use server";
 
 import { cookies } from "next/headers";
+
 import { createClient } from "@/lib/supabase/server";
-import type { Book } from "@/types/database.types";
+import type { Book, ReadingProgress } from "@/types/database.types";
+
+export interface BookWithProgress extends Book {
+  progress?: ReadingProgress;
+}
 
 export interface CurrentlyReadingResult {
   success: true;
-  books: Book[];
+  books: BookWithProgress[];
   total: number;
 }
 
@@ -16,7 +21,7 @@ export interface CurrentlyReadingError {
 }
 
 /**
- * Get currently reading books for the authenticated user
+ * Get currently reading books for the authenticated user with progress data
  */
 export async function getCurrentlyReadingBooks(): Promise<
   CurrentlyReadingResult | CurrentlyReadingError
@@ -63,10 +68,35 @@ export async function getCurrentlyReadingBooks(): Promise<
       return { success: false, error: "Failed to fetch books" };
     }
 
-    // Maintain the order from the profile array
-    const orderedBooks = bookIds
-      .map((id: any) => books?.find((book) => book.id === id))
-      .filter((book: any): book is Book => book !== undefined);
+    // Fetch reading progress for these books
+    const { data: progressList, error: progressError } = await supabase
+      .from("reading_progress")
+      .select("*")
+      .eq("user_id", user.id)
+      .in("book_id", bookIds);
+
+    if (progressError) {
+      console.error("Error fetching reading progress:", progressError);
+      // Continue without progress data
+    }
+
+    // Create a map of progress by book_id
+    const progressMap: Record<string, ReadingProgress> = {};
+    for (const progress of progressList || []) {
+      progressMap[progress.book_id] = progress;
+    }
+
+    // Maintain the order from the profile array and attach progress
+    const orderedBooks: BookWithProgress[] = bookIds
+      .map((id: string) => {
+        const book = books?.find((b) => b.id === id);
+        if (!book) return undefined;
+        return {
+          ...book,
+          progress: progressMap[id],
+        };
+      })
+      .filter((book): book is BookWithProgress => book !== undefined);
 
     return {
       success: true,
@@ -77,7 +107,8 @@ export async function getCurrentlyReadingBooks(): Promise<
     console.error("Get currently reading books error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "An unexpected error occurred",
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
     };
   }
 }

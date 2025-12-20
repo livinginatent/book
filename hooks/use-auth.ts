@@ -3,8 +3,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
-
+import { useEffect, useState, useCallback, useRef } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 
@@ -12,6 +11,7 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
+  const lastUserIdRef = useRef<string | null>(null);
 
   const refreshUser = useCallback(async () => {
     const supabase = createClient();
@@ -19,7 +19,13 @@ export function useAuth() {
     // Use getUser() instead of getSession() - it's more reliable
     // as it validates the session with the server
     const { data: { user: currentUser } } = await supabase.auth.getUser();
-    setUser(currentUser);
+    
+    // Only update state if user ID actually changed (prevents unnecessary re-renders)
+    const newUserId = currentUser?.id ?? null;
+    if (newUserId !== lastUserIdRef.current) {
+      lastUserIdRef.current = newUserId;
+      setUser(currentUser);
+    }
     setLoading(false);
   }, []);
 
@@ -33,12 +39,17 @@ export function useAuth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // Update user state on any auth event
-      setUser(session?.user ?? null);
+      const newUserId = session?.user?.id ?? null;
+      
+      // Only update if user ID changed (prevents re-renders on TOKEN_REFRESHED)
+      if (newUserId !== lastUserIdRef.current) {
+        lastUserIdRef.current = newUserId;
+        setUser(session?.user ?? null);
+      }
       setLoading(false);
       
-      // Force refresh on sign in/out events
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+      // Force refresh on sign in/out events (not token refresh)
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
         refreshUser();
       }
     });

@@ -2,9 +2,10 @@
 
 import { Sparkles, Crown } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 
 import { getCurrentlyReadingBooks } from "@/app/actions/currently-reading";
+import { updateReadingProgress } from "@/app/actions/reading-progress";
 import { AdvancedInsights } from "@/components/dashboard/advanced-insights";
 import { BookRecommendations } from "@/components/dashboard/book-recommendations";
 import { CurrentlyReading } from "@/components/dashboard/currently-reading";
@@ -12,6 +13,7 @@ import { MoodTracker } from "@/components/dashboard/mood-tracker";
 import { PrivateShelves } from "@/components/dashboard/private-shelves";
 import { ReadingStats } from "@/components/dashboard/reading-stats";
 import { BookSearch } from "@/components/search/book-search";
+import type { BookStatus } from "@/components/ui/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
@@ -37,12 +39,15 @@ export function AuthenticatedHome() {
   const displayName =
     profile?.username || user?.email?.split("@")[0] || "there";
 
-  // Fetch currently reading books - only once on mount or when user changes
+  // Store user ID to use as stable dependency
+  const userId = user?.id;
+
+  // Fetch currently reading books - only once on mount or when user ID changes
   useEffect(() => {
     let isMounted = true;
 
     async function fetchBooks() {
-      if (!user) {
+      if (!userId) {
         setCurrentlyReadingBooks([]);
         setLoadingBooks(false);
         hasLoadedRef.current = false;
@@ -68,7 +73,7 @@ export function AuthenticatedHome() {
               book.cover_url_large ||
               book.cover_url_small ||
               "",
-            pagesRead: 0, // TODO: Implement progress tracking
+            pagesRead: book.progress?.pages_read || 0,
             totalPages: book.page_count || 0,
           })
         );
@@ -94,7 +99,60 @@ export function AuthenticatedHome() {
       isMounted = false;
       window.removeEventListener("book-added", handleBookAdded);
     };
-  }, [user]);
+  }, [userId]); // Use stable userId instead of user object
+
+  // Handle progress update
+  const handleProgressUpdate = useCallback(
+    async (bookId: string, pages: number) => {
+      // Optimistically update the UI
+      setCurrentlyReadingBooks((prev) =>
+        prev.map((book) =>
+          book.id === bookId ? { ...book, pagesRead: pages } : book
+        )
+      );
+
+      // Save to database
+      const result = await updateReadingProgress(bookId, pages);
+      if (!result.success) {
+        console.error("Failed to update progress:", result.error);
+        // Revert on error - refetch books
+        const fetchResult = await getCurrentlyReadingBooks();
+        if (fetchResult.success) {
+          const transformedBooks: CurrentlyReadingBook[] =
+            fetchResult.books.map((book) => ({
+              id: book.id,
+              title: book.title,
+              author: book.authors?.join(", ") || "Unknown Author",
+              cover:
+                book.cover_url_medium ||
+                book.cover_url_large ||
+                book.cover_url_small ||
+                "",
+              pagesRead: book.progress?.pages_read || 0,
+              totalPages: book.page_count || 0,
+            }));
+          setCurrentlyReadingBooks(transformedBooks);
+        }
+      }
+    },
+    []
+  );
+
+  // Handle status change
+  const handleStatusChange = useCallback(
+    async (bookId: string, status: BookStatus) => {
+      // TODO: Implement status change logic
+      // For now, if status is "remove", we could remove from currently reading
+      if (status === "remove") {
+        // Remove from UI optimistically
+        setCurrentlyReadingBooks((prev) =>
+          prev.filter((book) => book.id !== bookId)
+        );
+        // TODO: Call server action to remove book from currently_reading list
+      }
+    },
+    []
+  );
 
   const mockStats = {
     booksRead: 12,
@@ -170,12 +228,8 @@ export function AuthenticatedHome() {
             {/* Currently Reading - Available to all */}
             <CurrentlyReading
               books={loadingBooks ? [] : currentlyReadingBooks}
-              onProgressUpdate={(_bookId, _pages) => {
-                // TODO: Implement progress update
-              }}
-              onStatusChange={(_bookId, _status) => {
-                // TODO: Implement status change
-              }}
+              onProgressUpdate={handleProgressUpdate}
+              onStatusChange={handleStatusChange}
             />
 
             {/* Reading Stats - Available to all */}

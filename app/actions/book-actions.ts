@@ -103,6 +103,27 @@ export async function addBookToReadingList(
       return { success: false, error: "Failed to update reading list" };
     }
 
+    // If adding to currently_reading, also create a reading progress entry
+    if (action === "currently-reading") {
+      const { error: progressError } = await supabase
+        .from("reading_progress")
+        .upsert(
+          {
+            user_id: user.id,
+            book_id: bookId,
+            pages_read: 0,
+          },
+          {
+            onConflict: "user_id,book_id",
+          }
+        );
+
+      if (progressError) {
+        // Log but don't fail - the book was still added to the list
+        console.error("Error creating reading progress:", progressError);
+      }
+    }
+
     return {
       success: true,
       message: `Book added to ${action.replace("-", " ")}`,

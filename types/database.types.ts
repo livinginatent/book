@@ -126,6 +126,38 @@ export interface Database {
           last_synced_at?: string;
         };
       };
+      reading_progress: {
+        Row: {
+          id: string;
+          user_id: string;
+          book_id: string;
+          pages_read: number;
+          started_at: string;
+          last_read_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          book_id: string;
+          pages_read?: number;
+          started_at?: string;
+          last_read_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          book_id?: string;
+          pages_read?: number;
+          started_at?: string;
+          last_read_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {};
     Functions: {};
@@ -143,3 +175,7 @@ export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 export type Book = Database["public"]["Tables"]["books"]["Row"];
 export type BookInsert = Database["public"]["Tables"]["books"]["Insert"];
 export type BookUpdate = Database["public"]["Tables"]["books"]["Update"];
+
+export type ReadingProgress = Database["public"]["Tables"]["reading_progress"]["Row"];
+export type ReadingProgressInsert = Database["public"]["Tables"]["reading_progress"]["Insert"];
+export type ReadingProgressUpdate = Database["public"]["Tables"]["reading_progress"]["Update"];
