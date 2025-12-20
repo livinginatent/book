@@ -211,11 +211,11 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
 
                     {/* Mobile Label - Always visible on mobile */}
                     <div
-                      className="sm:hidden absolute whitespace-nowrap bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-lg"
+                      className="sm:hidden absolute whitespace-nowrap bg-foreground text-background text-[10px] px-1.5 py-0.5 rounded shadow-lg"
                       style={{
                         left: "50%",
                         top: "100%",
-                        marginTop: 6,
+                        marginTop: 4,
                         transform: "translateX(-50%)",
                       }}
                     >
