@@ -96,7 +96,7 @@ export async function getCurrentlyReadingBooks(): Promise<
           progress: progressMap[id],
         };
       })
-      .filter((book): book is BookWithProgress => book !== undefined);
+      .filter((book:any): book is BookWithProgress => book !== undefined);
 
     return {
       success: true,
