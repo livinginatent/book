@@ -182,11 +182,6 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
                       onClick={() => handleAction(action.id)}
                       onMouseEnter={() => setActiveAction(action.id)}
                       onMouseLeave={() => setActiveAction(null)}
-                      onTouchStart={() => setActiveAction(action.id)}
-                      onTouchEnd={() => {
-                        handleAction(action.id);
-                        setActiveAction(null);
-                      }}
                       className={cn(
                         "w-11 h-11 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-200 shadow-lg border border-background/20",
                         action.color,
@@ -198,7 +193,7 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
                       <Icon className="w-5 h-5 sm:w-4 sm:h-4" />
                     </button>
 
-                    {/* Tooltip - Hidden on mobile, shown on hover for desktop */}
+                    {/* Desktop Tooltip - Hidden on mobile, shown on hover */}
                     {activeAction === action.id && (
                       <div
                         className="hidden sm:block absolute whitespace-nowrap bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-lg"
@@ -213,24 +208,22 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
                         {action.label}
                       </div>
                     )}
+
+                    {/* Mobile Label - Always visible on mobile */}
+                    <div
+                      className="sm:hidden absolute whitespace-nowrap bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-lg"
+                      style={{
+                        left: "50%",
+                        top: "100%",
+                        marginTop: 6,
+                        transform: "translateX(-50%)",
+                      }}
+                    >
+                      {action.label}
+                    </div>
                   </div>
                 );
               })}
-
-              {/* Mobile labels - shown below menu */}
-              {activeAction && (
-                <div
-                  className="sm:hidden absolute whitespace-nowrap bg-foreground text-background text-sm px-3 py-1.5 rounded-lg shadow-lg"
-                  style={{
-                    left: "50%",
-                    top: getRadius() + 30,
-                    transform: "translateX(-50%)",
-                    animation: "fade-in 0.15s ease-out",
-                  }}
-                >
-                  {actions.find((a) => a.id === activeAction)?.label}
-                </div>
-              )}
             </div>
           </>,
           document.body
