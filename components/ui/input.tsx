@@ -28,7 +28,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             rightIcon && "pr-10",
             error
               ? "border-destructive/50 focus:border-destructive focus:ring-destructive/20"
-              : "border-input focus:border-primary focus:ring-primary/20",
+              : "border border-border focus:border-primary focus:ring-primary/20",
             "disabled:cursor-not-allowed disabled:opacity-50",
             className
           )}
