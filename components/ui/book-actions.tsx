@@ -68,12 +68,6 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isClient = useIsClient();
 
-  // Responsive radius - smaller on mobile
-  const getRadius = () => {
-    if (typeof window === "undefined") return 70;
-    return window.innerWidth < 640 ? 55 : 70;
-  };
-
   // Update menu position when opened
   useEffect(() => {
     if (isOpen && buttonRef.current) {
@@ -138,18 +132,10 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
         isClient &&
         createPortal(
           <>
-            {/* Backdrop for mobile - helps with touch interactions */}
+            {/* Menu container - Desktop only */}
             <div
               data-action-menu
-              className="fixed inset-0 sm:hidden"
-              style={{ zIndex: 9998 }}
-              onClick={() => setIsOpen(false)}
-            />
-
-            {/* Menu container */}
-            <div
-              data-action-menu
-              className="fixed pointer-events-none"
+              className="hidden sm:block fixed pointer-events-none"
               style={{
                 left: menuPosition.x,
                 top: menuPosition.y,
@@ -158,7 +144,7 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
             >
               {actions.map((action, index) => {
                 const Icon = action.icon;
-                const radius = getRadius();
+                const radius = 70; // Fixed radius for desktop
                 // Calculate angle for this action in the half-circle
                 const angle = START_ANGLE + index * ANGLE_STEP;
                 const angleRad = (angle * Math.PI) / 180;
@@ -208,19 +194,6 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
                         {action.label}
                       </div>
                     )}
-
-                    {/* Mobile Label - Always visible on mobile */}
-                    <div
-                      className="sm:hidden absolute whitespace-nowrap bg-foreground text-background text-[10px] px-1.5 py-0.5 rounded shadow-lg"
-                      style={{
-                        left: "50%",
-                        top: "100%",
-                        marginTop: 4,
-                        transform: "translateX(-50%)",
-                      }}
-                    >
-                      {action.label}
-                    </div>
                   </div>
                 );
               })}

@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Calendar, FileText } from "lucide-react";
+import { BookMarked, BookOpen, BookX, Calendar, FileText, ListPlus } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -8,6 +8,33 @@ import { BookAction, BookActionMenu } from "@/components/ui/book-actions";
 import { GenreTag } from "@/components/ui/genre-tag";
 import { cn } from "@/lib/utils";
 import type { Book } from "@/types/database.types";
+
+const mobileActions = [
+  {
+    id: "to-read" as BookAction,
+    icon: BookMarked,
+    label: "Want to Read",
+    color: "bg-primary text-primary-foreground",
+  },
+  {
+    id: "currently-reading" as BookAction,
+    icon: BookOpen,
+    label: "Reading",
+    color: "bg-accent text-accent-foreground",
+  },
+  {
+    id: "up-next" as BookAction,
+    icon: ListPlus,
+    label: "Up Next",
+    color: "bg-chart-4 text-foreground",
+  },
+  {
+    id: "did-not-finish" as BookAction,
+    icon: BookX,
+    label: "DNF",
+    color: "bg-muted text-muted-foreground",
+  },
+];
 
 interface BookSearchResultCardProps {
   book: Book;
@@ -101,10 +128,35 @@ export function BookSearchResultCard({
         </div>
       </div>
 
-      {/* Action Menu - Positioned outside overflow boundary */}
+      {/* Mobile: Horizontal Action Buttons - Always visible */}
+      <div className="sm:hidden px-4 pb-3 pt-2 border-t border-border">
+        <div className="flex items-center justify-between gap-2">
+          {mobileActions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.id}
+                onClick={() => handleAction(action.id)}
+                className={cn(
+                  "flex-1 flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all duration-200",
+                  action.color,
+                  "active:scale-95"
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="text-[10px] font-medium leading-tight text-center">
+                  {action.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop: Radial Action Menu - Positioned outside overflow boundary */}
       <div
         className={cn(
-          "absolute bottom-2 right-2 z-[100] transition-all duration-300",
+          "hidden sm:block absolute bottom-2 right-2 z-[100] transition-all duration-300",
           isHovered ? "opacity-100 scale-100" : "opacity-0 scale-75"
         )}
         style={{ pointerEvents: isHovered ? "auto" : "none" }}
