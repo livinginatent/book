@@ -65,8 +65,8 @@ export async function getCurrentlyReadingBooks(): Promise<
 
     // Maintain the order from the profile array
     const orderedBooks = bookIds
-      .map((id) => books?.find((book) => book.id === id))
-      .filter((book): book is Book => book !== undefined);
+      .map((id: any) => books?.find((book) => book.id === id))
+      .filter((book: any): book is Book => book !== undefined);
 
     return {
       success: true,
