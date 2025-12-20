@@ -1,24 +1,31 @@
 "use client";
 
-import { BookOpen, Plus } from "lucide-react";
-
 import { BookCard } from "@/components/ui/book-card";
-import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
+import { BookOpen, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { BookStatus } from "@/components/ui/book-progress-editor";
 
 interface Book {
   id: string;
   title: string;
   author: string;
   cover: string;
-  progress: number;
+  pagesRead: number;
+  totalPages: number;
 }
 
 interface CurrentlyReadingProps {
   books: Book[];
+  onProgressUpdate?: (bookId: string, pages: number) => void;
+  onStatusChange?: (bookId: string, status: BookStatus) => void;
 }
 
-export function CurrentlyReading({ books }: CurrentlyReadingProps) {
+export function CurrentlyReading({
+  books,
+  onProgressUpdate,
+  onStatusChange,
+}: CurrentlyReadingProps) {
   return (
     <DashboardCard
       title="Currently Reading"
@@ -40,7 +47,11 @@ export function CurrentlyReading({ books }: CurrentlyReadingProps) {
             title={book.title}
             author={book.author}
             cover={book.cover}
-            progress={book.progress}
+            pagesRead={book.pagesRead}
+            totalPages={book.totalPages}
+            editable
+            onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
+            onStatusChange={(status) => onStatusChange?.(book.id, status)}
           />
         ))}
       </div>

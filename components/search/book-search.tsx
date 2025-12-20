@@ -120,9 +120,24 @@ export function BookSearch({ className }: BookSearchProps) {
     }
   };
 
-  const handleBookAction = (action: BookAction, book: Book) => {
-    // TODO: Implement action handling (add to shelf, etc.)
-    console.log(`Action: ${action} for book: ${book.title}`);
+  const handleBookAction = async (action: BookAction, book: Book) => {
+    const { addBookToReadingList } = await import("@/app/actions/book-actions");
+    const result = await addBookToReadingList(book.id, action);
+    
+    if (result.success) {
+      // Dispatch event to refresh currently reading component
+      // Use a small delay to ensure server action has completed
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("book-added", { 
+          detail: { action, bookId: book.id } 
+        }));
+      }, 100);
+      // Show success feedback (you can add a toast notification here)
+      console.log(result.message);
+    } else {
+      // Show error feedback
+      console.error(result.error);
+    }
   };
 
   const hasMore = displayedResults.length < total;
@@ -166,7 +181,7 @@ export function BookSearch({ className }: BookSearchProps) {
           {isPending && displayedResults.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 animate-in fade-in-50 duration-200">
               <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
-              <p className="text-muted-foreground">Searching Open Library...</p>
+              <p className="text-muted-foreground">Searching for the books...</p>
             </div>
           ) : displayedResults.length > 0 ? (
             <>
@@ -241,8 +256,7 @@ export function BookSearch({ className }: BookSearchProps) {
           </div>
           <p className="text-xl font-semibold mb-2">Search for Books</p>
           <p className="text-sm text-muted-foreground max-w-md">
-            Search Open Library to discover millions of books. Hover over a book
-            to add it to your shelves.
+            Search the database to discover millions of books.
           </p>
         </div>
       )}

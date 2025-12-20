@@ -2,42 +2,99 @@
 
 import { Sparkles, Crown } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState, useRef } from "react";
 
+import { getCurrentlyReadingBooks } from "@/app/actions/currently-reading";
 import { AdvancedInsights } from "@/components/dashboard/advanced-insights";
 import { BookRecommendations } from "@/components/dashboard/book-recommendations";
-import { BookSearch } from "@/components/search/book-search";
 import { CurrentlyReading } from "@/components/dashboard/currently-reading";
 import { MoodTracker } from "@/components/dashboard/mood-tracker";
 import { PrivateShelves } from "@/components/dashboard/private-shelves";
 import { ReadingStats } from "@/components/dashboard/reading-stats";
+import { BookSearch } from "@/components/search/book-search";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 
+interface CurrentlyReadingBook {
+  id: string;
+  title: string;
+  author: string;
+  cover: string;
+  pagesRead: number;
+  totalPages: number;
+}
+
 export function AuthenticatedHome() {
   const { user } = useAuth();
   const { profile, loading: profileLoading, isPremium, isFree } = useProfile();
+  const [currentlyReadingBooks, setCurrentlyReadingBooks] = useState<
+    CurrentlyReadingBook[]
+  >([]);
+  const [loadingBooks, setLoadingBooks] = useState(true);
+  const hasLoadedRef = useRef(false);
 
   const displayName =
     profile?.username || user?.email?.split("@")[0] || "there";
 
-  // Mock data - replace with real data from your backend
-  const mockBooks = [
-    {
-      id: "1",
-      title: "The Name of the Wind",
-      author: "Patrick Rothfuss",
-      cover: "/covers/notw.jpg",
-      progress: 65,
-    },
-    {
-      id: "2",
-      title: "Dune",
-      author: "Frank Herbert",
-      cover: "/covers/dune.jpg",
-      progress: 30,
-    },
-  ];
+  // Fetch currently reading books - only once on mount or when user changes
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchBooks() {
+      if (!user) {
+        setCurrentlyReadingBooks([]);
+        setLoadingBooks(false);
+        hasLoadedRef.current = false;
+        return;
+      }
+
+      // Only show loading on initial load, not on refetch
+      const isInitialLoad = !hasLoadedRef.current;
+      if (isInitialLoad) {
+        setLoadingBooks(true);
+      }
+
+      const result = await getCurrentlyReadingBooks();
+      if (result.success && isMounted) {
+        // Transform database books to component format
+        const transformedBooks: CurrentlyReadingBook[] = result.books.map(
+          (book) => ({
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_medium ||
+              book.cover_url_large ||
+              book.cover_url_small ||
+              "",
+            pagesRead: 0, // TODO: Implement progress tracking
+            totalPages: book.page_count || 0,
+          })
+        );
+        setCurrentlyReadingBooks(transformedBooks);
+        hasLoadedRef.current = true;
+      }
+      if (isMounted) {
+        setLoadingBooks(false);
+      }
+    }
+
+    fetchBooks();
+
+    // Listen for book added event
+    const handleBookAdded = () => {
+      if (isMounted) {
+        fetchBooks();
+      }
+    };
+    window.addEventListener("book-added", handleBookAdded);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("book-added", handleBookAdded);
+    };
+  }, [user]);
 
   const mockStats = {
     booksRead: 12,
@@ -102,7 +159,7 @@ export function AuthenticatedHome() {
         </div>
 
         {/* Book Search - Available to all users */}
-        <div className="mb-8">
+        <div id="book-search" className="mb-8">
           <BookSearch />
         </div>
 
@@ -111,7 +168,15 @@ export function AuthenticatedHome() {
           {/* Left Column - Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Currently Reading - Available to all */}
-            <CurrentlyReading books={mockBooks} />
+            <CurrentlyReading
+              books={loadingBooks ? [] : currentlyReadingBooks}
+              onProgressUpdate={(_bookId, _pages) => {
+                // TODO: Implement progress update
+              }}
+              onStatusChange={(_bookId, _status) => {
+                // TODO: Implement status change
+              }}
+            />
 
             {/* Reading Stats - Available to all */}
             <ReadingStats {...mockStats} />

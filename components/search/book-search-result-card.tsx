@@ -56,7 +56,7 @@ export function BookSearchResultCard({
   // Get first 3 genres/subjects
   const genres = book.subjects?.slice(0, 3) || [];
 
-  const handleAction = (action: BookAction) => {
+  const handleAction = async (action: BookAction) => {
     onAction?.(action, book);
   };
 

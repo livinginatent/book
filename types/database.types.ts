@@ -20,6 +20,10 @@ export interface Database {
           avatar_url: string | null;
           subscription_tier: SubscriptionTier;
           dodo_customer_id: string | null;
+          want_to_read: string[];
+          currently_reading: string[];
+          up_next: string[];
+          did_not_finish: string[];
           created_at: string;
           updated_at: string;
         };
@@ -31,6 +35,10 @@ export interface Database {
           avatar_url?: string | null;
           subscription_tier?: SubscriptionTier;
           dodo_customer_id?: string | null;
+          want_to_read?: string[];
+          currently_reading?: string[];
+          up_next?: string[];
+          did_not_finish?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -42,6 +50,10 @@ export interface Database {
           avatar_url?: string | null;
           subscription_tier?: SubscriptionTier;
           dodo_customer_id?: string | null;
+          want_to_read?: string[];
+          currently_reading?: string[];
+          up_next?: string[];
+          did_not_finish?: string[];
           created_at?: string;
           updated_at?: string;
         };

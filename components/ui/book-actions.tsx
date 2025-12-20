@@ -30,16 +30,10 @@ interface BookActionMenuProps {
 // Angles go from 90° (top) to 270° (bottom) on the LEFT side
 const actions = [
   {
-    id: "to-read" as BookAction,
-    icon: BookMarked,
-    label: "Want to Read",
-    color: "bg-primary text-primary-foreground hover:bg-primary/90",
-  },
-  {
-    id: "currently-reading" as BookAction,
-    icon: BookOpen,
-    label: "Currently Reading",
-    color: "bg-accent text-accent-foreground hover:bg-accent/90",
+    id: "did-not-finish" as BookAction,
+    icon: BookX,
+    label: "Did Not Finish",
+    color: "bg-muted text-muted-foreground hover:bg-muted/80",
   },
   {
     id: "up-next" as BookAction,
@@ -48,10 +42,16 @@ const actions = [
     color: "bg-chart-4 text-foreground hover:bg-chart-4/90",
   },
   {
-    id: "did-not-finish" as BookAction,
-    icon: BookX,
-    label: "Did Not Finish",
-    color: "bg-muted text-muted-foreground hover:bg-muted/80",
+    id: "currently-reading" as BookAction,
+    icon: BookOpen,
+    label: "Currently Reading",
+    color: "bg-accent text-accent-foreground hover:bg-accent/90",
+  },
+  {
+    id: "to-read" as BookAction,
+    icon: BookMarked,
+    label: "Want to Read",
+    color: "bg-primary text-primary-foreground hover:bg-primary/90",
   },
 ];
 
