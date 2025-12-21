@@ -172,26 +172,41 @@ export async function removeBookFromReadingList(
 
     const field = fieldMap[action];
 
-    // Get current array
-    const { data: profile } = await supabase
+    // Get current profile - select all fields to match the working pattern
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select(field)
+      .select("*")
       .eq("id", user.id)
       .single();
 
-    if (!profile) {
+    if (profileError || !profile) {
+      console.error("Error fetching profile:", profileError);
       return { success: false, error: "Profile not found" };
     }
 
+    // Access the field directly from the profile object
     const currentArray = ((profile as Record<string, string[]>)[field] ||
       []) as string[];
     const updatedArray = currentArray.filter((id) => id !== bookId);
 
     // Update profile
-    const { error: updateError } = await supabase
+    const { error: updateError, data: updatedProfile } = await supabase
       .from("profiles")
       .update({ [field]: updatedArray })
-      .eq("id", user.id);
+      .eq("id", user.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Update profile error:", updateError);
+      return { success: false, error: "Failed to remove book from list" };
+    }
+
+    // Verify the update succeeded
+    if (!updatedProfile) {
+      console.error("Profile update returned no data");
+      return { success: false, error: "Failed to remove book from list" };
+    }
 
     if (updateError) {
       console.error("Update profile error:", updateError);

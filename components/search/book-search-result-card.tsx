@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { BookMarked, BookOpen, BookX, Calendar, FileText, ListPlus } from "lucide-react";

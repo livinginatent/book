@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState, useRef, useCallback } from "react";
 
 import { getCurrentlyReadingBooks } from "@/app/actions/currently-reading";
+import { removeBookFromReadingList, addBookToReadingList } from "@/app/actions/book-actions";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
 import { AdvancedInsights } from "@/components/dashboard/advanced-insights";
 import { BookRecommendations } from "@/components/dashboard/book-recommendations";
@@ -17,6 +18,7 @@ import type { BookStatus } from "@/components/ui/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
+import { GoodreadsImport } from "../import/goodreads-import";
 
 interface CurrentlyReadingBook {
   id: string;
@@ -141,14 +143,68 @@ export function AuthenticatedHome() {
   // Handle status change
   const handleStatusChange = useCallback(
     async (bookId: string, status: BookStatus) => {
-      // TODO: Implement status change logic
-      // For now, if status is "remove", we could remove from currently reading
       if (status === "remove") {
         // Remove from UI optimistically
         setCurrentlyReadingBooks((prev) =>
           prev.filter((book) => book.id !== bookId)
         );
-        // TODO: Call server action to remove book from currently_reading list
+
+        // Call server action to remove book from currently_reading list
+        const result = await removeBookFromReadingList(bookId, "currently-reading");
+        if (!result.success) {
+          console.error("Failed to remove book:", result.error);
+          // Revert on error - refetch books
+          const fetchResult = await getCurrentlyReadingBooks();
+          if (fetchResult.success) {
+            const transformedBooks: CurrentlyReadingBook[] =
+              fetchResult.books.map((book) => ({
+                id: book.id,
+                title: book.title,
+                author: book.authors?.join(", ") || "Unknown Author",
+                cover:
+                  book.cover_url_medium ||
+                  book.cover_url_large ||
+                  book.cover_url_small ||
+                  "",
+                pagesRead: book.progress?.pages_read || 0,
+                totalPages: book.page_count || 0,
+              }));
+            setCurrentlyReadingBooks(transformedBooks);
+          }
+        }
+      } else {
+        // Handle other status changes: move book to different list
+        // First remove from currently_reading
+        const removeResult = await removeBookFromReadingList(bookId, "currently-reading");
+        if (!removeResult.success) {
+          console.error("Failed to remove book from currently reading:", removeResult.error);
+          return;
+        }
+
+        // Map BookStatus to BookAction
+        // Note: "finished" status doesn't have a corresponding action in the current system
+        // We'll just remove it from currently_reading for now
+        const statusToAction: Record<BookStatus, "up-next" | "did-not-finish" | null> = {
+          finished: null, // Finished books are just removed from currently reading
+          paused: "up-next", // Paused books go to up-next
+          "did-not-finish": "did-not-finish",
+          reading: null, // Already reading
+          remove: null, // Handled above
+        };
+
+        const action = statusToAction[status];
+        if (action) {
+          // Add to the new list
+          const addResult = await addBookToReadingList(bookId, action);
+          if (!addResult.success) {
+            console.error("Failed to add book to new list:", addResult.error);
+          }
+        }
+
+        // Remove from UI since it's no longer "currently reading"
+        setCurrentlyReadingBooks((prev) =>
+          prev.filter((book) => book.id !== bookId)
+        );
       }
     },
     []
@@ -231,6 +287,7 @@ export function AuthenticatedHome() {
               onProgressUpdate={handleProgressUpdate}
               onStatusChange={handleStatusChange}
             />
+            <GoodreadsImport/>
 
             {/* Reading Stats - Available to all */}
             <ReadingStats {...mockStats} />
