@@ -1,11 +1,14 @@
 "use client";
 
-import { Sparkles, Crown } from "lucide-react";
+import { Sparkles, Crown, Upload, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useRef, useCallback } from "react";
 
+import {
+  removeBookFromReadingList,
+  addBookToReadingList,
+} from "@/app/actions/book-actions";
 import { getCurrentlyReadingBooks } from "@/app/actions/currently-reading";
-import { removeBookFromReadingList, addBookToReadingList } from "@/app/actions/book-actions";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
 import { AdvancedInsights } from "@/components/dashboard/advanced-insights";
 import { BookRecommendations } from "@/components/dashboard/book-recommendations";
@@ -18,6 +21,8 @@ import type { BookStatus } from "@/components/ui/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
+import { cn } from "@/lib/utils";
+
 import { GoodreadsImport } from "../import/goodreads-import";
 
 interface CurrentlyReadingBook {
@@ -36,6 +41,7 @@ export function AuthenticatedHome() {
     CurrentlyReadingBook[]
   >([]);
   const [loadingBooks, setLoadingBooks] = useState(true);
+  const [showImport, setShowImport] = useState(false);
   const hasLoadedRef = useRef(false);
 
   const displayName =
@@ -150,7 +156,10 @@ export function AuthenticatedHome() {
         );
 
         // Call server action to remove book from currently_reading list
-        const result = await removeBookFromReadingList(bookId, "currently-reading");
+        const result = await removeBookFromReadingList(
+          bookId,
+          "currently-reading"
+        );
         if (!result.success) {
           console.error("Failed to remove book:", result.error);
           // Revert on error - refetch books
@@ -175,16 +184,25 @@ export function AuthenticatedHome() {
       } else {
         // Handle other status changes: move book to different list
         // First remove from currently_reading
-        const removeResult = await removeBookFromReadingList(bookId, "currently-reading");
+        const removeResult = await removeBookFromReadingList(
+          bookId,
+          "currently-reading"
+        );
         if (!removeResult.success) {
-          console.error("Failed to remove book from currently reading:", removeResult.error);
+          console.error(
+            "Failed to remove book from currently reading:",
+            removeResult.error
+          );
           return;
         }
 
         // Map BookStatus to BookAction
         // Note: "finished" status doesn't have a corresponding action in the current system
         // We'll just remove it from currently_reading for now
-        const statusToAction: Record<BookStatus, "up-next" | "did-not-finish" | null> = {
+        const statusToAction: Record<
+          BookStatus,
+          "up-next" | "did-not-finish" | null
+        > = {
           finished: null, // Finished books are just removed from currently reading
           paused: "up-next", // Paused books go to up-next
           "did-not-finish": "did-not-finish",
@@ -287,7 +305,56 @@ export function AuthenticatedHome() {
               onProgressUpdate={handleProgressUpdate}
               onStatusChange={handleStatusChange}
             />
-            <GoodreadsImport/>
+
+            {/* Goodreads Import - Collapsible Section */}
+            <div className="bg-card rounded-2xl border border-border overflow-hidden">
+              <button
+                onClick={() => setShowImport(!showImport)}
+                className="w-full p-6 flex items-center justify-between hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Upload className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Import from Goodreads
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Bring your reading history to Bookly
+                    </p>
+                  </div>
+                </div>
+                {showImport ? (
+                  <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                )}
+              </button>
+
+              {/* Collapsible Content */}
+              <div
+                className={cn(
+                  "overflow-hidden transition-all duration-300 ease-in-out",
+                  showImport
+                    ? "max-h-[2000px] opacity-100"
+                    : "max-h-0 opacity-0"
+                )}
+              >
+                <div className="px-6 pb-6 pt-0">
+                  <GoodreadsImport
+                    onImportComplete={(imported) => {
+                      // Refresh currently reading after import
+                      window.dispatchEvent(new CustomEvent("book-added"));
+                      // Optionally close the import section after successful import
+                      if (imported > 0) {
+                        setTimeout(() => setShowImport(false), 2000);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Reading Stats - Available to all */}
             <ReadingStats {...mockStats} />

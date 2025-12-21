@@ -249,7 +249,7 @@ export function BookSearch({ className }: BookSearchProps) {
       )}
 
       {/* Empty State - Before Search */}
-      {!hasSearched && (
+   {/*    {!hasSearched && (
         <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-border rounded-2xl bg-muted/30">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Search className="w-8 h-8 text-primary" />
@@ -259,7 +259,7 @@ export function BookSearch({ className }: BookSearchProps) {
             Search the database to discover millions of books.
           </p>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

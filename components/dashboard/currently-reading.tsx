@@ -56,6 +56,7 @@ export function CurrentlyReading({
           />
         ))}
       </div>
+      <Button >See in detail</Button>
     </DashboardCard>
   );
 }
