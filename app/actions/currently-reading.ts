@@ -3,10 +3,11 @@
 import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Book, ReadingProgress } from "@/types/database.types";
+import type { Book, ReadingProgress, UserBook } from "@/types/database.types";
 
 export interface BookWithProgress extends Book {
   progress?: ReadingProgress;
+  userBook?: UserBook;
 }
 
 export interface CurrentlyReadingResult {
@@ -22,6 +23,7 @@ export interface CurrentlyReadingError {
 
 /**
  * Get currently reading books for the authenticated user with progress data
+ * Now reads from user_books table as the single source of truth
  */
 export async function getCurrentlyReadingBooks(): Promise<
   CurrentlyReadingResult | CurrentlyReadingError
@@ -40,22 +42,24 @@ export async function getCurrentlyReadingBooks(): Promise<
       return { success: false, error: "You must be logged in" };
     }
 
-    // Get user's profile with currently_reading array
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("currently_reading")
-      .eq("id", user.id)
-      .single();
+    // Get user's currently reading books from user_books table
+    const { data: userBooks, error: userBooksError } = await supabase
+      .from("user_books")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("status", "currently_reading")
+      .order("date_added", { ascending: false });
 
-    if (profileError || !profile) {
-      return { success: false, error: "Profile not found" };
+    if (userBooksError) {
+      console.error("Error fetching user_books:", userBooksError);
+      return { success: false, error: "Failed to fetch reading list" };
     }
 
-    const bookIds = profile.currently_reading || [];
-
-    if (bookIds.length === 0) {
+    if (!userBooks || userBooks.length === 0) {
       return { success: true, books: [], total: 0 };
     }
+
+    const bookIds = userBooks.map((ub) => ub.book_id);
 
     // Fetch books by IDs
     const { data: books, error: booksError } = await supabase
@@ -80,23 +84,29 @@ export async function getCurrentlyReadingBooks(): Promise<
       // Continue without progress data
     }
 
-    // Create a map of progress by book_id
+    // Create maps for quick lookup
     const progressMap: Record<string, ReadingProgress> = {};
     for (const progress of progressList || []) {
       progressMap[progress.book_id] = progress;
     }
 
-    // Maintain the order from the profile array and attach progress
-    const orderedBooks: BookWithProgress[] = bookIds
-      .map((id: string) => {
-        const book = books?.find((b) => b.id === id);
+    const userBookMap: Record<string, UserBook> = {};
+    for (const ub of userBooks) {
+      userBookMap[ub.book_id] = ub;
+    }
+
+    // Build the result maintaining order from user_books
+    const orderedBooks: BookWithProgress[] = userBooks
+      .map((ub) => {
+        const book = books?.find((b) => b.id === ub.book_id);
         if (!book) return undefined;
         return {
           ...book,
-          progress: progressMap[id],
+          progress: progressMap[ub.book_id],
+          userBook: ub,
         };
       })
-      .filter((book:any): book is BookWithProgress => book !== undefined);
+      .filter((book): book is BookWithProgress => book !== undefined);
 
     return {
       success: true,
@@ -112,4 +122,3 @@ export async function getCurrentlyReadingBooks(): Promise<
     };
   }
 }
-

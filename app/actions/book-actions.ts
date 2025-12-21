@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 
 import type { BookAction } from "@/components/ui/book-actions";
 import { createClient } from "@/lib/supabase/server";
+import type { ReadingStatus } from "@/types/database.types";
 
 export interface BookActionResult {
   success: true;
@@ -16,7 +17,20 @@ export interface BookActionError {
 }
 
 /**
- * Add a book to a user's reading list
+ * Map BookAction to ReadingStatus
+ */
+function mapActionToStatus(action: BookAction): ReadingStatus {
+  const statusMap: Record<BookAction, ReadingStatus> = {
+    "to-read": "want_to_read",
+    "currently-reading": "currently_reading",
+    "up-next": "up_next",
+    "did-not-finish": "dnf",
+  };
+  return statusMap[action];
+}
+
+/**
+ * Add a book to a user's reading list using user_books table
  */
 export async function addBookToReadingList(
   bookId: string,
@@ -36,74 +50,56 @@ export async function addBookToReadingList(
       return { success: false, error: "You must be logged in" };
     }
 
-    // Get current profile
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
+    const status = mapActionToStatus(action);
+
+    // Check if book already exists in user_books
+    const { data: existingUserBook } = await supabase
+      .from("user_books")
+      .select("id, status")
+      .eq("user_id", user.id)
+      .eq("book_id", bookId)
       .single();
 
-    if (profileError || !profile) {
-      return { success: false, error: "Profile not found" };
-    }
+    if (existingUserBook) {
+      // If it exists and is already in the same status, return success
+      if (existingUserBook.status === status) {
+        return {
+          success: false,
+          error: `Book is already in your ${action.replace("-", " ")} list`,
+        };
+      }
+      // If it exists in a different status, update it
+      const { error: updateError } = await supabase
+        .from("user_books")
+      .update({
+        status,
+        date_started: status === "currently_reading" ? new Date().toISOString() : null,
+        date_finished: status === "finished" ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+        .eq("id", existingUserBook.id);
 
-    // Map action to profile field
-    const fieldMap: Record<
-      BookAction,
-      "want_to_read" | "currently_reading" | "up_next" | "did_not_finish"
-    > = {
-      "to-read": "want_to_read",
-      "currently-reading": "currently_reading",
-      "up-next": "up_next",
-      "did-not-finish": "did_not_finish",
-    };
+      if (updateError) {
+        console.error("Error updating user_book:", updateError);
+        return { success: false, error: "Failed to update reading list" };
+      }
+    } else {
+      // Insert new record
+      const { error: insertError } = await supabase.from("user_books").insert({
+        user_id: user.id,
+        book_id: bookId,
+        status,
+        date_added: new Date().toISOString(),
+        date_started: action === "currently-reading" ? new Date().toISOString() : null,
+      });
 
-    const field = fieldMap[action];
-    const currentArray = (profile[field] as string[]) || [];
-
-    // Check if book is already in the list
-    if (currentArray.includes(bookId)) {
-      return {
-        success: false,
-        error: `Book is already in your ${action.replace("-", " ")} list`,
-      };
-    }
-
-    // Remove book from other lists first (a book can only be in one list at a time)
-    const allFields: Array<
-      "want_to_read" | "currently_reading" | "up_next" | "did_not_finish"
-    > = ["want_to_read", "currently_reading", "up_next", "did_not_finish"];
-
-    const updates: {
-      want_to_read?: string[];
-      currently_reading?: string[];
-      up_next?: string[];
-      did_not_finish?: string[];
-    } = {};
-
-    // Remove from other lists
-    for (const otherField of allFields) {
-      if (otherField !== field) {
-        const otherArray = (profile[otherField] as string[]) || [];
-        updates[otherField] = otherArray.filter((id) => id !== bookId);
+      if (insertError) {
+        console.error("Error inserting user_book:", insertError);
+        return { success: false, error: "Failed to add book to reading list" };
       }
     }
 
-    // Add to the selected list
-    updates[field] = [...currentArray, bookId];
-
-    // Update profile
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", user.id);
-
-    if (updateError) {
-      console.error("Update profile error:", updateError);
-      return { success: false, error: "Failed to update reading list" };
-    }
-
-    // If adding to currently_reading, also create a reading progress entry
+    // If adding to currently_reading, also create/update reading progress
     if (action === "currently-reading") {
       const { error: progressError } = await supabase
         .from("reading_progress")
@@ -139,7 +135,7 @@ export async function addBookToReadingList(
 }
 
 /**
- * Remove a book from a user's reading list
+ * Remove a book from a user's reading list using user_books table
  */
 export async function removeBookFromReadingList(
   bookId: string,
@@ -159,57 +155,15 @@ export async function removeBookFromReadingList(
       return { success: false, error: "You must be logged in" };
     }
 
-    // Map action to profile field
-    const fieldMap: Record<
-      BookAction,
-      "want_to_read" | "currently_reading" | "up_next" | "did_not_finish"
-    > = {
-      "to-read": "want_to_read",
-      "currently-reading": "currently_reading",
-      "up-next": "up_next",
-      "did-not-finish": "did_not_finish",
-    };
+    // Delete the user_book record
+    const { error: deleteError } = await supabase
+      .from("user_books")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("book_id", bookId);
 
-    const field = fieldMap[action];
-
-    // Get current profile - select all fields to match the working pattern
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError || !profile) {
-      console.error("Error fetching profile:", profileError);
-      return { success: false, error: "Profile not found" };
-    }
-
-    // Access the field directly from the profile object
-    const currentArray = ((profile as Record<string, string[]>)[field] ||
-      []) as string[];
-    const updatedArray = currentArray.filter((id) => id !== bookId);
-
-    // Update profile
-    const { error: updateError, data: updatedProfile } = await supabase
-      .from("profiles")
-      .update({ [field]: updatedArray })
-      .eq("id", user.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error("Update profile error:", updateError);
-      return { success: false, error: "Failed to remove book from list" };
-    }
-
-    // Verify the update succeeded
-    if (!updatedProfile) {
-      console.error("Profile update returned no data");
-      return { success: false, error: "Failed to remove book from list" };
-    }
-
-    if (updateError) {
-      console.error("Update profile error:", updateError);
+    if (deleteError) {
+      console.error("Error deleting user_book:", deleteError);
       return { success: false, error: "Failed to remove book from list" };
     }
 
@@ -219,6 +173,120 @@ export async function removeBookFromReadingList(
     };
   } catch (error) {
     console.error("Remove book from reading list error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Update a user's book status
+ */
+export async function updateBookStatus(
+  bookId: string,
+  status: ReadingStatus
+): Promise<BookActionResult | BookActionError> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    const updateData: Record<string, unknown> = { status };
+
+    // Set appropriate dates based on status
+    if (status === "currently_reading") {
+      updateData.date_started = new Date().toISOString();
+    } else if (status === "finished") {
+      updateData.date_finished = new Date().toISOString();
+    }
+
+    const { error: updateError } = await supabase
+      .from("user_books")
+      .update(updateData)
+      .eq("user_id", user.id)
+      .eq("book_id", bookId);
+
+    if (updateError) {
+      console.error("Update user_book status error:", updateError);
+      return { success: false, error: "Failed to update book status" };
+    }
+
+    return {
+      success: true,
+      message: `Book status updated to ${status.replace("_", " ")}`,
+    };
+  } catch (error) {
+    console.error("Update book status error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Rate a book
+ */
+export async function rateBook(
+  bookId: string,
+  rating: number
+): Promise<BookActionResult | BookActionError> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    if (rating < 1 || rating > 5) {
+      return { success: false, error: "Rating must be between 1 and 5" };
+    }
+
+    // Update rating - upsert to handle if book isn't in library yet
+    const { error: updateError } = await supabase
+      .from("user_books")
+      .upsert(
+        {
+          user_id: user.id,
+          book_id: bookId,
+          rating,
+          status: "want_to_read", // Default status if book isn't in library
+        },
+        {
+          onConflict: "user_id,book_id",
+        }
+      );
+
+    if (updateError) {
+      console.error("Update user_book rating error:", updateError);
+      return { success: false, error: "Failed to rate book" };
+    }
+
+    return {
+      success: true,
+      message: `Book rated ${rating} stars`,
+    };
+  } catch (error) {
+    console.error("Rate book error:", error);
     return {
       success: false,
       error:

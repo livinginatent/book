@@ -6,14 +6,7 @@ import Papa from "papaparse";
 import { searchAndNormalizeBooks } from "@/lib/open-library";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { Book, BookInsert } from "@/types/database.types";
-
-export type ReadingStatus =
-  | "want_to_read"
-  | "currently_reading"
-  | "finished"
-  | "did_not_finish"
-  | "up_next";
+import type { Book, BookInsert, ReadingStatus } from "@/types/database.types";
 
 export type GoodreadsShelf =
   | "read"
@@ -97,13 +90,13 @@ function mapGoodreadsShelfToStatus(shelf: string): ReadingStatus {
     wishlist: "want_to_read",
     tbr: "want_to_read",
 
-    // Did not finish variations -> "did_not_finish"
-    dnf: "did_not_finish",
-    "did-not-finish": "did_not_finish",
-    "did not finish": "did_not_finish",
-    did_not_finish: "did_not_finish",
-    abandoned: "did_not_finish",
-    "gave-up": "did_not_finish",
+    // Did not finish variations -> "dnf"
+    dnf: "dnf",
+    "did-not-finish": "dnf",
+    "did not finish": "dnf",
+    did_not_finish: "dnf",
+    abandoned: "dnf",
+    "gave-up": "dnf",
 
     // Up next variations -> "up_next"
     "up-next": "up_next",
@@ -293,7 +286,7 @@ async function upsertUserBook(
       "want_to_read",
       "currently_reading",
       "finished",
-      "did_not_finish",
+      "dnf",
       "up_next",
     ];
 
@@ -308,7 +301,7 @@ async function upsertUserBook(
     const payload: any = {
       user_id: userId,
       book_id: bookId,
-      status: status,
+      status,
       rating: parsedBook.rating > 0 ? parsedBook.rating : null,
       updated_at: new Date().toISOString(),
     };

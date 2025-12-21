@@ -8,6 +8,13 @@ export type Json =
 
 export type SubscriptionTier = "free" | "bibliophile";
 
+export type ReadingStatus =
+  | "want_to_read"
+  | "currently_reading"
+  | "finished"
+  | "dnf"
+  | "up_next";
+
 export interface Database {
   public: {
     Tables: {
@@ -158,11 +165,56 @@ export interface Database {
           updated_at?: string;
         };
       };
+      user_books: {
+        Row: {
+          id: string;
+          user_id: string;
+          book_id: string;
+          status: ReadingStatus;
+          rating: number | null;
+          date_added: string;
+          date_started: string | null;
+          date_finished: string | null;
+          notes: string | null;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          book_id: string;
+          status?: ReadingStatus;
+          rating?: number | null;
+          date_added?: string;
+          date_started?: string | null;
+          date_finished?: string | null;
+          notes?: string | null;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          book_id?: string;
+          status?: ReadingStatus;
+          rating?: number | null;
+          date_added?: string;
+          date_started?: string | null;
+          date_finished?: string | null;
+          notes?: string | null;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {};
     Functions: {};
     Enums: {
       subscription_tier: SubscriptionTier;
+      reading_status: ReadingStatus;
     };
   };
 }
@@ -179,3 +231,7 @@ export type BookUpdate = Database["public"]["Tables"]["books"]["Update"];
 export type ReadingProgress = Database["public"]["Tables"]["reading_progress"]["Row"];
 export type ReadingProgressInsert = Database["public"]["Tables"]["reading_progress"]["Insert"];
 export type ReadingProgressUpdate = Database["public"]["Tables"]["reading_progress"]["Update"];
+
+export type UserBook = Database["public"]["Tables"]["user_books"]["Row"];
+export type UserBookInsert = Database["public"]["Tables"]["user_books"]["Insert"];
+export type UserBookUpdate = Database["public"]["Tables"]["user_books"]["Update"];
