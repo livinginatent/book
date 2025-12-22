@@ -417,6 +417,19 @@ export async function importGoodreadsBooks(
       }
     }
 
+    // Mark import as complete if at least one book was imported
+    if (imported > 0) {
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ has_imported_from_goodreads: true })
+        .eq("id", user.id);
+
+      if (updateError) {
+        console.error("Error updating import flag:", updateError);
+        // Don't fail the import if this update fails
+      }
+    }
+
     return {
       success: true,
       imported,

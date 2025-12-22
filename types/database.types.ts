@@ -34,6 +34,7 @@ export interface Database {
           currently_reading: string[];
           up_next: string[];
           did_not_finish: string[];
+          has_imported_from_goodreads: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -49,6 +50,7 @@ export interface Database {
           currently_reading?: string[];
           up_next?: string[];
           did_not_finish?: string[];
+          has_imported_from_goodreads?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -64,6 +66,7 @@ export interface Database {
           currently_reading?: string[];
           up_next?: string[];
           did_not_finish?: string[];
+          has_imported_from_goodreads?: boolean;
           created_at?: string;
           updated_at?: string;
         };

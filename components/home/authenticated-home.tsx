@@ -43,12 +43,32 @@ export function AuthenticatedHome() {
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const hasLoadedRef = useRef(false);
+  const hasInitializedImportRef = useRef(false);
 
   const displayName =
     profile?.username || user?.email?.split("@")[0] || "there";
 
   // Store user ID to use as stable dependency
   const userId = user?.id;
+
+  // Check if user has imported from Goodreads and should see highlight
+  const shouldHighlightImport =
+    profile !== null && !profile.has_imported_from_goodreads;
+
+  // Auto-expand the import section for new users on first load
+  useEffect(() => {
+    if (
+      shouldHighlightImport &&
+      !hasInitializedImportRef.current &&
+      !profileLoading
+    ) {
+      hasInitializedImportRef.current = true;
+      // Use requestAnimationFrame to defer state update
+      requestAnimationFrame(() => {
+        setShowImport(true);
+      });
+    }
+  }, [shouldHighlightImport, profileLoading]);
 
   // Fetch currently reading books - only once on mount or when user ID changes
   useEffect(() => {
@@ -101,13 +121,13 @@ export function AuthenticatedHome() {
         fetchBooks();
       }
     };
-    
+
     const handleStatusChange = () => {
       if (isMounted) {
         fetchBooks();
       }
     };
-    
+
     window.addEventListener("book-added", handleBookAdded);
     window.addEventListener("book-status-changed", handleStatusChange);
 
@@ -316,21 +336,47 @@ export function AuthenticatedHome() {
             />
 
             {/* Goodreads Import - Collapsible Section */}
-            <div className="bg-card rounded-2xl border border-border overflow-hidden">
+            <div
+              className={cn(
+                "bg-card rounded-2xl border overflow-hidden transition-all duration-500",
+                shouldHighlightImport
+                  ? "border-primary shadow-lg shadow-primary/20 animate-pulse"
+                  : "border-border"
+              )}
+            >
               <button
                 onClick={() => setShowImport(!showImport)}
                 className="w-full p-6 flex items-center justify-between hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <div
+                    className={cn(
+                      "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
+                      shouldHighlightImport
+                        ? "bg-primary/20 scale-110"
+                        : "bg-primary/10"
+                    )}
+                  >
                     <Upload className="w-6 h-6 text-primary" />
                   </div>
                   <div className="text-left">
-                    <h3 className="text-lg font-semibold text-foreground">
-                      Import from Goodreads
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-foreground">
+                        Import from Goodreads
+                      </h3>
+                      {shouldHighlightImport && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30">
+                          <Sparkles className="w-3 h-3 text-primary animate-pulse" />
+                          <span className="text-xs font-medium text-primary">
+                            New
+                          </span>
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">
-                      Bring your reading history to Bookly
+                      {shouldHighlightImport
+                        ? "Get started by importing your reading history"
+                        : "Bring your reading history to Bookly"}
                     </p>
                   </div>
                 </div>
@@ -352,11 +398,15 @@ export function AuthenticatedHome() {
               >
                 <div className="px-6 pb-6 pt-0">
                   <GoodreadsImport
-                    onImportComplete={(imported) => {
+                    onImportComplete={async (imported) => {
                       // Refresh currently reading after import
                       window.dispatchEvent(new CustomEvent("book-added"));
-                      // Optionally close the import section after successful import
+                      // Refresh profile to get updated import status
                       if (imported > 0) {
+                        window.dispatchEvent(
+                          new CustomEvent("profile-refresh")
+                        );
+                        // Optionally close the import section after successful import
                         setTimeout(() => setShowImport(false), 2000);
                       }
                     }}

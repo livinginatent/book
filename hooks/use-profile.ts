@@ -53,7 +53,16 @@ export function useProfile() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Listen for profile refresh events
+    const handleProfileRefresh = () => {
+      fetchProfile();
+    };
+    window.addEventListener("profile-refresh", handleProfileRefresh);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("profile-refresh", handleProfileRefresh);
+    };
   }, []);
 
   const isPremium = profile?.subscription_tier === "bibliophile";
