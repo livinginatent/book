@@ -58,6 +58,7 @@ export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
       finished: 0,
       dnf: 0,
       up_next: 0,
+      paused: 0
     };
 
     // Fetch all user_books for the user and count in memory
