@@ -87,7 +87,7 @@ export function Navbar() {
                 <Link href="/login">
                   <Button
                     variant="ghost"
-                    className="text-muted-foreground hover:text-foreground"
+                    className="text-muted-foreground  bg-transparent hover:bg-primary/90"
                   >
                     Sign in
                   </Button>

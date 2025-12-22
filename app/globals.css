@@ -56,7 +56,7 @@
   --secondary-foreground: 40 20% 90%;
   --muted: 25 12% 20%;
   --muted-foreground: 40 15% 60%;
-  --accent: 168 50% 45%; /* Teal - adjusted for dark backgrounds */
+  --accent: 168 20% 45%; /* Teal - adjusted for dark backgrounds */
   --accent-foreground: 0 0% 100%;
   --destructive: 0 72% 55%;
   --destructive-foreground: 0 0% 100%;

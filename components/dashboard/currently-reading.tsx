@@ -96,9 +96,9 @@ export function CurrentlyReading({
                 className="mt-auto pt-3"
               >
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="w-full text-xs rounded-xl"
+                  className="w-full text-xs rounded-xl text-white bg-primary hover:bg-primary/90"
                 >
                   See details
                 </Button>

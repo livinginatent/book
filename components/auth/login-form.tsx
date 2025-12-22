@@ -203,7 +203,7 @@ export function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center"
                   tabIndex={-1}
                 >
                   {showPassword ? (

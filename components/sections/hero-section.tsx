@@ -90,7 +90,7 @@ export function HeroSection() {
             <Button
               size="lg"
               variant="outline"
-              className="rounded-full px-8 py-6 text-lg border-2 hover:bg-secondary hover:text-black bg-transparent"
+              className="rounded-full px-8 py-6 text-lg border-2 hover:bg-secondary hover:text-white bg-transparent"
             >
               See how it works
             </Button>
