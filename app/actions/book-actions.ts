@@ -71,12 +71,14 @@ export async function addBookToReadingList(
       // If it exists in a different status, update it
       const { error: updateError } = await supabase
         .from("user_books")
-      .update({
-        status,
-        date_started: status === "currently_reading" ? new Date().toISOString() : null,
-        date_finished: status === "finished" ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      })
+        .update({
+          status,
+          date_started:
+            status === "currently_reading" ? new Date().toISOString() : null,
+          date_finished:
+            status === "finished" ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", existingUserBook.id);
 
       if (updateError) {
@@ -90,7 +92,8 @@ export async function addBookToReadingList(
         book_id: bookId,
         status,
         date_added: new Date().toISOString(),
-        date_started: action === "currently-reading" ? new Date().toISOString() : null,
+        date_started:
+          action === "currently-reading" ? new Date().toISOString() : null,
       });
 
       if (insertError) {
@@ -262,19 +265,17 @@ export async function rateBook(
     }
 
     // Update rating - upsert to handle if book isn't in library yet
-    const { error: updateError } = await supabase
-      .from("user_books")
-      .upsert(
-        {
-          user_id: user.id,
-          book_id: bookId,
-          rating,
-          status: "want_to_read", // Default status if book isn't in library
-        },
-        {
-          onConflict: "user_id,book_id",
-        }
-      );
+    const { error: updateError } = await supabase.from("user_books").upsert(
+      {
+        user_id: user.id,
+        book_id: bookId,
+        rating,
+        status: "want_to_read", // Default status if book isn't in library
+      },
+      {
+        onConflict: "user_id,book_id",
+      }
+    );
 
     if (updateError) {
       console.error("Update user_book rating error:", updateError);
