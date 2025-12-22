@@ -179,7 +179,9 @@ export function BookProgressEditor({
               <Minus className="w-4 h-4" />
             </button>
             <div className="text-center min-w-[100px]">
-              <span className="text-2xl font-bold text-foreground">{pages}</span>
+              <span className="text-2xl font-bold text-foreground">
+                {pages}
+              </span>
               <span className="text-muted-foreground text-sm">
                 {" "}
                 / {totalPages}
@@ -207,11 +209,7 @@ export function BookProgressEditor({
           </div>
 
           {/* Save Button */}
-          <Button
-            onClick={handleSave}
-            size="sm"
-            className="w-full rounded-xl"
-          >
+          <Button onClick={handleSave} size="sm" className="w-full rounded-xl">
             Save Progress
           </Button>
         </div>
@@ -241,10 +239,7 @@ export function BookProgressEditor({
           </div>
         </div>
       </div>
-    </div>
-    ,
+    </div>,
     document.body
   );
 }
-
-

@@ -4,11 +4,13 @@
 import { Search, Loader2, BookOpen, X, ChevronDown } from "lucide-react";
 import { useState, useTransition, useEffect, useRef } from "react";
 
+import { getUserBookStatuses } from "@/app/actions/book-actions";
 import { searchBooks } from "@/app/actions/books";
 import { BookAction } from "@/components/ui/book/book-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Book } from "@/types/database.types";
+import { useAuth } from "@/hooks/use-auth";
+import type { Book, ReadingStatus } from "@/types/database.types";
 
 import { BookSearchResultCard } from "./book-search-result-card";
 
@@ -23,6 +25,7 @@ const DEBOUNCE_DELAY = 500;
 const MIN_QUERY_LENGTH = 3;
 
 export function BookSearch({ className }: BookSearchProps) {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [displayedResults, setDisplayedResults] = useState<Book[]>([]);
   const [total, setTotal] = useState(0);
@@ -30,7 +33,28 @@ export function BookSearch({ className }: BookSearchProps) {
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [currentOffset, setCurrentOffset] = useState(0);
+  const [userBookStatuses, setUserBookStatuses] = useState<
+    Record<string, ReadingStatus>
+  >({});
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Listen for book status changes and refresh user book statuses
+  useEffect(() => {
+    const handleStatusChange = async () => {
+      if (user && displayedResults.length > 0) {
+        const bookIds = displayedResults.map((b) => b.id);
+        const statusesResult = await getUserBookStatuses(bookIds);
+        if (statusesResult && !("success" in statusesResult)) {
+          setUserBookStatuses(statusesResult);
+        }
+      }
+    };
+
+    window.addEventListener("book-status-changed", handleStatusChange);
+    return () => {
+      window.removeEventListener("book-status-changed", handleStatusChange);
+    };
+  }, [user, displayedResults]);
 
   // Debounced search effect
   useEffect(() => {
@@ -53,6 +77,7 @@ export function BookSearch({ className }: BookSearchProps) {
         setTotal(0);
         setHasSearched(false);
         setCurrentOffset(0);
+        setUserBookStatuses({});
       }
       return;
     }
@@ -72,10 +97,24 @@ export function BookSearch({ className }: BookSearchProps) {
         if (result.success) {
           setDisplayedResults(result.books);
           setTotal(result.total);
+
+          // Fetch user book statuses for these books
+          if (user && result.books.length > 0) {
+            const bookIds = result.books.map((b) => b.id);
+            const statusesResult = await getUserBookStatuses(bookIds);
+            if (statusesResult && !("success" in statusesResult)) {
+              setUserBookStatuses(statusesResult);
+            } else {
+              setUserBookStatuses({});
+            }
+          } else {
+            setUserBookStatuses({});
+          }
         } else {
           setError(result.error);
           setDisplayedResults([]);
           setTotal(0);
+          setUserBookStatuses({});
         }
       });
     }, DEBOUNCE_DELAY);
@@ -104,6 +143,18 @@ export function BookSearch({ className }: BookSearchProps) {
       if (result.success) {
         setDisplayedResults((prev) => [...prev, ...result.books]);
         setCurrentOffset(newOffset);
+
+        // Fetch user book statuses for newly loaded books
+        if (user && result.books.length > 0) {
+          const bookIds = result.books.map((b) => b.id);
+          const statusesResult = await getUserBookStatuses(bookIds);
+          if (statusesResult && !("success" in statusesResult)) {
+            setUserBookStatuses((prev) => ({
+              ...prev,
+              ...statusesResult,
+            }));
+          }
+        }
       }
     });
   };
@@ -206,7 +257,15 @@ export function BookSearch({ className }: BookSearchProps) {
                   <BookSearchResultCard
                     key={book.id}
                     book={book}
+                    userBookStatus={userBookStatuses[book.id]}
                     onAction={handleBookAction}
+                    onStatusChange={(bookId, newStatus) => {
+                      // Optimistically update the status in local state
+                      setUserBookStatuses((prev) => ({
+                        ...prev,
+                        [bookId]: newStatus,
+                      }));
+                    }}
                   />
                 ))}
               </div>

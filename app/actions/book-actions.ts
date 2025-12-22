@@ -205,12 +205,22 @@ export async function updateBookStatus(
       return { success: false, error: "You must be logged in" };
     }
 
-    const updateData: Record<string, unknown> = { status };
+    const updateData: Record<string, unknown> = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
 
     // Set appropriate dates based on status
     if (status === "currently_reading") {
       updateData.date_started = new Date().toISOString();
+      updateData.date_finished = null;
     } else if (status === "finished") {
+      updateData.date_finished = new Date().toISOString();
+    } else if (status === "paused") {
+      // Keep date_started but don't set date_finished
+      updateData.date_finished = null;
+    } else if (status === "dnf") {
+      // Did not finish - set finished date but keep status as dnf
       updateData.date_finished = new Date().toISOString();
     }
 
@@ -231,6 +241,60 @@ export async function updateBookStatus(
     };
   } catch (error) {
     console.error("Update book status error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Get user book statuses for multiple book IDs
+ * Returns a map of book_id -> ReadingStatus
+ */
+export async function getUserBookStatuses(
+  bookIds: string[]
+): Promise<Record<string, ReadingStatus> | BookActionError> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    if (bookIds.length === 0) {
+      return { success: false, error: "No book IDs provided" };
+    }
+
+    // Fetch user_books for these book IDs
+    const { data: userBooks, error: userBooksError } = await supabase
+      .from("user_books")
+      .select("book_id, status")
+      .eq("user_id", user.id)
+      .in("book_id", bookIds);
+
+    if (userBooksError) {
+      console.error("Error fetching user_books:", userBooksError);
+      return { success: false, error: "Failed to fetch user book statuses" };
+    }
+
+    // Create a map of book_id -> status
+    const statusMap: Record<string, ReadingStatus> = {};
+    for (const userBook of userBooks || []) {
+      statusMap[userBook.book_id] = userBook.status;
+    }
+
+    return statusMap;
+  } catch (error) {
+    console.error("Get user book statuses error:", error);
     return {
       success: false,
       error:

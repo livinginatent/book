@@ -95,17 +95,26 @@ export function AuthenticatedHome() {
 
     fetchBooks();
 
-    // Listen for book added event
+    // Listen for book added/status changed events
     const handleBookAdded = () => {
       if (isMounted) {
         fetchBooks();
       }
     };
+    
+    const handleStatusChange = () => {
+      if (isMounted) {
+        fetchBooks();
+      }
+    };
+    
     window.addEventListener("book-added", handleBookAdded);
+    window.addEventListener("book-status-changed", handleStatusChange);
 
     return () => {
       isMounted = false;
       window.removeEventListener("book-added", handleBookAdded);
+      window.removeEventListener("book-status-changed", handleStatusChange);
     };
   }, [userId]); // Use stable userId instead of user object
 

@@ -13,7 +13,8 @@ export type ReadingStatus =
   | "currently_reading"
   | "finished"
   | "dnf"
-  | "up_next";
+  | "up_next"
+  | "paused";
 
 export type ReadingFormat = "physical" | "ebook" | "audiobook";
 

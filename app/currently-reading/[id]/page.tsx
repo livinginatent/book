@@ -1,38 +1,47 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { DashboardCard } from "@/components/ui/dashboard-card";
+import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 
-import { SessionAnalytics } from "@/components/currently-reading/session-analytics";
 import {
-  QuickActions,
-  type QuickActionType,
-} from "@/components/currently-reading/quick-actions";
+  removeBookFromReadingList,
+  updateBookStatus,
+} from "@/app/actions/book-actions";
+import { getBookDetail } from "@/app/actions/book-detail";
+import {
+  getJournalEntries,
+  createJournalEntry,
+} from "@/app/actions/journal-actions";
+import { getReadingAnalytics } from "@/app/actions/reading-analytics";
+import { updateReadingFormat } from "@/app/actions/reading-format";
+import { updateReadingProgress } from "@/app/actions/reading-progress";
+import { getUpNextBooks } from "@/app/actions/up-next";
+import { BookDetailCard } from "@/components/currently-reading/book-details";
 import { PaceCalculator } from "@/components/currently-reading/pace-calculator";
+import { SessionAnalytics } from "@/components/currently-reading/session-analytics";
 import {
   BookProgressEditor,
   type BookStatus,
 } from "@/components/ui/book/book-progress-editor";
-import { JournalEntry, JournalEntryType, ReadingJournal } from "@/components/ui/reading-journal";
-import { BookDetailCard } from "@/components/currently-reading/book-details";
+import type { BookFormat } from "@/components/ui/book/format-badge";
+import { DashboardCard } from "@/components/ui/dashboard-card";
+import {
+  JournalEntry,
+  JournalEntryType,
+  ReadingJournal,
+} from "@/components/ui/reading-journal";
 import { ReadingStreak } from "@/components/ui/reading-streak";
 import { UpNextPreview } from "@/components/ui/up-next-preview";
-import { getBookDetail } from "@/app/actions/book-detail";
-import { getJournalEntries, createJournalEntry } from "@/app/actions/journal-actions";
-import { getReadingAnalytics } from "@/app/actions/reading-analytics";
-import { getUpNextBooks } from "@/app/actions/up-next";
-import { updateReadingProgress } from "@/app/actions/reading-progress";
-import { removeBookFromReadingList, addBookToReadingList } from "@/app/actions/book-actions";
-import { updateReadingFormat } from "@/app/actions/reading-format";
-import type { BookFormat } from "@/components/ui/book/format-badge";
+import { useAuth } from "@/hooks/use-auth";
+import type { ReadingStatus } from "@/types/database.types";
 
 export default function CurrentlyReadingDetailPage() {
   const params = useParams();
   const router = useRouter();
   const bookId = params.id as string;
+  const { user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,16 +65,30 @@ export default function CurrentlyReadingDetailPage() {
     weeklyData: { day: string; pages: number }[];
     totalReadingTime: string;
   } | null>(null);
-  const [upNextBooks, setUpNextBooks] = useState<Array<{
-    id: string;
-    title: string;
-    author: string;
-    cover: string;
-  }>>([]);
+  const [upNextBooks, setUpNextBooks] = useState<
+    Array<{
+      id: string;
+      title: string;
+      author: string;
+      cover: string;
+    }>
+  >([]);
   const [isProgressEditorOpen, setIsProgressEditorOpen] = useState(false);
+
+  // Redirect to home if user is not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/");
+    }
+  }, [user, authLoading, router]);
 
   // Fetch all data on mount
   useEffect(() => {
+    // Don't fetch if user is not authenticated
+    if (!user || authLoading) {
+      return;
+    }
+
     async function fetchData() {
       if (!bookId) {
         setError("Book ID is required");
@@ -103,7 +126,8 @@ export default function CurrentlyReadingDetailPage() {
           totalPages: bookData.page_count || 0,
           pagesRead: progress?.pages_read || 0,
           startDate,
-          format: (bookData.userBook?.reading_format as BookFormat) || "physical",
+          format:
+            (bookData.userBook?.reading_format as BookFormat) || "physical",
           moods: bookData.subjects?.slice(0, 3) || [],
           pace: "Medium-paced", // Can be calculated from analytics later
         });
@@ -134,9 +158,10 @@ export default function CurrentlyReadingDetailPage() {
     }
 
     fetchData();
-  }, [bookId]);
+  }, [bookId, user, authLoading]);
 
-  if (loading) {
+  // Show loading state while checking auth or loading book data
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -147,15 +172,17 @@ export default function CurrentlyReadingDetailPage() {
     );
   }
 
+  // Redirect if not authenticated (handled by useEffect, but show loading while redirecting)
+  if (!user) {
+    return null;
+  }
+
   if (error || !book) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-destructive mb-4">{error || "Book not found"}</p>
-          <Link
-            href="/"
-            className="text-primary hover:underline"
-          >
+          <Link href="/" className="text-primary hover:underline">
             Go back to home
           </Link>
         </div>
@@ -177,11 +204,6 @@ export default function CurrentlyReadingDetailPage() {
     } else {
       console.error("Failed to create journal entry:", result.error);
     }
-  };
-
-  const handleQuickAction = (action: QuickActionType) => {
-    console.log("Quick action:", action);
-    // TODO: Implement quick actions (e.g., mark as finished, add to favorites)
   };
 
   const handleProgressUpdate = async (pages: number) => {
@@ -219,36 +241,48 @@ export default function CurrentlyReadingDetailPage() {
   const handleStatusChange = async (status: BookStatus) => {
     if (status === "remove") {
       // Remove from currently reading
-      const result = await removeBookFromReadingList(bookId, "currently-reading");
+      const result = await removeBookFromReadingList(
+        bookId,
+        "currently-reading"
+      );
       if (result.success) {
         router.push("/");
-      } else {
-        console.error("Failed to remove book:", result.error);
       }
-    } else {
-      // Handle other status changes
-      const removeResult = await removeBookFromReadingList(bookId, "currently-reading");
-      if (!removeResult.success) {
-        console.error("Failed to remove book from currently reading:", removeResult.error);
-        return;
-      }
-
-      const statusToAction: Record<BookStatus, "up-next" | "did-not-finish" | null> = {
-        finished: null,
-        paused: "up-next",
-        "did-not-finish": "did-not-finish",
-        reading: null,
-        remove: null,
-      };
-
-      const action = statusToAction[status];
-      if (action) {
-        await addBookToReadingList(bookId, action);
-      }
-
-      router.push("/");
+      setIsProgressEditorOpen(false);
+      return;
     }
+
+    // Map BookStatus to ReadingStatus
+    const statusMap: Record<BookStatus, ReadingStatus | null> = {
+      finished: "finished",
+      paused: "paused",
+      "did-not-finish": "dnf",
+      reading: "currently_reading",
+      remove: null,
+    };
+
+    const readingStatus = statusMap[status];
+    if (!readingStatus) {
+      setIsProgressEditorOpen(false);
+      return;
+    }
+
+    // Update the book status
+    const result = await updateBookStatus(bookId, readingStatus);
+    if (!result.success) {
+      setIsProgressEditorOpen(false);
+      return;
+    }
+
+    // Close the modal first
     setIsProgressEditorOpen(false);
+
+    // Redirect to dashboard after a delay for finished and paused statuses
+    if (status === "finished" || status === "paused") {
+      setTimeout(() => {
+        router.push("/");
+      }, 500); // 500ms delay to allow modal to close smoothly
+    }
   };
 
   return (
@@ -284,9 +318,9 @@ export default function CurrentlyReadingDetailPage() {
         />
 
         {/* Quick Actions */}
-        <DashboardCard title="Quick Actions" className="mb-6">
+        {/* <DashboardCard title="Quick Actions" className="mb-6">
           <QuickActions onAction={handleQuickAction} />
-        </DashboardCard>
+        </DashboardCard> */}
 
         {/* Main Content Grid */}
         <div className="grid md:grid-cols-2 gap-6">

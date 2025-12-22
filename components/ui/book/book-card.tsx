@@ -65,15 +65,15 @@ export function BookCard({
       onClick={handleCardClick}
     >
       {/* Book Cover Container */}
-      <div className="relative aspect-[2/3] rounded-xl overflow-hidden shadow-lg shadow-foreground/10 mb-3">
-        {/* 2. Implementation of next/image */}
+      <div className="relative w-48 h-72 rounded-xl overflow-hidden shadow-lg shadow-foreground/10 mb-3">
+        {/* Fixed dimensions: 192px × 288px (maintains 2:3 aspect ratio) */}
         <Image
           src={cover || "/placeholder.svg"}
           alt={`Cover for ${title} by ${author}`}
-          fill // Uses the parent aspect ratio
-          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+          fill
+          sizes="192px"
           className="object-cover transition-transform duration-500 group-hover:scale-105"
-          priority={false} // Change to true if these cards are "above the fold"
+          priority={false}
         />
 
         {displayProgress !== undefined && displayProgress < 100 && (

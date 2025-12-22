@@ -30,6 +30,7 @@ export function Navbar() {
 
   const handleSignOut = async () => {
     await signOutClient();
+    router.push("/");
     router.refresh();
   };
 
