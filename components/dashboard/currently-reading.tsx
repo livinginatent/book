@@ -1,6 +1,7 @@
 "use client";
 
 import { BookOpen, Plus } from "lucide-react";
+import Link from "next/link";
 
 import { BookCard } from "@/components/ui/book-card";
 import type { BookStatus } from "@/components/ui/book-progress-editor";
@@ -43,20 +44,26 @@ export function CurrentlyReading({
     >
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {books.map((book) => (
-          <BookCard
-            key={book.id}
-            title={book.title}
-            author={book.author}
-            cover={book.cover}
-            pagesRead={book.pagesRead}
-            totalPages={book.totalPages}
-            editable
-            onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
-            onStatusChange={(status) => onStatusChange?.(book.id, status)}
-          />
+          <div key={book.id} className="flex flex-col h-full">
+            <BookCard
+              className="flex-1"
+              title={book.title}
+              author={book.author}
+              cover={book.cover}
+              pagesRead={book.pagesRead}
+              totalPages={book.totalPages}
+              editable
+              onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
+              onStatusChange={(status) => onStatusChange?.(book.id, status)}
+            />
+            <Link href={`/currently-reading/${book.id}`} className="mt-2">
+              <Button variant="outline" size="sm" className="w-full text-xs">
+                See details
+              </Button>
+            </Link>
+          </div>
         ))}
       </div>
-      <Button >See in detail</Button>
     </DashboardCard>
   );
 }

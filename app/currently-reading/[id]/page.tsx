@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { DashboardCard } from "@/components/ui/dashboard-card";
@@ -19,124 +20,233 @@ import { JournalEntry, JournalEntryType, ReadingJournal } from "@/components/ui/
 import { BookDetailCard } from "@/components/currently-reading/book-details";
 import { ReadingStreak } from "@/components/ui/reading-streak";
 import { UpNextPreview } from "@/components/ui/up-next-preview";
-
-// Mock data
-const mockBook = {
-  id: "1",
-  title: "The House in the Cerulean Sea",
-  author: "TJ Klune",
-  cover: "/fantasy-book-cover-cerulean-sea.jpg",
-  totalPages: 394,
-  pagesRead: 268,
-  startDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000),
-  format: "physical" as const,
-  series: { name: "Cerulean Chronicles", number: 1, total: 2 },
-  moods: ["Heartwarming", "Cozy", "Found Family"],
-  pace: "Medium-paced",
-};
-
-const mockJournalEntries: JournalEntry[] = [
-  {
-    id: "1",
-    type: "quote",
-    content: "Don't you wish you were free?",
-    page: 142,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: "2",
-    type: "note",
-    content:
-      "I love how the children each have such unique personalities. Lucy is my favorite so far!",
-    page: 98,
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: "3",
-    type: "prediction",
-    content: "I think Linus will end up staying on the island permanently.",
-    page: 200,
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-  },
-];
-
-const mockWeeklyData = [
-  { day: "Mon", pages: 35 },
-  { day: "Tue", pages: 42 },
-  { day: "Wed", pages: 28 },
-  { day: "Thu", pages: 55 },
-  { day: "Fri", pages: 20 },
-  { day: "Sat", pages: 48 },
-  { day: "Sun", pages: 32 },
-];
-
-const mockStreakData = [
-  { day: "M", active: true },
-  { day: "T", active: true },
-  { day: "W", active: true },
-  { day: "T", active: true },
-  { day: "F", active: false },
-  { day: "S", active: true },
-  { day: "S", active: true },
-];
-
-const mockUpNext = [
-  {
-    id: "1",
-    title: "Project Hail Mary",
-    author: "Andy Weir",
-    cover: "/sci-fi-book-cover-project-hail-mary.jpg",
-  },
-  {
-    id: "2",
-    title: "Babel",
-    author: "R.F. Kuang",
-    cover: "/dark-academia-book-cover-babel.jpg",
-  },
-  {
-    id: "3",
-    title: "Piranesi",
-    author: "Susanna Clarke",
-    cover: "/surreal-fantasy-book-cover-piranesi.jpg",
-  },
-];
+import { getBookDetail } from "@/app/actions/book-detail";
+import { getJournalEntries, createJournalEntry } from "@/app/actions/journal-actions";
+import { getReadingAnalytics } from "@/app/actions/reading-analytics";
+import { getUpNextBooks } from "@/app/actions/up-next";
+import { updateReadingProgress } from "@/app/actions/reading-progress";
+import { removeBookFromReadingList, addBookToReadingList } from "@/app/actions/book-actions";
+import type { BookFormat } from "@/components/ui/format-badge";
 
 export default function CurrentlyReadingDetailPage() {
-  const [book, setBook] = useState(mockBook);
-  const [journalEntries, setJournalEntries] = useState(mockJournalEntries);
+  const params = useParams();
+  const router = useRouter();
+  const bookId = params.id as string;
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [book, setBook] = useState<{
+    id: string;
+    title: string;
+    author: string;
+    cover: string;
+    totalPages: number;
+    pagesRead: number;
+    startDate: Date;
+    format: BookFormat;
+    series?: { name: string; number: number; total: number };
+    moods: string[];
+    pace: string;
+  } | null>(null);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [analytics, setAnalytics] = useState<{
+    pagesReadToday: number;
+    averagePagesPerDay: number;
+    weeklyData: { day: string; pages: number }[];
+    totalReadingTime: string;
+  } | null>(null);
+  const [upNextBooks, setUpNextBooks] = useState<Array<{
+    id: string;
+    title: string;
+    author: string;
+    cover: string;
+  }>>([]);
   const [isProgressEditorOpen, setIsProgressEditorOpen] = useState(false);
 
-  const averagePagesPerDay = 37;
+  // Fetch all data on mount
+  useEffect(() => {
+    async function fetchData() {
+      if (!bookId) {
+        setError("Book ID is required");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch book detail
+        const bookResult = await getBookDetail(bookId);
+        if (!bookResult.success) {
+          setError(bookResult.error);
+          setLoading(false);
+          return;
+        }
+
+        const bookData = bookResult.book;
+        const progress = bookData.progress;
+        const startDate = progress?.started_at
+          ? new Date(progress.started_at)
+          : new Date(bookData.userBook?.date_added || Date.now());
+
+        setBook({
+          id: bookData.id,
+          title: bookData.title,
+          author: bookData.authors?.join(", ") || "Unknown Author",
+          cover:
+            bookData.cover_url_medium ||
+            bookData.cover_url_large ||
+            bookData.cover_url_small ||
+            "",
+          totalPages: bookData.page_count || 0,
+          pagesRead: progress?.pages_read || 0,
+          startDate,
+          format: "physical", // Default format, can be stored in user_books later
+          moods: bookData.subjects?.slice(0, 3) || [],
+          pace: "Medium-paced", // Can be calculated from analytics later
+        });
+
+        // Fetch journal entries
+        const journalResult = await getJournalEntries(bookId);
+        if (journalResult.success) {
+          setJournalEntries(journalResult.entries);
+        }
+
+        // Fetch analytics
+        const analyticsResult = await getReadingAnalytics(bookId);
+        if (analyticsResult.success) {
+          setAnalytics(analyticsResult);
+        }
+
+        // Fetch up-next books
+        const upNextResult = await getUpNextBooks();
+        if (upNextResult.success) {
+          setUpNextBooks(upNextResult.books);
+        }
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError("Failed to load book data");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [bookId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading book details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !book) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-destructive mb-4">{error || "Book not found"}</p>
+          <Link
+            href="/"
+            className="text-primary hover:underline"
+          >
+            Go back to home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const averagePagesPerDay = analytics?.averagePagesPerDay || 0;
   const pagesRemaining = book.totalPages - book.pagesRead;
 
-  const handleAddJournalEntry = (
+  const handleAddJournalEntry = async (
     type: JournalEntryType,
     content: string,
     page?: number
   ) => {
-    const newEntry: JournalEntry = {
-      id: Date.now().toString(),
-      type,
-      content,
-      page,
-      createdAt: new Date(),
-    };
-    setJournalEntries((prev) => [newEntry, ...prev]);
+    const result = await createJournalEntry(bookId, type, content, page);
+    if (result.success) {
+      setJournalEntries((prev) => [result.entry, ...prev]);
+    } else {
+      console.error("Failed to create journal entry:", result.error);
+    }
   };
 
   const handleQuickAction = (action: QuickActionType) => {
     console.log("Quick action:", action);
-    // TODO: Implement quick actions
+    // TODO: Implement quick actions (e.g., mark as finished, add to favorites)
   };
 
-  const handleProgressUpdate = (pages: number) => {
-    setBook((prev) => ({ ...prev, pagesRead: pages }));
+  const handleProgressUpdate = async (pages: number) => {
+    // Optimistically update UI
+    setBook((prev) => (prev ? { ...prev, pagesRead: pages } : null));
+
+    // Update in database
+    const result = await updateReadingProgress(bookId, pages);
+    if (!result.success) {
+      console.error("Failed to update progress:", result.error);
+      // Revert on error - refetch book data
+      const bookResult = await getBookDetail(bookId);
+      if (bookResult.success) {
+        const bookData = bookResult.book;
+        const progress = bookData.progress;
+        setBook((prev) =>
+          prev
+            ? {
+                ...prev,
+                pagesRead: progress?.pages_read || 0,
+              }
+            : null
+        );
+      }
+    } else {
+      // Refresh analytics after progress update
+      const analyticsResult = await getReadingAnalytics(bookId);
+      if (analyticsResult.success) {
+        setAnalytics(analyticsResult);
+      }
+    }
     setIsProgressEditorOpen(false);
   };
 
-  const handleStatusChange = (status: BookStatus) => {
-    console.log("Status changed:", status);
-    // TODO: Implement status change
+  const handleStatusChange = async (status: BookStatus) => {
+    if (status === "remove") {
+      // Remove from currently reading
+      const result = await removeBookFromReadingList(bookId, "currently-reading");
+      if (result.success) {
+        router.push("/");
+      } else {
+        console.error("Failed to remove book:", result.error);
+      }
+    } else {
+      // Handle other status changes
+      const removeResult = await removeBookFromReadingList(bookId, "currently-reading");
+      if (!removeResult.success) {
+        console.error("Failed to remove book from currently reading:", removeResult.error);
+        return;
+      }
+
+      const statusToAction: Record<BookStatus, "up-next" | "did-not-finish" | null> = {
+        finished: null,
+        paused: "up-next",
+        "did-not-finish": "did-not-finish",
+        reading: null,
+        remove: null,
+      };
+
+      const action = statusToAction[status];
+      if (action) {
+        await addBookToReadingList(bookId, action);
+      }
+
+      router.push("/");
+    }
     setIsProgressEditorOpen(false);
   };
 
@@ -146,7 +256,7 @@ export default function CurrentlyReadingDetailPage() {
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-4">
           <Link
-            href="/authenticated-home"
+            href="/"
             className="p-2 rounded-xl hover:bg-muted transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -181,11 +291,21 @@ export default function CurrentlyReadingDetailPage() {
               description="Track your reading sessions"
             >
               <SessionAnalytics
-                pagesReadToday={32}
+                pagesReadToday={analytics?.pagesReadToday || 0}
                 dailyGoal={40}
                 averagePagesPerDay={averagePagesPerDay}
-                totalReadingTime="8h 24m"
-                weeklyData={mockWeeklyData}
+                totalReadingTime={analytics?.totalReadingTime || "0h 0m"}
+                weeklyData={
+                  analytics?.weeklyData || [
+                    { day: "Mon", pages: 0 },
+                    { day: "Tue", pages: 0 },
+                    { day: "Wed", pages: 0 },
+                    { day: "Thu", pages: 0 },
+                    { day: "Fri", pages: 0 },
+                    { day: "Sat", pages: 0 },
+                    { day: "Sun", pages: 0 },
+                  ]
+                }
               />
             </DashboardCard>
 
@@ -204,7 +324,15 @@ export default function CurrentlyReadingDetailPage() {
               <ReadingStreak
                 currentStreak={6}
                 longestStreak={14}
-                weekData={mockStreakData}
+                weekData={[
+                  { day: "M", active: (analytics?.pagesReadToday || 0) > 0 },
+                  { day: "T", active: false },
+                  { day: "W", active: false },
+                  { day: "T", active: false },
+                  { day: "F", active: false },
+                  { day: "S", active: false },
+                  { day: "S", active: false },
+                ]}
               />
             </DashboardCard>
 
@@ -220,7 +348,7 @@ export default function CurrentlyReadingDetailPage() {
             </DashboardCard>
 
             {/* Up Next */}
-            <UpNextPreview books={mockUpNext} />
+            <UpNextPreview books={upNextBooks} />
           </div>
         </div>
       </main>

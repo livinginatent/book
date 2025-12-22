@@ -209,12 +209,83 @@ export interface Database {
           updated_at?: string;
         };
       };
+      reading_journal: {
+        Row: {
+          id: string;
+          user_id: string;
+          book_id: string;
+          type: "note" | "quote" | "prediction";
+          content: string;
+          page: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          book_id: string;
+          type: "note" | "quote" | "prediction";
+          content: string;
+          page?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          book_id?: string;
+          type?: "note" | "quote" | "prediction";
+          content?: string;
+          page?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      reading_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          book_id: string;
+          pages_read: number;
+          duration_minutes: number | null;
+          session_date: string;
+          started_at: string;
+          ended_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          book_id: string;
+          pages_read?: number;
+          duration_minutes?: number | null;
+          session_date?: string;
+          started_at?: string;
+          ended_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          book_id?: string;
+          pages_read?: number;
+          duration_minutes?: number | null;
+          session_date?: string;
+          started_at?: string;
+          ended_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {};
     Functions: {};
     Enums: {
       subscription_tier: SubscriptionTier;
       reading_status: ReadingStatus;
+      journal_entry_type: "note" | "quote" | "prediction";
     };
   };
 }
@@ -235,3 +306,11 @@ export type ReadingProgressUpdate = Database["public"]["Tables"]["reading_progre
 export type UserBook = Database["public"]["Tables"]["user_books"]["Row"];
 export type UserBookInsert = Database["public"]["Tables"]["user_books"]["Insert"];
 export type UserBookUpdate = Database["public"]["Tables"]["user_books"]["Update"];
+
+export type ReadingJournal = Database["public"]["Tables"]["reading_journal"]["Row"];
+export type ReadingJournalInsert = Database["public"]["Tables"]["reading_journal"]["Insert"];
+export type ReadingJournalUpdate = Database["public"]["Tables"]["reading_journal"]["Update"];
+
+export type ReadingSession = Database["public"]["Tables"]["reading_sessions"]["Row"];
+export type ReadingSessionInsert = Database["public"]["Tables"]["reading_sessions"]["Insert"];
+export type ReadingSessionUpdate = Database["public"]["Tables"]["reading_sessions"]["Update"];
