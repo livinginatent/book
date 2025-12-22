@@ -10,6 +10,7 @@ import {
 } from "@/app/actions/book-actions";
 import { getCurrentlyReadingBooks } from "@/app/actions/currently-reading";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
+import { getReadingStats } from "@/app/actions/reading-stats";
 import { AdvancedInsights } from "@/components/dashboard/advanced-insights";
 import { BookRecommendations } from "@/components/dashboard/book-recommendations";
 import { CurrentlyReading } from "@/components/dashboard/currently-reading";
@@ -43,6 +44,12 @@ export function AuthenticatedHome() {
   >([]);
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [readingStats, setReadingStats] = useState<{
+    booksRead: number;
+    pagesRead: number;
+    readingStreak: number;
+    avgPagesPerDay: number;
+  } | null>(null);
   const hasLoadedRef = useRef(false);
   const hasInitializedImportRef = useRef(false);
 
@@ -71,14 +78,15 @@ export function AuthenticatedHome() {
     }
   }, [shouldHighlightImport, profileLoading]);
 
-  // Fetch currently reading books - only once on mount or when user ID changes
+  // Fetch currently reading books and reading stats - only once on mount or when user ID changes
   useEffect(() => {
     let isMounted = true;
 
-    async function fetchBooks() {
+    async function fetchData() {
       if (!userId) {
         setCurrentlyReadingBooks([]);
         setLoadingBooks(false);
+        setReadingStats(null);
         hasLoadedRef.current = false;
         return;
       }
@@ -89,10 +97,15 @@ export function AuthenticatedHome() {
         setLoadingBooks(true);
       }
 
-      const result = await getCurrentlyReadingBooks();
-      if (result.success && isMounted) {
+      // Fetch books and stats in parallel
+      const [booksResult, statsResult] = await Promise.all([
+        getCurrentlyReadingBooks(),
+        getReadingStats(),
+      ]);
+
+      if (booksResult.success && isMounted) {
         // Transform database books to component format
-        const transformedBooks: CurrentlyReadingBook[] = result.books.map(
+        const transformedBooks: CurrentlyReadingBook[] = booksResult.books.map(
           (book) => ({
             id: book.id,
             title: book.title,
@@ -107,25 +120,45 @@ export function AuthenticatedHome() {
           })
         );
         setCurrentlyReadingBooks(transformedBooks);
-        hasLoadedRef.current = true;
+      } else if (isMounted) {
+        setCurrentlyReadingBooks([]);
       }
+
+      if (statsResult.success && isMounted) {
+        setReadingStats({
+          booksRead: statsResult.booksRead,
+          pagesRead: statsResult.pagesRead,
+          readingStreak: statsResult.readingStreak,
+          avgPagesPerDay: statsResult.avgPagesPerDay,
+        });
+      } else if (isMounted) {
+        // Use default values if fetch fails
+        setReadingStats({
+          booksRead: 0,
+          pagesRead: 0,
+          readingStreak: 0,
+          avgPagesPerDay: 0,
+        });
+      }
+
       if (isMounted) {
         setLoadingBooks(false);
+        hasLoadedRef.current = true;
       }
     }
 
-    fetchBooks();
+    fetchData();
 
     // Listen for book added/status changed events
     const handleBookAdded = () => {
       if (isMounted) {
-        fetchBooks();
+        fetchData();
       }
     };
 
     const handleStatusChange = () => {
       if (isMounted) {
-        fetchBooks();
+        fetchData();
       }
     };
 
@@ -170,6 +203,17 @@ export function AuthenticatedHome() {
               totalPages: book.page_count || 0,
             }));
           setCurrentlyReadingBooks(transformedBooks);
+        }
+      } else {
+        // Refresh reading stats after successful progress update
+        const statsResult = await getReadingStats();
+        if (statsResult.success) {
+          setReadingStats({
+            booksRead: statsResult.booksRead,
+            pagesRead: statsResult.pagesRead,
+            readingStreak: statsResult.readingStreak,
+            avgPagesPerDay: statsResult.avgPagesPerDay,
+          });
         }
       }
     },
@@ -259,13 +303,6 @@ export function AuthenticatedHome() {
     },
     []
   );
-
-  const mockStats = {
-    booksRead: 12,
-    pagesRead: 3420,
-    readingStreak: 7,
-    avgPagesPerDay: 45,
-  };
 
   // Show loading skeleton while profile is loading
   if (profileLoading) {
@@ -419,7 +456,7 @@ export function AuthenticatedHome() {
             </div>
 
             {/* Reading Stats - Available to all */}
-            <ReadingStats {...mockStats} />
+            {readingStats && <ReadingStats {...readingStats} />}
 
             {/* Advanced Insights - Premium only */}
             <AdvancedInsights locked={isFree} />

@@ -37,6 +37,18 @@ export async function updateReadingProgress(
       return { success: false, error: "You must be logged in" };
     }
 
+    // Get existing progress to calculate pages read in this session
+    const { data: existingProgress } = await supabase
+      .from("reading_progress")
+      .select("pages_read")
+      .eq("user_id", user.id)
+      .eq("book_id", bookId)
+      .single();
+
+    const previousPages = existingProgress?.pages_read || 0;
+    const newPages = Math.max(0, pagesRead);
+    const pagesReadInSession = Math.max(0, newPages - previousPages);
+
     // Upsert reading progress
     const { data: progress, error: upsertError } = await supabase
       .from("reading_progress")
@@ -44,7 +56,7 @@ export async function updateReadingProgress(
         {
           user_id: user.id,
           book_id: bookId,
-          pages_read: Math.max(0, pagesRead),
+          pages_read: newPages,
         },
         {
           onConflict: "user_id,book_id",
@@ -56,6 +68,40 @@ export async function updateReadingProgress(
     if (upsertError) {
       console.error("Error updating reading progress:", upsertError);
       return { success: false, error: "Failed to update reading progress" };
+    }
+
+    // Create reading session if pages were read
+    if (pagesReadInSession > 0) {
+      const today = new Date().toISOString().split("T")[0];
+      
+      // Check if a session already exists for today
+      const { data: existingSession } = await supabase
+        .from("reading_sessions")
+        .select("id, pages_read")
+        .eq("user_id", user.id)
+        .eq("book_id", bookId)
+        .eq("session_date", today)
+        .single();
+
+      if (existingSession) {
+        // Update existing session
+        await supabase
+          .from("reading_sessions")
+          .update({
+            pages_read: existingSession.pages_read + pagesReadInSession,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingSession.id);
+      } else {
+        // Create new session
+        await supabase.from("reading_sessions").insert({
+          user_id: user.id,
+          book_id: bookId,
+          pages_read: pagesReadInSession,
+          session_date: today,
+          started_at: new Date().toISOString(),
+        });
+      }
     }
 
     return {

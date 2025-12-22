@@ -61,6 +61,7 @@ export default function CurrentlyReadingDetailPage() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [analytics, setAnalytics] = useState<{
     pagesReadToday: number;
+    dailyGoal: number;
     averagePagesPerDay: number;
     weeklyData: { day: string; pages: number }[];
     totalReadingTime: string;
@@ -333,7 +334,7 @@ export default function CurrentlyReadingDetailPage() {
             >
               <SessionAnalytics
                 pagesReadToday={analytics?.pagesReadToday || 0}
-                dailyGoal={40}
+                dailyGoal={analytics?.dailyGoal || 40}
                 averagePagesPerDay={averagePagesPerDay}
                 totalReadingTime={analytics?.totalReadingTime || "0h 0m"}
                 weeklyData={

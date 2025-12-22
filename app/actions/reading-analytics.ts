@@ -12,6 +12,7 @@ export interface WeeklyData {
 export interface ReadingAnalyticsResult {
   success: true;
   pagesReadToday: number;
+  dailyGoal: number;
   averagePagesPerDay: number;
   weeklyData: WeeklyData[];
   totalReadingTime: string; // Formatted as "Xh Ym"
@@ -50,11 +51,21 @@ export async function getReadingAnalytics(
       .eq("book_id", bookId)
       .single();
 
+    // Get user's daily goal
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("daily_reading_goal")
+      .eq("id", user.id)
+      .single();
+
+    const dailyGoal = profile?.daily_reading_goal || 40;
+
     if (progressError || !progress) {
       // Return default values if no progress exists
       return {
         success: true,
         pagesReadToday: 0,
+        dailyGoal,
         averagePagesPerDay: 0,
         weeklyData: [
           { day: "Mon", pages: 0 },
@@ -137,6 +148,7 @@ export async function getReadingAnalytics(
     return {
       success: true,
       pagesReadToday,
+      dailyGoal,
       averagePagesPerDay,
       weeklyData: reorderedWeeklyData,
       totalReadingTime,
