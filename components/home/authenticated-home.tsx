@@ -17,7 +17,7 @@ import { MoodTracker } from "@/components/dashboard/mood-tracker";
 import { PrivateShelves } from "@/components/dashboard/private-shelves";
 import { ReadingStats } from "@/components/dashboard/reading-stats";
 import { BookSearch } from "@/components/search/book-search";
-import type { BookStatus } from "@/components/ui/book-progress-editor";
+import type { BookStatus } from "@/components/ui/book/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";

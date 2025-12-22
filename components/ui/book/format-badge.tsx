@@ -1,7 +1,8 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { Book, Smartphone, Headphones } from "lucide-react";
+
+import { cn } from "@/lib/utils";
 
 export type BookFormat = "physical" | "ebook" | "audiobook";
 
@@ -58,3 +59,5 @@ export function FormatBadge({
     </button>
   );
 }
+
+

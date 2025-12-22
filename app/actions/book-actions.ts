@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 
-import type { BookAction } from "@/components/ui/book-actions";
+import type { BookAction } from "@/components/ui/book/book-actions";
 import { createClient } from "@/lib/supabase/server";
 import type { ReadingStatus } from "@/types/database.types";
 

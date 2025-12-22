@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { Star, BookOpen } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
 import { BookProgressEditor, BookStatus } from "./book-progress-editor";
 
 interface BookCardProps {
@@ -134,3 +136,5 @@ export function BookCard({
     </div>
   );
 }
+
+

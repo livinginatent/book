@@ -176,7 +176,7 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
                       )}
                       title={action.label}
                     >
-                      <Icon className="w-5 h-5 sm:w-4 sm:h-4" />
+                      <Icon className="w-5 h-5 sm:w-4 h-4" />
                     </button>
 
                     {/* Desktop Tooltip - Hidden on mobile, shown on hover */}
@@ -225,3 +225,5 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
     </div>
   );
 }
+
+

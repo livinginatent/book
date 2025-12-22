@@ -279,6 +279,35 @@ export interface Database {
           updated_at?: string;
         };
       };
+      shelves: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          type: "default" | "custom";
+          status: ReadingStatus | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          type?: "default" | "custom";
+          status?: ReadingStatus | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          type?: "default" | "custom";
+          status?: ReadingStatus | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {};
     Functions: {};
@@ -286,6 +315,7 @@ export interface Database {
       subscription_tier: SubscriptionTier;
       reading_status: ReadingStatus;
       journal_entry_type: "note" | "quote" | "prediction";
+      shelf_type: "default" | "custom";
     };
   };
 }
@@ -314,3 +344,7 @@ export type ReadingJournalUpdate = Database["public"]["Tables"]["reading_journal
 export type ReadingSession = Database["public"]["Tables"]["reading_sessions"]["Row"];
 export type ReadingSessionInsert = Database["public"]["Tables"]["reading_sessions"]["Insert"];
 export type ReadingSessionUpdate = Database["public"]["Tables"]["reading_sessions"]["Update"];
+
+export type Shelf = Database["public"]["Tables"]["shelves"]["Row"];
+export type ShelfInsert = Database["public"]["Tables"]["shelves"]["Insert"];
+export type ShelfUpdate = Database["public"]["Tables"]["shelves"]["Update"];

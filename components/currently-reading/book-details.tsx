@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { MoodTag } from "@/components/ui/mood-tag";
 import { cn } from "@/lib/utils";
-import { BookFormat, FormatBadge } from "../ui/format-badge";
+import { BookFormat, FormatBadge } from "@/components/ui/book/format-badge";
 
 
 

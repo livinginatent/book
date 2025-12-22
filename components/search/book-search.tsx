@@ -5,7 +5,7 @@ import { Search, Loader2, BookOpen, X, ChevronDown } from "lucide-react";
 import { useState, useTransition, useEffect, useRef } from "react";
 
 import { searchBooks } from "@/app/actions/books";
-import { BookAction } from "@/components/ui/book-actions";
+import { BookAction } from "@/components/ui/book/book-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Book } from "@/types/database.types";

@@ -2,7 +2,7 @@
 
 import { BookOpen, Flame, Calendar, Trophy } from "lucide-react";
 
-import { BookCard } from "@/components/ui/book-card";
+import { BookCard } from "@/components/ui/book/book-card";
 import { SectionHeading } from "@/components/ui/section-heading";
 
 import { StatCard } from "../ui/stat-card";

@@ -15,7 +15,7 @@ import { PaceCalculator } from "@/components/currently-reading/pace-calculator";
 import {
   BookProgressEditor,
   type BookStatus,
-} from "@/components/ui/book-progress-editor";
+} from "@/components/ui/book/book-progress-editor";
 import { JournalEntry, JournalEntryType, ReadingJournal } from "@/components/ui/reading-journal";
 import { BookDetailCard } from "@/components/currently-reading/book-details";
 import { ReadingStreak } from "@/components/ui/reading-streak";
@@ -26,7 +26,7 @@ import { getReadingAnalytics } from "@/app/actions/reading-analytics";
 import { getUpNextBooks } from "@/app/actions/up-next";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
 import { removeBookFromReadingList, addBookToReadingList } from "@/app/actions/book-actions";
-import type { BookFormat } from "@/components/ui/format-badge";
+import type { BookFormat } from "@/components/ui/book/format-badge";
 
 export default function CurrentlyReadingDetailPage() {
   const params = useParams();

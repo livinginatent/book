@@ -5,8 +5,8 @@ import { BookMarked, BookOpen, BookX, Calendar, FileText, ListPlus } from "lucid
 import Image from "next/image";
 import { useState } from "react";
 
-import { BookAction, BookActionMenu } from "@/components/ui/book-actions";
-import { GenreTag } from "@/components/ui/genre-tag";
+import { BookAction, BookActionMenu } from "@/components/ui/book/book-actions";
+import { GenreTag } from "@/components/ui/book/genre-tag";
 import { cn } from "@/lib/utils";
 import type { Book } from "@/types/database.types";
 

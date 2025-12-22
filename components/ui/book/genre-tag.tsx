@@ -43,3 +43,5 @@ export function GenreTag({ genre, className }: GenreTagProps) {
     </span>
   );
 }
+
+

@@ -3,8 +3,8 @@
 import { BookOpen, Plus } from "lucide-react";
 import Link from "next/link";
 
-import { BookCard } from "@/components/ui/book-card";
-import type { BookStatus } from "@/components/ui/book-progress-editor";
+import { BookCard } from "@/components/ui/book/book-card";
+import type { BookStatus } from "@/components/ui/book/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 
