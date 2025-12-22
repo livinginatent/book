@@ -1,14 +1,13 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { Calendar, BookOpen, Clock, Hash } from "lucide-react";
-import { useState } from "react";
+import { Calendar, BookOpen, Clock,  CheckCircle2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 
+import { BookFormat, FormatBadge } from "@/components/ui/book/format-badge";
 import { Button } from "@/components/ui/button";
 import { MoodTag } from "@/components/ui/mood-tag";
 import { cn } from "@/lib/utils";
-import { BookFormat, FormatBadge } from "@/components/ui/book/format-badge";
-
-
 
 interface BookDetailCardProps {
   book: {
@@ -38,14 +37,45 @@ export function BookDetailCard({
   className,
 }: BookDetailCardProps) {
   const [selectedFormat, setSelectedFormat] = useState<BookFormat>(book.format);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const isUserUpdateRef = useRef(false);
+
+  // Sync format when book prop changes (but not if user just updated it)
+  // Note: Syncing state from props in useEffect is necessary here for prop updates
+  useEffect(() => {
+    if (!isUserUpdateRef.current) {
+      setSelectedFormat(book.format);
+    }
+    isUserUpdateRef.current = false;
+  }, [book.format]);
+
+  // Hide success message after 2 seconds
+  useEffect(() => {
+    if (showSuccessMessage) {
+      const timer = setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessMessage]);
+
   const progress = Math.round((book.pagesRead / book.totalPages) * 100);
   const daysReading = Math.ceil(
     (new Date().getTime() - book.startDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  const handleFormatChange = (format: BookFormat) => {
+  const handleFormatChange = async (format: BookFormat) => {
+    // Mark that this is a user update
+    isUserUpdateRef.current = true;
+
+    // Optimistically update UI
     setSelectedFormat(format);
-    onFormatChange?.(format);
+
+    // Call parent handler (which will call the server action)
+    await onFormatChange?.(format);
+
+    // Show success message
+    setShowSuccessMessage(true);
   };
 
   return (
@@ -113,7 +143,15 @@ export function BookDetailCard({
 
         {/* Format Switcher */}
         <div className="mb-4">
-          <p className="text-xs text-muted-foreground mb-2">Reading format</p>
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-xs text-muted-foreground">Reading format</p>
+            {showSuccessMessage && (
+              <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 animate-in fade-in slide-in-from-top-1 duration-200">
+                <CheckCircle2 className="w-3 h-3" />
+                <span>Saved</span>
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             {(["physical", "ebook", "audiobook"] as BookFormat[]).map(
               (format) => (
@@ -142,7 +180,6 @@ export function BookDetailCard({
         </div>
 
         <Button onClick={onUpdateProgress} className="mt-4 md:w-fit">
-          <Hash className="w-4 h-4 mr-2" />
           Update Progress
         </Button>
       </div>

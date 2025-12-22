@@ -26,6 +26,7 @@ import { getReadingAnalytics } from "@/app/actions/reading-analytics";
 import { getUpNextBooks } from "@/app/actions/up-next";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
 import { removeBookFromReadingList, addBookToReadingList } from "@/app/actions/book-actions";
+import { updateReadingFormat } from "@/app/actions/reading-format";
 import type { BookFormat } from "@/components/ui/book/format-badge";
 
 export default function CurrentlyReadingDetailPage() {
@@ -102,7 +103,7 @@ export default function CurrentlyReadingDetailPage() {
           totalPages: bookData.page_count || 0,
           pagesRead: progress?.pages_read || 0,
           startDate,
-          format: "physical", // Default format, can be stored in user_books later
+          format: (bookData.userBook?.reading_format as BookFormat) || "physical",
           moods: bookData.subjects?.slice(0, 3) || [],
           pace: "Medium-paced", // Can be calculated from analytics later
         });
@@ -273,6 +274,12 @@ export default function CurrentlyReadingDetailPage() {
             pagesRemaining / averagePagesPerDay
           )} days`}
           onUpdateProgress={() => setIsProgressEditorOpen(true)}
+          onFormatChange={async (format) => {
+            const result = await updateReadingFormat(bookId, format);
+            if (result.success) {
+              setBook((prev) => (prev ? { ...prev, format } : null));
+            }
+          }}
           className="mb-8"
         />
 

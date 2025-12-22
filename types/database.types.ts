@@ -15,6 +15,8 @@ export type ReadingStatus =
   | "dnf"
   | "up_next";
 
+export type ReadingFormat = "physical" | "ebook" | "audiobook";
+
 export interface Database {
   public: {
     Tables: {
@@ -172,6 +174,7 @@ export interface Database {
           book_id: string;
           status: ReadingStatus;
           rating: number | null;
+          reading_format: ReadingFormat | null;
           date_added: string;
           date_started: string | null;
           date_finished: string | null;
@@ -186,6 +189,7 @@ export interface Database {
           book_id: string;
           status?: ReadingStatus;
           rating?: number | null;
+          reading_format?: ReadingFormat | null;
           date_added?: string;
           date_started?: string | null;
           date_finished?: string | null;
@@ -200,6 +204,7 @@ export interface Database {
           book_id?: string;
           status?: ReadingStatus;
           rating?: number | null;
+          reading_format?: ReadingFormat | null;
           date_added?: string;
           date_started?: string | null;
           date_finished?: string | null;

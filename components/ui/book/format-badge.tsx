@@ -49,7 +49,7 @@ export function FormatBadge({
       className={cn(
         "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
         selectable ? "cursor-pointer hover:scale-105" : "cursor-default",
-        selected ? "ring-2 ring-primary ring-offset-2" : "",
+        selected ? "ring-1 ring-primary ring-offset-2" : "",
         config.color,
         className
       )}
