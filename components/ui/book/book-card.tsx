@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image"; // 1. Import Next Image
 import { Star, BookOpen } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-
 import { BookProgressEditor, BookStatus } from "./book-progress-editor";
 
 interface BookCardProps {
@@ -36,7 +36,6 @@ export function BookCard({
 }: BookCardProps) {
   const [isEditing, setIsEditing] = useState(false);
 
-  // Calculate progress from pages if not provided directly
   const displayProgress =
     progress ??
     (totalPages > 0 ? Math.round((pagesRead / totalPages) * 100) : 0);
@@ -65,16 +64,20 @@ export function BookCard({
       )}
       onClick={handleCardClick}
     >
-      {/* Book Cover */}
+      {/* Book Cover Container */}
       <div className="relative aspect-[2/3] rounded-xl overflow-hidden shadow-lg shadow-foreground/10 mb-3">
-        <img
+        {/* 2. Implementation of next/image */}
+        <Image
           src={cover || "/placeholder.svg"}
-          alt={title}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          alt={`Cover for ${title} by ${author}`}
+          fill // Uses the parent aspect ratio
+          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
+          priority={false} // Change to true if these cards are "above the fold"
         />
 
         {displayProgress !== undefined && displayProgress < 100 && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-foreground/80 to-transparent p-3">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-foreground/80 to-transparent p-3 z-10">
             <div className="flex items-center gap-2 text-background text-sm">
               <BookOpen className="w-4 h-4" />
               <span>
@@ -91,7 +94,7 @@ export function BookCard({
         )}
 
         {editable && !isEditing && (
-          <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
+          <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center z-10">
             <span className="opacity-0 group-hover:opacity-100 transition-opacity text-xs font-medium text-background bg-foreground/70 px-2 py-1 rounded-lg">
               Tap to edit
             </span>
@@ -117,9 +120,9 @@ export function BookCard({
       <p className="text-sm text-muted-foreground mb-1">{author}</p>
 
       {/* Rating */}
-      {rating && (
-        <div className="flex items-center gap-1">
-          {[...Array(5)].map((_, i) => (
+      <div className="mt-1 min-h-[18px] flex items-center gap-1">
+        {rating &&
+          [...Array(5)].map((_, i) => (
             <Star
               key={i}
               className={cn(
@@ -130,11 +133,10 @@ export function BookCard({
               )}
             />
           ))}
+        {rating && (
           <span className="text-xs text-muted-foreground ml-1">{rating}</span>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
-
-

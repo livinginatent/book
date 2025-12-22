@@ -72,7 +72,8 @@ cross join (
     ('Currently Reading', 'currently_reading'::reading_status),
     ('Want to Read', 'want_to_read'::reading_status),
     ('Up Next', 'up_next'::reading_status),
-    ('Did Not Finish', 'dnf'::reading_status)
+    ('Did Not Finish', 'dnf'::reading_status),
+    ('Finished', 'finished'::reading_status)
 ) as s(name, status)
 where not exists (
   select 1

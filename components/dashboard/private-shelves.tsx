@@ -32,14 +32,18 @@ export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadShelves() {
+    let isMounted = true;
+
+    async function initialLoad() {
       if (locked) {
-        setLoading(false);
+        if (isMounted) setLoading(false);
         return;
       }
 
-      setLoading(true);
+      if (isMounted) setLoading(true);
       const result = await getShelves();
+      if (!isMounted) return;
+
       if (result.success) {
         setDefaultShelves(
           result.defaultShelves.map((shelf) => ({
@@ -62,10 +66,55 @@ export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
       } else {
         console.error("Failed to load shelves:", result.error);
       }
-      setLoading(false);
+      if (isMounted) setLoading(false);
     }
 
-    loadShelves();
+    initialLoad();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [locked]);
+
+  // Refresh shelves when books are added/changed elsewhere
+  useEffect(() => {
+    let isMounted = true;
+
+    const handler = async () => {
+      if (!isMounted || locked) return;
+
+      const result = await getShelves();
+      if (!isMounted) return;
+
+      if (result.success) {
+        setDefaultShelves(
+          result.defaultShelves.map((shelf) => ({
+            id: shelf.id,
+            name: shelf.name,
+            type: shelf.type,
+            bookCount: shelf.book_count,
+            status: shelf.status,
+          }))
+        );
+        setCustomShelves(
+          result.customShelves.map((shelf) => ({
+            id: shelf.id,
+            name: shelf.name,
+            type: shelf.type,
+            bookCount: shelf.book_count,
+            status: shelf.status,
+          }))
+        );
+      } else {
+        console.error("Failed to refresh shelves:", result.error);
+      }
+    };
+
+    window.addEventListener("book-added", handler);
+    return () => {
+      isMounted = false;
+      window.removeEventListener("book-added", handler);
+    };
   }, [locked]);
 
   const handleCreateShelf = (e: React.FormEvent) => {
