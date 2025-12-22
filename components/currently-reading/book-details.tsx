@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { Calendar, BookOpen, Clock,  CheckCircle2 } from "lucide-react";
+import { Calendar, BookOpen, Clock, CheckCircle2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
 import { BookFormat, FormatBadge } from "@/components/ui/book/format-badge";
