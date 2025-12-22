@@ -18,10 +18,10 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 import { updateBookStatus } from "@/app/actions/book-actions";
-import { BookAction, BookActionMenu } from "@/components/ui/book/book-actions";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { BookAction, BookActionMenu } from "@/components/ui/book/book-actions";
 import { GenreTag } from "@/components/ui/book/genre-tag";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Book, ReadingStatus } from "@/types/database.types";
 
@@ -118,6 +118,10 @@ export function BookSearchResultCard({
   const [isHovered, setIsHovered] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [finishedDate, setFinishedDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
   const [optimisticStatus, setOptimisticStatus] = useState<
     ReadingStatus | undefined
   >(userBookStatus);
@@ -130,6 +134,14 @@ export function BookSearchResultCard({
   useEffect(() => {
     setOptimisticStatus(userBookStatus);
   }, [userBookStatus]);
+
+  // Reset date picker when modal closes
+  useEffect(() => {
+    if (!showModal) {
+      setShowDatePicker(false);
+      setFinishedDate(new Date().toISOString().split("T")[0]);
+    }
+  }, [showModal]);
 
   const coverUrl =
     book.cover_url_large || book.cover_url_medium || book.cover_url_small;
@@ -154,15 +166,25 @@ export function BookSearchResultCard({
     }
   };
 
-  const handleStatusChange = async (newStatus: ReadingStatus) => {
+  const handleStatusChange = async (
+    newStatus: ReadingStatus,
+    date?: string
+  ) => {
+    if (newStatus === "finished" && !date) {
+      // Show date picker instead of immediately updating
+      setShowDatePicker(true);
+      return;
+    }
+
     // Optimistically update local state
     setOptimisticStatus(newStatus);
     setShowModal(false);
+    setShowDatePicker(false);
 
     // Notify parent component for optimistic update
     onStatusChange?.(book.id, newStatus);
 
-    const result = await updateBookStatus(book.id, newStatus);
+    const result = await updateBookStatus(book.id, newStatus, date);
     if (result.success) {
       // Dispatch events to refresh UI components
       window.dispatchEvent(
@@ -186,6 +208,17 @@ export function BookSearchResultCard({
       // Revert optimistic update on error
       setOptimisticStatus(userBookStatus);
     }
+  };
+
+  const handleDateConfirm = async () => {
+    // Convert date string to ISO string (end of day in user's timezone)
+    const date = new Date(finishedDate);
+    date.setHours(23, 59, 59, 999);
+    await handleStatusChange("finished", date.toISOString());
+  };
+
+  const handleDateCancel = () => {
+    setShowDatePicker(false);
   };
 
   const modalContent =
@@ -246,73 +279,118 @@ export function BookSearchResultCard({
                   </Badge>
                 </div>
 
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Change Status
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {currentStatus !== "currently_reading" && (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleStatusChange("currently_reading")}
-                        className="justify-start"
-                      >
-                        <BookOpen className="w-4 h-4 mr-2" />
-                        Start Reading
-                      </Button>
-                    )}
-                    {currentStatus !== "finished" && (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleStatusChange("finished")}
-                        className="justify-start"
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                        Mark Finished
-                      </Button>
-                    )}
-                    {currentStatus !== "paused" && (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleStatusChange("paused")}
-                        className="justify-start"
-                      >
-                        <Pause className="w-4 h-4 mr-2" />
-                        Pause
-                      </Button>
-                    )}
-                    {currentStatus !== "want_to_read" && (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleStatusChange("want_to_read")}
-                        className="justify-start"
-                      >
-                        <BookMarked className="w-4 h-4 mr-2" />
-                        Want to Read
-                      </Button>
-                    )}
-                    {currentStatus !== "up_next" && (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleStatusChange("up_next")}
-                        className="justify-start"
-                      >
-                        <ListPlus className="w-4 h-4 mr-2" />
-                        Up Next
-                      </Button>
-                    )}
-                    {currentStatus !== "dnf" && (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleStatusChange("dnf")}
-                        className="justify-start"
-                      >
-                        <BookX className="w-4 h-4 mr-2" />
-                        Did Not Finish
-                      </Button>
-                    )}
+                {/* Date Picker for Finished Status */}
+                {showDatePicker ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-primary" />
+                      <p className="text-sm font-medium text-foreground">
+                        When did you finish reading?
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="date"
+                        value={finishedDate}
+                        onChange={(e) => setFinishedDate(e.target.value)}
+                        className={cn(
+                          "w-full px-3 py-2 rounded-lg border border-border",
+                          "bg-background text-foreground",
+                          "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                          "transition-all"
+                        )}
+                        max={new Date().toISOString().split("T")[0]}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleDateConfirm}
+                          size="sm"
+                          className="flex-1 rounded-xl"
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          onClick={handleDateCancel}
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 rounded-xl"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Change Status
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {currentStatus !== "currently_reading" && (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            handleStatusChange("currently_reading")
+                          }
+                          className="justify-start"
+                        >
+                          <BookOpen className="w-4 h-4 mr-2" />
+                          Start Reading
+                        </Button>
+                      )}
+                      {currentStatus !== "finished" && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleStatusChange("finished")}
+                          className="justify-start"
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Mark Finished
+                        </Button>
+                      )}
+                      {currentStatus !== "paused" && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleStatusChange("paused")}
+                          className="justify-start"
+                        >
+                          <Pause className="w-4 h-4 mr-2" />
+                          Pause
+                        </Button>
+                      )}
+                      {currentStatus !== "want_to_read" && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleStatusChange("want_to_read")}
+                          className="justify-start"
+                        >
+                          <BookMarked className="w-4 h-4 mr-2" />
+                          Want to Read
+                        </Button>
+                      )}
+                      {currentStatus !== "up_next" && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleStatusChange("up_next")}
+                          className="justify-start"
+                        >
+                          <ListPlus className="w-4 h-4 mr-2" />
+                          Up Next
+                        </Button>
+                      )}
+                      {currentStatus !== "dnf" && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleStatusChange("dnf")}
+                          className="justify-start"
+                        >
+                          <BookX className="w-4 h-4 mr-2" />
+                          Did Not Finish
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {currentStatus === "currently_reading" && (
                   <Link href={`/currently-reading/${book.id}`}>

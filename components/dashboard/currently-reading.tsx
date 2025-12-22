@@ -21,7 +21,7 @@ interface Book {
 interface CurrentlyReadingProps {
   books: Book[];
   onProgressUpdate?: (bookId: string, pages: number) => void;
-  onStatusChange?: (bookId: string, status: BookStatus) => void;
+  onStatusChange?: (bookId: string, status: BookStatus, date?: string) => void;
 }
 
 export function CurrentlyReading({
@@ -73,7 +73,7 @@ export function CurrentlyReading({
               /* 1. Changed: Added 'flex flex-col' to the wrapper 
                  2. Added 'min-h-full' to ensure cards match height if parent allows 
               */
-              className="flex flex-col min-w-[70%] sm:min-w-[45%] lg:min-w-[22%] "
+              className="flex flex-col min-w-[70%] sm:min-w-[45%] lg:min-w-[22%]"
             >
               <BookCard
                 /* 3. Added 'flex-1': This forces the BookCard to grow and 
@@ -87,18 +87,18 @@ export function CurrentlyReading({
                 totalPages={book.totalPages}
                 editable
                 onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
-                onStatusChange={(status) => onStatusChange?.(book.id, status)}
+                onStatusChange={(status, date) => onStatusChange?.(book.id, status, date)}
               />
 
               {/* 4. 'mt-auto' ensures this stays at the very bottom of the flex column */}
               <Link
                 href={`/currently-reading/${book.id}`}
-                className="mt-auto pt-3"
+                className="mt-auto pt-3 "
               >
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full text-xs rounded-xl text-white bg-primary hover:bg-primary/90"
+                  className="w-32 text-xs rounded-xl text-white bg-primary hover:bg-primary/90"
                 >
                   See details
                 </Button>

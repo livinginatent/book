@@ -17,7 +17,7 @@ interface BookCardProps {
   totalPages?: number;
   className?: string;
   onProgressUpdate?: (pages: number) => void;
-  onStatusChange?: (status: BookStatus) => void;
+  onStatusChange?: (status: BookStatus, date?: string) => void;
   editable?: boolean;
 }
 
@@ -50,8 +50,8 @@ export function BookCard({
     onProgressUpdate?.(pages);
   };
 
-  const handleStatusChange = (status: BookStatus) => {
-    onStatusChange?.(status);
+  const handleStatusChange = (status: BookStatus, date?: string) => {
+    onStatusChange?.(status, date);
   };
 
   return (
@@ -115,6 +115,7 @@ export function BookCard({
 
       {/* Book Info */}
       <h4 className="font-semibold text-foreground line-clamp-2 leading-tight mb-1">
+        {" "}
         {title}
       </h4>
       <p className="text-sm text-muted-foreground mb-1">{author}</p>

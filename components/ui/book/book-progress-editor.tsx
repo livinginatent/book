@@ -10,6 +10,7 @@ import {
   Trash2,
   Minus,
   Plus,
+  Calendar,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -30,7 +31,7 @@ interface BookProgressEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (pages: number) => void;
-  onStatusChange: (status: BookStatus) => void;
+  onStatusChange: (status: BookStatus, date?: string) => void;
   className?: string;
 }
 
@@ -72,11 +73,22 @@ export function BookProgressEditor({
 }: BookProgressEditorProps) {
   const [mounted, setMounted] = useState(false);
   const [pages, setPages] = useState(currentPages);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [finishedDate, setFinishedDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
   const progress = totalPages > 0 ? Math.round((pages / totalPages) * 100) : 0;
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setShowDatePicker(false);
+      setFinishedDate(new Date().toISOString().split("T")[0]);
+    }
+  }, [isOpen]);
 
   const handleIncrement = (amount: number) => {
     setPages((prev) => Math.min(totalPages, Math.max(0, prev + amount)));
@@ -88,8 +100,24 @@ export function BookProgressEditor({
   };
 
   const handleStatusChange = (status: BookStatus) => {
-    onStatusChange(status);
+    if (status === "finished") {
+      setShowDatePicker(true);
+    } else {
+      onStatusChange(status);
+      onClose();
+    }
+  };
+
+  const handleDateConfirm = () => {
+    // Convert date string to ISO string (end of day in user's timezone)
+    const date = new Date(finishedDate);
+    date.setHours(23, 59, 59, 999);
+    onStatusChange("finished", date.toISOString());
     onClose();
+  };
+
+  const handleDateCancel = () => {
+    setShowDatePicker(false);
   };
 
   if (!isOpen || !mounted) return null;
@@ -214,30 +242,77 @@ export function BookProgressEditor({
           </Button>
         </div>
 
-        {/* Status Actions */}
-        <div className="p-4 border-t border-border bg-muted/30">
-          <p className="text-xs text-muted-foreground mb-3 text-center">
-            Or change status
-          </p>
-          <div className="grid grid-cols-4 gap-2">
-            {statusActions.map(({ status, label, icon: Icon, color }) => (
-              <button
-                key={status}
-                onClick={() => handleStatusChange(status)}
-                className={cn(
-                  "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-                  "hover:scale-105 active:scale-95",
-                  color
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-[10px] font-medium text-center">
-                  {label}
-                </span>
-              </button>
-            ))}
+        {/* Date Picker for Finished Status */}
+        {showDatePicker && (
+          <div className="p-4 border-t border-border bg-muted/30">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="w-4 h-4 text-primary" />
+                <p className="text-sm font-medium text-foreground">
+                  When did you finish reading?
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <input
+                  type="date"
+                  value={finishedDate}
+                  onChange={(e) => setFinishedDate(e.target.value)}
+                  className={cn(
+                    "w-full px-3 py-2 rounded-lg border border-border",
+                    "bg-background text-foreground",
+                    "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                    "transition-all"
+                  )}
+                  max={new Date().toISOString().split("T")[0]}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleDateConfirm}
+                    size="sm"
+                    className="flex-1 rounded-xl"
+                  >
+                    Confirm
+                  </Button>
+                  <Button
+                    onClick={handleDateCancel}
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 rounded-xl"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Status Actions */}
+        {!showDatePicker && (
+          <div className="p-4 border-t border-border bg-muted/30">
+            <p className="text-xs text-muted-foreground mb-3 text-center">
+              Or change status
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {statusActions.map(({ status, label, icon: Icon, color }) => (
+                <button
+                  key={status}
+                  onClick={() => handleStatusChange(status)}
+                  className={cn(
+                    "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+                    "hover:scale-105 active:scale-95",
+                    color
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-[10px] font-medium text-center">
+                    {label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body

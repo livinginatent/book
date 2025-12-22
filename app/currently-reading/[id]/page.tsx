@@ -238,7 +238,7 @@ export default function CurrentlyReadingDetailPage() {
     setIsProgressEditorOpen(false);
   };
 
-  const handleStatusChange = async (status: BookStatus) => {
+  const handleStatusChange = async (status: BookStatus, date?: string) => {
     if (status === "remove") {
       // Remove from currently reading
       const result = await removeBookFromReadingList(
@@ -267,8 +267,8 @@ export default function CurrentlyReadingDetailPage() {
       return;
     }
 
-    // Update the book status
-    const result = await updateBookStatus(bookId, readingStatus);
+    // Update the book status with optional date
+    const result = await updateBookStatus(bookId, readingStatus, date);
     if (!result.success) {
       setIsProgressEditorOpen(false);
       return;

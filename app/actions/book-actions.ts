@@ -189,7 +189,8 @@ export async function removeBookFromReadingList(
  */
 export async function updateBookStatus(
   bookId: string,
-  status: ReadingStatus
+  status: ReadingStatus,
+  dateFinished?: string | null
 ): Promise<BookActionResult | BookActionError> {
   try {
     const cookieStore = cookies();
@@ -215,7 +216,9 @@ export async function updateBookStatus(
       updateData.date_started = new Date().toISOString();
       updateData.date_finished = null;
     } else if (status === "finished") {
-      updateData.date_finished = new Date().toISOString();
+      // Use provided dateFinished or default to today
+      updateData.date_finished =
+        dateFinished || new Date().toISOString();
     } else if (status === "paused") {
       // Keep date_started but don't set date_finished
       updateData.date_finished = null;
