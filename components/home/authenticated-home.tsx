@@ -375,85 +375,87 @@ export function AuthenticatedHome() {
               onStatusChange={handleStatusChange}
             />
 
-            {/* Goodreads Import - Collapsible Section */}
-            <div
-              className={cn(
-                "bg-card rounded-2xl border overflow-hidden transition-all duration-500",
-                shouldHighlightImport
-                  ? "border-primary shadow-lg shadow-primary/20 animate-pulse"
-                  : "border-border"
-              )}
-            >
-              <button
-                onClick={() => setShowImport(!showImport)}
-                className="w-full p-6 flex items-center justify-between hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
-                      shouldHighlightImport
-                        ? "bg-primary/20 scale-110"
-                        : "bg-primary/10"
-                    )}
-                  >
-                    <Upload className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="text-left">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-foreground">
-                        Import from Goodreads
-                      </h3>
-                      {shouldHighlightImport && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30">
-                          <Sparkles className="w-3 h-3 text-primary animate-pulse" />
-                          <span className="text-xs font-medium text-primary">
-                            New
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {shouldHighlightImport
-                        ? "Get started by importing your reading history"
-                        : "Bring your reading history to Bookly"}
-                    </p>
-                  </div>
-                </div>
-                {showImport ? (
-                  <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                )}
-              </button>
-
-              {/* Collapsible Content */}
+            {/* Goodreads Import - Collapsible Section (only shown if not yet imported) */}
+            {!profile?.has_imported_from_goodreads && (
               <div
                 className={cn(
-                  "overflow-hidden transition-all duration-300 ease-in-out",
-                  showImport
-                    ? "max-h-[2000px] opacity-100"
-                    : "max-h-0 opacity-0"
+                  "bg-card rounded-2xl border overflow-hidden transition-all duration-500",
+                  shouldHighlightImport
+                    ? "border-primary shadow-lg shadow-primary/20 animate-pulse"
+                    : "border-border"
                 )}
               >
-                <div className="px-6 pb-6 pt-0">
-                  <GoodreadsImport
-                    onImportComplete={async (imported) => {
-                      // Refresh currently reading after import
-                      window.dispatchEvent(new CustomEvent("book-added"));
-                      // Refresh profile to get updated import status
-                      if (imported > 0) {
-                        window.dispatchEvent(
-                          new CustomEvent("profile-refresh")
-                        );
-                        // Optionally close the import section after successful import
-                        setTimeout(() => setShowImport(false), 2000);
-                      }
-                    }}
-                  />
+                <button
+                  onClick={() => setShowImport(!showImport)}
+                  className="w-full p-6 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={cn(
+                        "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
+                        shouldHighlightImport
+                          ? "bg-primary/20 scale-110"
+                          : "bg-primary/10"
+                      )}
+                    >
+                      <Upload className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-foreground">
+                          Import from Goodreads
+                        </h3>
+                        {shouldHighlightImport && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/30">
+                            <Sparkles className="w-3 h-3 text-primary animate-pulse" />
+                            <span className="text-xs font-medium text-primary">
+                              New
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {shouldHighlightImport
+                          ? "Get started by importing your reading history"
+                          : "Bring your reading history to Bookly"}
+                      </p>
+                    </div>
+                  </div>
+                  {showImport ? (
+                    <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </button>
+
+                {/* Collapsible Content */}
+                <div
+                  className={cn(
+                    "overflow-hidden transition-all duration-300 ease-in-out",
+                    showImport
+                      ? "max-h-[2000px] opacity-100"
+                      : "max-h-0 opacity-0"
+                  )}
+                >
+                  <div className="px-6 pb-6 pt-0">
+                    <GoodreadsImport
+                      onImportComplete={async (imported) => {
+                        // Refresh currently reading after import
+                        window.dispatchEvent(new CustomEvent("book-added"));
+                        // Refresh profile to get updated import status
+                        if (imported > 0) {
+                          window.dispatchEvent(
+                            new CustomEvent("profile-refresh")
+                          );
+                          // Optionally close the import section after successful import
+                          setTimeout(() => setShowImport(false), 2000);
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Reading Stats - Available to all */}
             {readingStats && <ReadingStats {...readingStats} />}

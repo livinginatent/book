@@ -25,7 +25,7 @@ interface ShelfItem {
 export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
   const [defaultShelves, setDefaultShelves] = useState<ShelfItem[]>([]);
   const [customShelves, setCustomShelves] = useState<ShelfItem[]>([]);
-  const [showDefault, setShowDefault] = useState(true);
+  const [showDefault, setShowDefault] = useState(false);
   const [showCustom, setShowCustom] = useState(true);
   const [newShelfName, setNewShelfName] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -176,7 +176,7 @@ export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
             <div
               className={cn(
                 "overflow-hidden transition-all duration-200",
-                showDefault ? "max-h-64" : "max-h-0"
+                showDefault ? "max-h-96" : "max-h-0"
               )}
             >
               <div className="px-4 pb-3 space-y-2">

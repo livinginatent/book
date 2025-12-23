@@ -223,8 +223,8 @@ export async function updateBookStatus(
       // Keep date_started but don't set date_finished
       updateData.date_finished = null;
     } else if (status === "dnf") {
-      // Did not finish - set finished date but keep status as dnf
-      updateData.date_finished = new Date().toISOString();
+      // Did not finish - ensure there is no finished date
+      updateData.date_finished = null;
     }
 
     const { error: updateError } = await supabase
