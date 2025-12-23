@@ -52,7 +52,7 @@ export async function getReadingStats(): Promise<
     const bookIds = (currentlyReadingBooks || []).map((ub) => ub.book_id);
 
     // Get reading progress for all currently reading books
-    let progressList = [];
+    let progressList: any[] = [];
     let progressError = null;
     
     if (bookIds.length > 0) {
@@ -133,7 +133,7 @@ export async function getReadingStats(): Promise<
       // Calculate consecutive days from today backwards
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      let currentDate = new Date(today);
+      const currentDate = new Date(today);
       let streakCount = 0;
 
       // Check consecutive days starting from today
