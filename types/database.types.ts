@@ -76,6 +76,9 @@ export interface Database {
       books: {
         Row: {
           id: string;
+          google_books_id: string | null;
+          open_library_id: string | null;
+          open_library_edition_id: string | null;
           title: string;
           subtitle: string | null;
           authors: string[];

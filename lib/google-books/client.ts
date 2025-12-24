@@ -39,6 +39,10 @@ export async function searchBooks(
   const key = apiKey || getApiKey();
   if (key) {
     params.append("key", key);
+    // Log that API key is being used (remove in production if desired)
+    console.log("[Google Books API] Using API key for request");
+  } else {
+    console.warn("[Google Books API] No API key found - using public API (lower rate limits)");
   }
 
   const url = `${GOOGLE_BOOKS_BASE_URL}/volumes?${params.toString()}`;
