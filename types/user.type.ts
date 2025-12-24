@@ -10,6 +10,10 @@ export interface ReadingGoal {
   year: number;
   isPublic: boolean;
   genres?: string[];
+  // Time period for books goals (in months, or custom dates)
+  periodMonths?: number; // 3, 6, 9, 12, or undefined for custom
+  startDate?: Date; // Custom start date
+  endDate?: Date; // Custom end date
   createdAt: Date;
 }
 

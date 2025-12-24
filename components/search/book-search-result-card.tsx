@@ -17,7 +17,10 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 
-import { updateBookStatus } from "@/app/actions/book-actions";
+import {
+  addBookToReadingList,
+  updateBookStatus,
+} from "@/app/actions/book-actions";
 import { Badge } from "@/components/ui/badge";
 import { BookAction, BookActionMenu } from "@/components/ui/book/book-actions";
 import { GenreTag } from "@/components/ui/book/genre-tag";
@@ -25,27 +28,46 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Book, ReadingStatus } from "@/types/database.types";
 
-const mobileActions = [
+type MobileActionId = BookAction | "paused" | "finished";
+
+const mobileActions: Array<{
+  id: MobileActionId;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  color: string;
+}> = [
   {
-    id: "to-read" as BookAction,
+    id: "to-read",
     icon: BookMarked,
     label: "Want to Read",
     color: "bg-primary text-primary-foreground",
   },
   {
-    id: "currently-reading" as BookAction,
+    id: "currently-reading",
     icon: BookOpen,
     label: "Reading",
     color: "bg-accent text-accent-foreground",
   },
   {
-    id: "up-next" as BookAction,
+    id: "up-next",
     icon: ListPlus,
     label: "Up Next",
     color: "bg-chart-4 text-foreground",
   },
   {
-    id: "did-not-finish" as BookAction,
+    id: "paused",
+    icon: Pause,
+    label: "Paused",
+    color: "bg-chart-3 text-foreground",
+  },
+  {
+    id: "finished",
+    icon: CheckCircle2,
+    label: "Finished",
+    color: "bg-chart-2 text-foreground",
+  },
+  {
+    id: "did-not-finish",
     icon: BookX,
     label: "DNF",
     color: "bg-muted text-muted-foreground",
@@ -156,8 +178,55 @@ export function BookSearchResultCard({
   const isOwned = !!currentStatus;
   const statusInfo = currentStatus ? formatReadingStatus(currentStatus) : null;
 
-  const handleAction = async (action: BookAction) => {
-    onAction?.(action, book);
+  const handleAction = async (action: MobileActionId | BookAction) => {
+    // Handle paused and finished
+    if (action === "paused" || action === "finished") {
+      // If book is not owned, we need to add it first, then update status
+      if (!isOwned) {
+        // First add the book to the library (we'll use "want_to_read" as initial status)
+        const addResult = await addBookToReadingList(book.id, "to-read");
+
+        if (addResult.success) {
+          // Update optimistic status immediately
+          setOptimisticStatus(action === "finished" ? "finished" : "paused");
+
+          // For finished status, we need to provide a date
+          // Since this is a quick action (not from modal), use today's date
+          if (action === "finished") {
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            const result = await updateBookStatus(
+              book.id,
+              "finished",
+              today.toISOString()
+            );
+
+            if (result.success) {
+              // Notify parent component
+              onStatusChange?.(book.id, "finished");
+              // Dispatch events
+              window.dispatchEvent(
+                new CustomEvent("book-status-changed", {
+                  detail: { bookId: book.id, newStatus: "finished" },
+                })
+              );
+            } else {
+              // Revert on error
+              setOptimisticStatus(undefined);
+            }
+          } else {
+            // For paused, just update status
+            await handleStatusChange("paused");
+          }
+        }
+      } else {
+        // Book is already owned, just update status
+        await handleStatusChange(action);
+      }
+      return;
+    }
+    // Handle other actions through the onAction callback
+    onAction?.(action as BookAction, book);
   };
 
   const handleCardClick = () => {
@@ -493,7 +562,7 @@ export function BookSearchResultCard({
           {/* Mobile: Horizontal Action Buttons - Only show if not owned */}
           {!isOwned && (
             <div className="sm:hidden px-4 pb-3 pt-2 border-t border-border">
-              <div className="flex items-center justify-between gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {mobileActions.map((action) => {
                   const Icon = action.icon;
                   return (
@@ -504,7 +573,7 @@ export function BookSearchResultCard({
                         handleAction(action.id);
                       }}
                       className={cn(
-                        "flex-1 flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all duration-200",
+                        "flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-all duration-200",
                         action.color,
                         "active:scale-95"
                       )}

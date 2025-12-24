@@ -23,6 +23,9 @@ export function dbGoalToComponentGoal(
     year: (config.year as number) || new Date().getFullYear(),
     isPublic: (config.is_public as boolean) ?? true,
     genres: config.genres as string[] | undefined,
+    periodMonths: config.period_months as number | undefined,
+    startDate: config.start_date ? new Date(config.start_date as string) : undefined,
+    endDate: config.end_date ? new Date(config.end_date as string) : undefined,
     createdAt: new Date(dbGoal.created_at),
   };
 }
@@ -50,6 +53,19 @@ export function componentGoalToDbGoal(
 
   if (componentGoal.genres && componentGoal.genres.length > 0) {
     config.genres = componentGoal.genres;
+  }
+
+  // Add time period fields for books goals
+  if (componentGoal.type === "books") {
+    if (componentGoal.periodMonths !== undefined) {
+      config.period_months = componentGoal.periodMonths;
+    }
+    if (componentGoal.startDate) {
+      config.start_date = componentGoal.startDate.toISOString();
+    }
+    if (componentGoal.endDate) {
+      config.end_date = componentGoal.endDate.toISOString();
+    }
   }
 
   return {

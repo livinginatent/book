@@ -29,7 +29,6 @@ interface ReadingGoalWidgetProps {
 
 export function ReadingGoalWidget({
   user,
-  onUpdateProgress,
   onSetGoal,
   onIncreaseGoal,
   onShare,
@@ -103,7 +102,13 @@ export function ReadingGoalWidget({
                 <Target className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold">{goal.year} Reading Goal</h3>
+                <h3 className="font-semibold">
+                  {goal.type === "books" && goal.periodMonths
+                    ? `${goal.periodMonths}-Month Reading Goal`
+                    : goal.type === "books" && goal.startDate && goal.endDate
+                    ? "Custom Period Reading Goal"
+                    : `${goal.year} Reading Goal`}
+                </h3>
                 <p className="text-sm text-muted-foreground">
                   {formatGoalProgress(goal)}
                 </p>
@@ -146,17 +151,18 @@ export function ReadingGoalWidget({
           <PaceIndicator
             status={pace.status}
             difference={pace.difference}
-            pagesPerDay={pace.pagesPerDay}
+            catchUpRate={pace.catchUpRate}
             unit={unit}
           />
 
-          {/* Update progress button */}
+          {/* Action button */}
           <Button
-            onClick={onUpdateProgress}
-            className="w-full gap-2 glow-primary transition-all hover:scale-[1.02] active:scale-[0.98]"
+            onClick={onSetGoal}
+            variant="outline"
+            className="w-full gap-2"
           >
-            <Plus className="h-4 w-4" />
-            Update Progress
+            <Target className="h-4 w-4" />
+            Change Goal
           </Button>
         </CardContent>
       </Card>

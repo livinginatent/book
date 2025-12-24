@@ -1,6 +1,15 @@
 "use client";
 
-import { BookMarked, BookOpen, BookX, ListPlus, Plus, X } from "lucide-react";
+import {
+  BookMarked,
+  BookOpen,
+  BookX,
+  ListPlus,
+  Plus,
+  X,
+  Pause,
+  CheckCircle2,
+} from "lucide-react";
 import { useState, useRef, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
@@ -19,7 +28,9 @@ export type BookAction =
   | "to-read"
   | "currently-reading"
   | "did-not-finish"
-  | "up-next";
+  | "up-next"
+  | "paused"
+  | "finished";
 
 interface BookActionMenuProps {
   onAction: (action: BookAction) => void;
@@ -48,6 +59,18 @@ const actions = [
     color: "bg-accent text-accent-foreground hover:bg-accent/90",
   },
   {
+    id: "paused" as BookAction,
+    icon: Pause,
+    label: "Paused",
+    color: "bg-chart-3 text-foreground hover:bg-chart-3/90",
+  },
+  {
+    id: "finished" as BookAction,
+    icon: CheckCircle2,
+    label: "Finished",
+    color: "bg-chart-2 text-foreground hover:bg-chart-2/90",
+  },
+  {
     id: "to-read" as BookAction,
     icon: BookMarked,
     label: "Want to Read",
@@ -57,8 +80,8 @@ const actions = [
 
 // Calculate angles for half-circle layout (D-shape, curved part on the left)
 // Start from 120° (upper-left) to 240° (lower-left) = 120° arc
-const START_ANGLE = 120; // degrees
-const END_ANGLE = 240; // degrees
+const START_ANGLE = 90; // degrees
+const END_ANGLE = 270; // degrees
 const ANGLE_STEP = (END_ANGLE - START_ANGLE) / (actions.length - 1);
 
 export function BookActionMenu({ onAction, className }: BookActionMenuProps) {

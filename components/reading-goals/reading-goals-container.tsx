@@ -7,7 +7,6 @@ import { useProfile } from "@/hooks/use-profile";
 import type { ReadingGoal } from "@/types/user.type";
 import { GoalSettingWizard } from "./goal-setting-wizard";
 import { ReadingGoalWidget } from "./reading-goal-widget";
-import { UpdateProgressDialog } from "./update-progress-dialog";
 // Toast notifications - can be replaced with your preferred toast library
 const toast = {
   success: (message: string) => console.log("Success:", message),
@@ -22,9 +21,15 @@ export function ReadingGoalsContainer({ className }: ReadingGoalsContainerProps)
   const { profile, isPremium, loading: profileLoading } = useProfile();
   const router = useRouter();
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const [goal, setGoal] = useState<ReadingGoal | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const refreshGoal = async () => {
+    const result = await getActiveGoal();
+    if (result.success) {
+      setGoal(result.goal);
+    }
+  };
 
   // Fetch active goal on mount
   useEffect(() => {
@@ -38,6 +43,20 @@ export function ReadingGoalsContainer({ className }: ReadingGoalsContainerProps)
     fetchGoal();
   }, []);
 
+  // Listen for book status changes to refresh goal progress
+  useEffect(() => {
+    const handleStatusChange = async () => {
+      // Refresh goal to get updated progress
+      await refreshGoal();
+      router.refresh();
+    };
+
+    window.addEventListener("book-status-changed", handleStatusChange);
+    return () => {
+      window.removeEventListener("book-status-changed", handleStatusChange);
+    };
+  }, [router]);
+
   // Create user object for components
   const user = profile
     ? {
@@ -49,13 +68,6 @@ export function ReadingGoalsContainer({ className }: ReadingGoalsContainerProps)
         streak: 0, // Could be fetched from reading stats
       }
     : null;
-
-  const refreshGoal = async () => {
-    const result = await getActiveGoal();
-    if (result.success) {
-      setGoal(result.goal);
-    }
-  };
 
   const handleSaveGoal = async (goalData: Partial<ReadingGoal>) => {
     const result = await saveReadingGoal(goalData);
@@ -69,16 +81,11 @@ export function ReadingGoalsContainer({ className }: ReadingGoalsContainerProps)
     }
   };
 
-  const handleUpdateProgress = async (newCurrent: number) => {
-    const result = await updateGoalProgress(newCurrent);
-    if (result.success) {
-      setGoal(result.goal);
-      toast.success("Progress updated!");
-      await refreshGoal(); // Refresh to ensure we have the latest data
-      router.refresh();
-    } else {
-      toast.error(result.error);
-    }
+  // Progress is now automatically calculated from user_books
+  // This function is kept for backward compatibility but just refreshes
+  const handleUpdateProgress = async () => {
+    await refreshGoal();
+    router.refresh();
   };
 
   const handleIncreaseGoal = async () => {
@@ -131,7 +138,7 @@ export function ReadingGoalsContainer({ className }: ReadingGoalsContainerProps)
       <ReadingGoalWidget
         user={user}
         onSetGoal={() => setWizardOpen(true)}
-        onUpdateProgress={() => setProgressDialogOpen(true)}
+        onUpdateProgress={handleUpdateProgress}
         onIncreaseGoal={handleIncreaseGoal}
         onShare={handleShare}
         className={className}
@@ -142,14 +149,6 @@ export function ReadingGoalsContainer({ className }: ReadingGoalsContainerProps)
         onOpenChange={setWizardOpen}
         onSaveGoal={handleSaveGoal}
       />
-      {goal && (
-        <UpdateProgressDialog
-          goal={goal}
-          open={progressDialogOpen}
-          onOpenChange={setProgressDialogOpen}
-          onUpdateProgress={handleUpdateProgress}
-        />
-      )}
     </>
   );
 }

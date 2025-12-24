@@ -4,17 +4,22 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 interface PaceIndicatorProps {
   status: "ahead" | "on_track" | "behind";
   difference: number;
-  pagesPerDay?: number;
+  catchUpRate?: number;
   unit?: string;
 }
 
 export function PaceIndicator({
   status,
   difference,
-  pagesPerDay,
+  catchUpRate,
   unit = "books",
 }: PaceIndicatorProps) {
   const absDifference = Math.abs(difference);
+
+  // Determine the unit for catch-up rate message
+  const catchUpUnit = unit === "pages" ? "pages" : 
+                      unit === "genres" ? "genres" :
+                      unit === "days" ? "days" : "books";
 
   const statusConfig = {
     ahead: {
@@ -33,8 +38,8 @@ export function PaceIndicator({
       icon: TrendingDown,
       className: "text-warning",
       bgClassName: "bg-warning/10",
-      message: pagesPerDay
-        ? `${absDifference} ${unit} behind. Read ${pagesPerDay} pages/day to catch up`
+      message: catchUpRate
+        ? `${absDifference} ${unit} behind. Read ${catchUpRate} ${catchUpUnit}/day to catch up`
         : `${absDifference} ${unit} behind schedule`,
     },
   };

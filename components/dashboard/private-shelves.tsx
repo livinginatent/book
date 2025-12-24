@@ -111,9 +111,11 @@ export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
     };
 
     window.addEventListener("book-added", handler);
+    window.addEventListener("book-status-changed", handler);
     return () => {
       isMounted = false;
       window.removeEventListener("book-added", handler);
+      window.removeEventListener("book-status-changed", handler);
     };
   }, [locked]);
 

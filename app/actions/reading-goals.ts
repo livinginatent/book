@@ -2,8 +2,11 @@
 
 import { cookies } from "next/headers";
 
+import {
+  componentGoalToDbGoal,
+  dbGoalToComponentGoal,
+} from "@/lib/goal-wizard/goal-converters";
 import { createClient } from "@/lib/supabase/server";
-import { componentGoalToDbGoal, dbGoalToComponentGoal } from "@/lib/goal-wizard/goal-converters";
 import type {
   GoalType,
   ReadingGoal as DBReadingGoal,
@@ -93,8 +96,7 @@ export async function getAvailableGoalTypes(): Promise<
 
     const tier = (await getUserSubscriptionTier(supabase)) ?? "free";
 
-    const types =
-      tier === "bibliophile" ? PREMIUM_TIER_TYPES : FREE_TIER_TYPES;
+    const types = tier === "bibliophile" ? PREMIUM_TIER_TYPES : FREE_TIER_TYPES;
 
     return {
       success: true,
@@ -194,8 +196,195 @@ export async function upsertGoalType(
 }
 
 /**
+ * Calculate goal progress from user_books table based on goal type
+ */
+async function calculateGoalProgress(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  goalType: GoalType,
+  goalYear: number,
+  goalConfig: Record<string, unknown>
+): Promise<number> {
+  // Determine date range based on goal type and config
+  let dateStart: string;
+  let dateEnd: string;
+
+  if (goalType === "books") {
+    // For books goals, use custom period if available
+    const periodMonths = goalConfig.period_months as number | undefined;
+    const startDateStr = goalConfig.start_date as string | undefined;
+    const endDateStr = goalConfig.end_date as string | undefined;
+
+    if (startDateStr && endDateStr) {
+      // Custom date range
+      dateStart = new Date(startDateStr).toISOString().split("T")[0];
+      dateEnd = new Date(endDateStr).toISOString().split("T")[0];
+    } else if (periodMonths && startDateStr) {
+      // Preset period with stored start date
+      dateStart = new Date(startDateStr).toISOString().split("T")[0];
+      const startDate = new Date(startDateStr);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + periodMonths);
+      dateEnd = endDate.toISOString().split("T")[0];
+    } else if (periodMonths) {
+      // Preset period without stored start (fallback - use current date)
+      const now = new Date();
+      dateStart = now.toISOString().split("T")[0];
+      const endDate = new Date(now);
+      endDate.setMonth(endDate.getMonth() + periodMonths);
+      dateEnd = endDate.toISOString().split("T")[0];
+    } else {
+      // Fallback to year
+      dateStart = new Date(goalYear, 0, 1).toISOString().split("T")[0];
+      dateEnd = new Date(goalYear, 11, 31, 23, 59, 59, 999)
+        .toISOString()
+        .split("T")[0];
+    }
+  } else {
+    // For other goal types, use year
+    dateStart = new Date(goalYear, 0, 1).toISOString().split("T")[0];
+    dateEnd = new Date(goalYear, 11, 31, 23, 59, 59, 999)
+      .toISOString()
+      .split("T")[0];
+  }
+
+  switch (goalType) {
+    case "books": {
+      // Count finished books in the period
+      const { count, error } = await supabase
+        .from("user_books")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("status", "finished")
+        .gte("date_finished", dateStart)
+        .lte("date_finished", dateEnd);
+
+      if (error) {
+        console.error("Error calculating books progress:", error);
+        return 0;
+      }
+      return count || 0;
+    }
+
+    case "pages": {
+      // Sum page_count from finished books in the period
+      const { data: finishedBooks, error } = await supabase
+        .from("user_books")
+        .select("book_id")
+        .eq("user_id", userId)
+        .eq("status", "finished")
+        .gte("date_finished", dateStart)
+        .lte("date_finished", dateEnd);
+
+      if (error || !finishedBooks || finishedBooks.length === 0) {
+        return 0;
+      }
+
+      const bookIds = finishedBooks.map((ub) => ub.book_id);
+      const { data: books, error: booksError } = await supabase
+        .from("books")
+        .select("page_count")
+        .in("id", bookIds);
+
+      if (booksError) {
+        console.error(
+          "Error fetching books for pages calculation:",
+          booksError
+        );
+        return 0;
+      }
+
+      return (books || []).reduce(
+        (sum, book) => sum + (book.page_count || 0),
+        0
+      );
+    }
+
+    case "diversity": {
+      // Count distinct genres from finished books in the period
+      // Filter by selected genres if specified
+      const selectedGenres = (goalConfig.genres as string[]) || [];
+
+      const { data: finishedBooks, error } = await supabase
+        .from("user_books")
+        .select("book_id")
+        .eq("user_id", userId)
+        .eq("status", "finished")
+        .gte("date_finished", dateStart)
+        .lte("date_finished", dateEnd);
+
+      if (error || !finishedBooks || finishedBooks.length === 0) {
+        return 0;
+      }
+
+      const bookIds = finishedBooks.map((ub) => ub.book_id);
+      const { data: books, error: booksError } = await supabase
+        .from("books")
+        .select("subjects")
+        .in("id", bookIds);
+
+      if (booksError) {
+        console.error(
+          "Error fetching books for genres calculation:",
+          booksError
+        );
+        return 0;
+      }
+
+      // Collect all unique genres
+      const allGenres = new Set<string>();
+      (books || []).forEach((book) => {
+        (book.subjects || []).forEach((genre: string) => {
+          // If specific genres are selected, only count those
+          if (selectedGenres.length === 0 || selectedGenres.includes(genre)) {
+            allGenres.add(genre);
+          }
+        });
+      });
+
+      return allGenres.size;
+    }
+
+    case "consistency": {
+      // Count consecutive days with finished books
+      // For simplicity, we'll count unique days with finished books
+      // A more sophisticated approach would track actual consecutive days
+      const { data: finishedBooks, error } = await supabase
+        .from("user_books")
+        .select("date_finished")
+        .eq("user_id", userId)
+        .eq("status", "finished")
+        .gte("date_finished", dateStart)
+        .lte("date_finished", dateEnd)
+        .not("date_finished", "is", null);
+
+      if (error || !finishedBooks || finishedBooks.length === 0) {
+        return 0;
+      }
+
+      // Count unique days
+      const uniqueDays = new Set<string>();
+      finishedBooks.forEach((ub) => {
+        if (ub.date_finished) {
+          // Extract just the date part (YYYY-MM-DD)
+          const dateOnly = ub.date_finished.split("T")[0];
+          uniqueDays.add(dateOnly);
+        }
+      });
+
+      // For consistency goals, we want consecutive days
+      // For now, return unique days count - can be enhanced later
+      return uniqueDays.size;
+    }
+
+    default:
+      return 0;
+  }
+}
+
+/**
  * Get the user's current active goal, if any.
- * Useful for rehydrating the wizard with the previously selected type.
+ * Automatically calculates progress from user_books table.
  */
 export async function getActiveGoal(): Promise<
   ReadingGoalResult | { success: true; goal: null } | ReadingGoalError
@@ -231,9 +420,24 @@ export async function getActiveGoal(): Promise<
       return { success: true, goal: null };
     }
 
+    // Calculate current progress from user_books
+    const config = (goal.config as Record<string, unknown>) || {};
+    const goalYear = (config.year as number) || new Date().getFullYear();
+    const currentProgress = await calculateGoalProgress(
+      supabase,
+      user.id,
+      goal.type,
+      goalYear,
+      config
+    );
+
+    // Convert to component format with calculated progress
+    const componentGoal = dbGoalToComponentGoal(goal);
+    componentGoal.current = currentProgress;
+
     return {
       success: true,
-      goal: dbGoalToComponentGoal(goal),
+      goal: componentGoal,
     };
   } catch (error) {
     console.error("Get active goal error:", error);
@@ -328,71 +532,16 @@ export async function saveReadingGoal(
 
 /**
  * Update the progress (current value) of the user's active goal.
+ * NOTE: Progress is now automatically calculated from user_books.
+ * This function is kept for backward compatibility but recalculates from the database.
  */
 export async function updateGoalProgress(
-  newCurrent: number
-): Promise<ReadingGoalResult | ReadingGoalError> {
-  try {
-    const cookieStore = cookies();
-    const supabase = await createClient(cookieStore);
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return { success: false, error: "You must be logged in" };
-    }
-
-    // Get the active goal
-    const { data: dbGoal, error: fetchError } = await supabase
-      .from("reading_goals")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (fetchError || !dbGoal) {
-      return {
-        success: false,
-        error: "No active goal found",
-      };
-    }
-
-    // Update the config with new current value
-    const config = (dbGoal.config as Record<string, unknown>) || {};
-    const updatedConfig = {
-      ...config,
-      current: Math.max(0, newCurrent), // Ensure non-negative
-    };
-
-    const { data: updatedGoal, error: updateError } = await supabase
-      .from("reading_goals")
-      .update({ config: updatedConfig })
-      .eq("id", dbGoal.id)
-      .select("*")
-      .single();
-
-    if (updateError || !updatedGoal) {
-      console.error("Error updating goal progress:", updateError);
-      return { success: false, error: "Failed to update goal progress" };
-    }
-
-    return {
-      success: true,
-      goal: dbGoalToComponentGoal(updatedGoal),
-    };
-  } catch (error) {
-    console.error("Update goal progress error:", error);
-    return {
-      success: false,
-      error:
-        error instanceof Error ? error.message : "An unexpected error occurred",
-    };
-  }
+  _newCurrent: number // Parameter kept for API compatibility but ignored
+): Promise<
+  ReadingGoalResult | ReadingGoalError | { success: true; goal: null }
+> {
+  // Simply refresh the goal - progress is calculated automatically
+  return getActiveGoal();
 }
 
 /**
@@ -464,5 +613,3 @@ export async function increaseGoalTarget(
     };
   }
 }
-
-

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Target,
@@ -11,8 +12,9 @@ import {
   ChevronRight,
   ChevronLeft,
   X,
+  CalendarDays,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,9 +26,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AVAILABLE_GENRES, estimateReadingTime } from "@/lib/goal-wizard/goals";
 import { cn } from "@/lib/utils";
 import { User, GoalType, ReadingGoal } from "@/types/user.type";
-import { AVAILABLE_GENRES, estimateReadingTime } from "@/lib/goal-wizard/goals";
 
 
 interface GoalSettingWizardProps {
@@ -36,7 +38,7 @@ interface GoalSettingWizardProps {
   onSaveGoal: (goal: Partial<ReadingGoal>) => void;
 }
 
-type Step = "type" | "target" | "privacy";
+type Step = "type" | "target" | "period" | "privacy";
 
 const goalTypeOptions: Array<{
   type: GoalType;
@@ -89,9 +91,29 @@ export function GoalSettingWizard({
   const [target, setTarget] = useState<number>(12);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [isPublic, setIsPublic] = useState(true);
+  const [periodMonths, setPeriodMonths] = useState<number | null>(12); // 3, 6, 9, 12, or null for custom
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
 
-  const steps: Step[] = ["type", "target", "privacy"];
+  // Determine steps based on goal type
+  const steps: Step[] = goalType === "books" 
+    ? ["type", "target", "period", "privacy"]
+    : ["type", "target", "privacy"];
   const currentStepIndex = steps.indexOf(step);
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setStep("type");
+      setGoalType("books");
+      setTarget(12);
+      setSelectedGenres([]);
+      setIsPublic(true);
+      setPeriodMonths(12);
+      setCustomStartDate("");
+      setCustomEndDate("");
+    }
+  }, [open]);
 
   const handleNext = () => {
     const nextIndex = currentStepIndex + 1;
@@ -110,13 +132,42 @@ export function GoalSettingWizard({
   };
 
   const handleSave = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    
+    // Calculate start and end dates based on period
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    
+    if (goalType === "books" && periodMonths) {
+      // Preset period (3, 6, 9, 12 months) - start from today
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0); // Start of day
+      endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + periodMonths);
+      endDate.setHours(23, 59, 59, 999); // End of day
+    } else if (goalType === "books" && customStartDate && customEndDate) {
+      // Custom period
+      startDate = new Date(customStartDate);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(customEndDate);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      // Default to current year for other goal types
+      startDate = new Date(currentYear, 0, 1);
+      endDate = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+    }
+
     onSaveGoal({
       type: goalType,
       target: goalType === "genres" ? selectedGenres.length : target,
       genres: goalType === "genres" ? selectedGenres : undefined,
       isPublic,
-      year: new Date().getFullYear(),
+      year: currentYear,
       current: 0,
+      periodMonths: goalType === "books" ? periodMonths || undefined : undefined,
+      startDate: goalType === "books" ? startDate : undefined,
+      endDate: goalType === "books" ? endDate : undefined,
     });
     onOpenChange(false);
     resetForm();
@@ -128,6 +179,9 @@ export function GoalSettingWizard({
     setTarget(12);
     setSelectedGenres([]);
     setIsPublic(true);
+    setPeriodMonths(12);
+    setCustomStartDate("");
+    setCustomEndDate("");
   };
 
   const toggleGenre = (genre: string) => {
@@ -147,6 +201,19 @@ export function GoalSettingWizard({
       if (goalType === "consistency") return target > 0;
       return target > 0;
     }
+    if (step === "period") {
+      // For books goals, require either preset period or custom dates
+      if (goalType === "books") {
+        if (periodMonths) return true; // Preset period selected
+        if (customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          return end > start; // End date must be after start date
+        }
+        return false;
+      }
+      return true;
+    }
     return true;
   };
 
@@ -157,7 +224,7 @@ export function GoalSettingWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
+      <DialogContent className="max-w-md gap-0 overflow-hidden p-0" showCloseButton={false}>
         <DialogHeader className="border-b border-border p-6 pb-4">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
@@ -406,7 +473,111 @@ export function GoalSettingWizard({
               </motion.div>
             )}
 
-            {/* Step 3: Privacy */}
+            {/* Step 3: Period (only for books goals) */}
+            {step === "period" && goalType === "books" && (
+              <motion.div
+                key="period"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4"
+              >
+                <div>
+                  <h3 className="mb-1 font-medium">Choose time period</h3>
+                  <p className="text-sm text-muted-foreground">
+                    How long do you want to track this goal?
+                  </p>
+                </div>
+
+                {/* Preset periods */}
+                <div className="space-y-2">
+                  <Label>Preset periods</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[3, 6, 9, 12].map((months) => (
+                      <Button
+                        key={months}
+                        variant={periodMonths === months ? "default" : "outline"}
+                        onClick={() => {
+                          setPeriodMonths(months);
+                          setCustomStartDate("");
+                          setCustomEndDate("");
+                        }}
+                        className="gap-2"
+                      >
+                        <CalendarDays className="h-4 w-4" />
+                        {months} months
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom period */}
+                <div className="space-y-2">
+                  <Label>Or choose custom dates</Label>
+                  <Button
+                    variant={periodMonths === null ? "default" : "outline"}
+                    onClick={() => {
+                      setPeriodMonths(null);
+                      if (!customStartDate) {
+                        const today = new Date();
+                        setCustomStartDate(today.toISOString().split("T")[0]);
+                        const endDate = new Date(today);
+                        endDate.setMonth(endDate.getMonth() + 3);
+                        setCustomEndDate(endDate.toISOString().split("T")[0]);
+                      }
+                    }}
+                    className="w-full gap-2"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Custom Period
+                  </Button>
+
+                  {periodMonths === null && (
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="start-date">Start Date</Label>
+                        <Input
+                          id="start-date"
+                          type="date"
+                          value={customStartDate}
+                          onChange={(e) => setCustomStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="end-date">End Date</Label>
+                        <Input
+                          id="end-date"
+                          type="date"
+                          value={customEndDate}
+                          onChange={(e) => setCustomEndDate(e.target.value)}
+                          min={customStartDate || undefined}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Period preview */}
+                {periodMonths && (
+                  <div className="rounded-lg bg-secondary/50 p-3 text-sm">
+                    <p className="text-muted-foreground">
+                      Goal period: {periodMonths} months starting from today
+                    </p>
+                  </div>
+                )}
+                {periodMonths === null && customStartDate && customEndDate && (
+                  <div className="rounded-lg bg-secondary/50 p-3 text-sm">
+                    <p className="text-muted-foreground">
+                      Goal period: {new Date(customStartDate).toLocaleDateString()} to{" "}
+                      {new Date(customEndDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Step 3/4: Privacy */}
             {step === "privacy" && (
               <motion.div
                 key="privacy"
@@ -487,8 +658,12 @@ export function GoalSettingWizard({
                       ? `Read from ${selectedGenres.length} different genres`
                       : goalType === "consistency"
                       ? `Read every day for ${target} days`
+                      : goalType === "books" && periodMonths
+                      ? `Read ${target.toLocaleString()} books in ${periodMonths} months`
+                      : goalType === "books" && periodMonths === null && customStartDate && customEndDate
+                      ? `Read ${target.toLocaleString()} books from ${new Date(customStartDate).toLocaleDateString()} to ${new Date(customEndDate).toLocaleDateString()}`
                       : `Read ${target.toLocaleString()} ${goalType}`}{" "}
-                    in {new Date().getFullYear()}
+                    {goalType !== "books" && `in ${new Date().getFullYear()}`}
                   </p>
                 </div>
               </motion.div>
