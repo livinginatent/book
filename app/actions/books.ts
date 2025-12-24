@@ -1,6 +1,9 @@
 "use server";
-
-import { lazyFetchBooks, getBookById, getBookByOpenLibraryId } from "@/lib/books";
+import {
+  lazyFetchBooks,
+  getBookById,
+  getBookByOpenLibraryId,
+} from "@/lib/books";
 import type { Book } from "@/types/database.types";
 
 export interface SearchBooksResult {
@@ -8,7 +11,8 @@ export interface SearchBooksResult {
   books: Book[];
   total: number;
   fromCache: number;
-  fromOpenLibrary: number;
+  fromGoogleBooks: number;
+  hasMore: boolean;
 }
 
 export interface SearchBooksError {
@@ -18,12 +22,12 @@ export interface SearchBooksError {
 
 /**
  * Server action to search books
- * 
- * Uses the Lazy Fetch pattern:
- * 1. Searches Open Library for the query
- * 2. Saves new books to the database
- * 3. Returns books with database IDs
- * 
+ *
+ * Uses the Lazy Fetch pattern with optimizations:
+ * 1. Limits API requests to prevent overwhelming fetches
+ * 2. Only fetches what's needed for the current page
+ * 3. Returns pagination metadata
+ *
  * @param query - Search query string
  * @param limit - Maximum number of results (default: 20)
  * @param offset - Offset for pagination (default: 0)
@@ -39,33 +43,60 @@ export async function searchBooks(
     if (!trimmedQuery) {
       return { success: false, error: "Search query is required" };
     }
-
     if (trimmedQuery.length < 2) {
-      return { success: false, error: "Search query must be at least 2 characters" };
+      return {
+        success: false,
+        error: "Search query must be at least 2 characters",
+      };
     }
 
-    // Validate pagination
-    const safeLimit = Math.min(Math.max(1, limit), 100); // 1-100
+    // Validate pagination - keep limits reasonable
+    const safeLimit = Math.min(Math.max(1, limit), 50); // Reduced max from 100 to 50
     const safeOffset = Math.max(0, offset);
 
-    // Perform lazy fetch
+    // Maximum total results to ever fetch (prevents 22k book scenarios)
+    const MAX_TOTAL_RESULTS = 500;
+
+    // Don't allow offsetting beyond reasonable limits
+    if (safeOffset >= MAX_TOTAL_RESULTS) {
+      return {
+        success: true,
+        books: [],
+        total: MAX_TOTAL_RESULTS,
+        fromCache: 0,
+        fromGoogleBooks: 0,
+        hasMore: false,
+      };
+    }
+
+    // Get API key from environment variable
+    const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
+
+    // Perform lazy fetch with limit enforcement
     const result = await lazyFetchBooks(trimmedQuery, {
       limit: safeLimit,
       offset: safeOffset,
+      apiKey,
     });
+
+    // Cap the total at our maximum
+    const cappedTotal = Math.min(result.total, MAX_TOTAL_RESULTS);
+    const hasMore = safeOffset + result.books.length < cappedTotal;
 
     return {
       success: true,
       books: result.books,
-      total: result.total,
+      total: cappedTotal,
       fromCache: result.fromCache,
-      fromOpenLibrary: result.fromOpenLibrary,
+      fromGoogleBooks: result.fromGoogleBooks,
+      hasMore,
     };
   } catch (error) {
     console.error("Search books error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "An unexpected error occurred",
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
     };
   }
 }
@@ -92,7 +123,8 @@ export async function getBook(
     console.error("Get book error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "An unexpected error occurred",
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
     };
   }
 }
@@ -119,8 +151,8 @@ export async function getBookByOLId(
     console.error("Get book by OL ID error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "An unexpected error occurred",
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
     };
   }
 }
-

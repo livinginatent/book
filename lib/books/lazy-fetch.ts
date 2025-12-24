@@ -1,5 +1,8 @@
+import {
+  searchAndNormalizeBooks,
+  type NormalizedBook,
+} from "@/lib/google-books";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { searchAndNormalizeBooks, type NormalizedBook } from "@/lib/open-library";
 import type { Book, BookInsert } from "@/types/database.types";
 
 /**
@@ -7,8 +10,9 @@ import type { Book, BookInsert } from "@/types/database.types";
  */
 function toBookInsert(book: NormalizedBook): BookInsert {
   return {
-    open_library_id: book.openLibraryId,
-    open_library_edition_id: book.openLibraryEditionId ?? null,
+    google_books_id: book.googleBooksId,
+ 
+   
     title: book.title,
     subtitle: book.subtitle ?? null,
     authors: book.authors,
@@ -27,50 +31,87 @@ function toBookInsert(book: NormalizedBook): BookInsert {
 }
 
 /**
- * Save books to the database, upserting on open_library_id
+ * Save books to the database in batches to avoid overwhelming the DB
  * Returns the saved books with their database IDs
  */
 async function saveBooksToDatabase(books: NormalizedBook[]): Promise<Book[]> {
   if (books.length === 0) return [];
 
   const bookInserts = books.map(toBookInsert);
+  const BATCH_SIZE = 50; // Process in batches of 50
+  const allSavedBooks: Book[] = [];
 
-  const { data, error } = await supabaseAdmin
-    .from("books")
-    .upsert(bookInserts, {
-      onConflict: "open_library_id",
-      ignoreDuplicates: false, // Update existing records
-    })
-    .select();
+  // Process in batches to avoid timeouts and memory issues
+  for (let i = 0; i < bookInserts.length; i += BATCH_SIZE) {
+    const batch = bookInserts.slice(i, i + BATCH_SIZE);
 
-  if (error) {
-    console.error("Error saving books to database:", error);
-    throw new Error(`Failed to save books: ${error.message}`);
+    const { data, error } = await supabaseAdmin
+      .from("books")
+      .upsert(batch, {
+        onConflict: "google_books_id",
+        ignoreDuplicates: false, // Update existing records
+      })
+      .select();
+
+    if (error) {
+      console.error(`Error saving books batch ${i / BATCH_SIZE + 1}:`, error);
+      // Continue with other batches even if one fails
+      continue;
+    }
+
+    if (data) {
+      allSavedBooks.push(...data);
+    }
   }
 
-  return data ?? [];
+  return allSavedBooks;
 }
 
 /**
- * Check if we have cached books for any of the Open Library IDs
+ * Check if we have cached books for any of the Google Books IDs
+ * Optimized to handle large ID arrays efficiently with parallel queries
  */
-async function getCachedBooks(openLibraryIds: string[]): Promise<Map<string, Book>> {
-  if (openLibraryIds.length === 0) return new Map();
-
-  const { data, error } = await supabaseAdmin
-    .from("books")
-    .select("*")
-    .in("open_library_id", openLibraryIds);
-
-  if (error) {
-    console.error("Error fetching cached books:", error);
-    return new Map();
-  }
+async function getCachedBooks(
+  googleBooksIds: string[]
+): Promise<Map<string, Book>> {
+  if (googleBooksIds.length === 0) return new Map();
 
   const cache = new Map<string, Book>();
-  for (const book of data ?? []) {
-    cache.set(book.open_library_id, book);
+  const BATCH_SIZE = 100; // Query in batches to avoid URL length limits
+
+  // Process IDs in batches (can be parallelized for speed)
+  const batchPromises: Promise<void>[] = [];
+
+  for (let i = 0; i < googleBooksIds.length; i += BATCH_SIZE) {
+    const batchIds = googleBooksIds.slice(i, i + BATCH_SIZE);
+
+    const batchPromise = (async () => {
+      const { data, error } = await supabaseAdmin
+        .from("books")
+        .select("*")
+        .in("google_books_id", batchIds);
+
+      if (error) {
+        console.error(
+          `Error fetching cached books batch ${i / BATCH_SIZE + 1}:`,
+          error
+        );
+        return;
+      }
+
+      for (const book of data ?? []) {
+        if (book.google_books_id) {
+          cache.set(book.google_books_id, book);
+        }
+      }
+    })();
+
+    batchPromises.push(batchPromise);
   }
+
+  // Wait for all batches to complete (parallel execution for speed)
+  await Promise.all(batchPromises);
+
   return cache;
 }
 
@@ -78,63 +119,69 @@ export interface LazyFetchResult {
   books: Book[];
   total: number;
   fromCache: number;
-  fromOpenLibrary: number;
+  fromGoogleBooks: number;
 }
 
 /**
- * Lazy Fetch Service
- * 
- * Searches Open Library for books and saves them to the database.
- * This implements a "lazy fetch" pattern:
- * 1. Search Open Library for the query
- * 2. Check which books are already in our database
- * 3. Save new books to the database
- * 4. Return all books with their database IDs
- * 
+ * Lazy Fetch Service - OPTIMIZED VERSION FOR GOOGLE BOOKS
+ *
+ * Key optimizations:
+ * 1. Only fetches the requested page from Google Books (not all results!)
+ * 2. Batches database operations to prevent timeouts
+ * 3. Parallel cache queries for speed
+ * 4. Uses API key for higher rate limits
+ *
  * @param query - Search query string
- * @param options - Search options (limit, offset)
+ * @param options - Search options (limit, offset, apiKey)
  * @returns Books from the database (newly saved + cached)
  */
 export async function lazyFetchBooks(
   query: string,
-  options: { limit?: number; offset?: number } = {}
+  options: { limit?: number; offset?: number; apiKey?: string } = {}
 ): Promise<LazyFetchResult> {
-  const { limit = 20, offset = 0 } = options;
+  const { limit = 20, offset = 0, apiKey } = options;
 
-  // Step 1: Search Open Library
-  const { books: normalizedBooks, total } = await searchAndNormalizeBooks(query, {
-    limit,
-    offset,
-  });
+  // Step 1: Search Google Books with proper pagination
+  // This only fetches the requested page, not all results!
+  const { books: normalizedBooks, total } = await searchAndNormalizeBooks(
+    query,
+    {
+      limit,
+      offset,
+      apiKey,
+    }
+  );
 
   if (normalizedBooks.length === 0) {
-    return { books: [], total: 0, fromCache: 0, fromOpenLibrary: 0 };
+    return { books: [], total: 0, fromCache: 0, fromGoogleBooks: 0 };
   }
 
-  // Step 2: Check which books are already cached
-  const openLibraryIds = normalizedBooks.map((b) => b.openLibraryId);
-  const cachedBooks = await getCachedBooks(openLibraryIds);
+  // Step 2: Check which books are already cached (parallel queries for speed)
+  const googleBooksIds = normalizedBooks.map((b) => b.googleBooksId);
+  const cachedBooks = await getCachedBooks(googleBooksIds);
 
   // Step 3: Determine which books need to be saved
   const newBooks = normalizedBooks.filter(
-    (b) => !cachedBooks.has(b.openLibraryId)
+    (b) => !cachedBooks.has(b.googleBooksId)
   );
 
-  // Step 4: Save new books to database
+  // Step 4: Save new books to database (in batches)
   let savedBooks: Book[] = [];
   if (newBooks.length > 0) {
     savedBooks = await saveBooksToDatabase(newBooks);
-    
+
     // Add saved books to cache map
     for (const book of savedBooks) {
-      cachedBooks.set(book.open_library_id, book);
+      if (book.google_books_id) {
+        cachedBooks.set(book.google_books_id, book);
+      }
     }
   }
 
   // Step 5: Return books in the original search order
   const resultBooks: Book[] = [];
   for (const normalized of normalizedBooks) {
-    const cached = cachedBooks.get(normalized.openLibraryId);
+    const cached = cachedBooks.get(normalized.googleBooksId);
     if (cached) {
       resultBooks.push(cached);
     }
@@ -144,7 +191,7 @@ export async function lazyFetchBooks(
     books: resultBooks,
     total,
     fromCache: cachedBooks.size - newBooks.length,
-    fromOpenLibrary: newBooks.length,
+    fromGoogleBooks: newBooks.length,
   };
 }
 
@@ -195,7 +242,27 @@ export async function getBookById(id: string): Promise<Book | null> {
 }
 
 /**
- * Get a book by its Open Library ID
+ * Get a book by its Google Books ID
+ */
+export async function getBookByGoogleBooksId(
+  googleBooksId: string
+): Promise<Book | null> {
+  const { data, error } = await supabaseAdmin
+    .from("books")
+    .select("*")
+    .eq("google_books_id", googleBooksId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null; // Not found
+    throw new Error(`Failed to fetch book: ${error.message}`);
+  }
+
+  return data;
+}
+
+/**
+ * Get a book by its Open Library ID (for backward compatibility)
  */
 export async function getBookByOpenLibraryId(
   openLibraryId: string
@@ -213,4 +280,3 @@ export async function getBookByOpenLibraryId(
 
   return data;
 }
-

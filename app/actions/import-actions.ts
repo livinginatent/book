@@ -231,7 +231,6 @@ async function findOrCreateBook(parsedBook: ParsedBook): Promise<Book | null> {
     // 4. Save to database
     const bookInsert: BookInsert = {
       open_library_id: olBook.openLibraryId,
-      open_library_edition_id: olBook.openLibraryEditionId ?? null,
       title: olBook.title,
       subtitle: olBook.subtitle ?? null,
       authors: olBook.authors,

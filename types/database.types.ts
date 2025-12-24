@@ -76,8 +76,6 @@ export interface Database {
       books: {
         Row: {
           id: string;
-          open_library_id: string;
-          open_library_edition_id: string | null;
           title: string;
           subtitle: string | null;
           authors: string[];
@@ -98,7 +96,8 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          open_library_id: string;
+          google_books_id?: string | null;
+          open_library_id?: string | null;
           open_library_edition_id?: string | null;
           title: string;
           subtitle?: string | null;
@@ -120,7 +119,8 @@ export interface Database {
         };
         Update: {
           id?: string;
-          open_library_id?: string;
+          google_books_id?: string | null;
+          open_library_id?: string | null;
           open_library_edition_id?: string | null;
           title?: string;
           subtitle?: string | null;
