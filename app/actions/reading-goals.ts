@@ -45,6 +45,10 @@ const PREMIUM_TIER_TYPES: GoalWizardType[] = [
   "consistency",
 ];
 
+// Multi-goal system limits
+const FREE_TIER_GOAL_LIMIT = 3; // Bookworm users can have 3 active goals
+const PREMIUM_TIER_GOAL_LIMIT = 12; // Bibliophile users can have 12 active goals
+
 /**
  * Resolve the current user's subscription tier.
  */
@@ -69,6 +73,76 @@ async function getUserSubscriptionTier(
   }
 
   return (profile?.subscription_tier as SubscriptionTier | null) ?? "free";
+}
+
+/**
+ * Check if a user can create a new active goal based on their subscription tier limit.
+ *
+ * @param userId - The user's ID
+ * @returns Object with canCreate boolean and current count, or error
+ */
+export async function canCreateGoal(
+  userId: string
+): Promise<
+  | { success: true; canCreate: boolean; currentCount: number; limit: number }
+  | ReadingGoalError
+> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Get user's subscription tier from profiles table
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", userId)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching user profile:", profileError);
+      return {
+        success: false,
+        error: "Failed to fetch user profile",
+      };
+    }
+
+    const tier =
+      (profile?.subscription_tier as SubscriptionTier | null) ?? "free";
+    const limit =
+      tier === "bibliophile" ? PREMIUM_TIER_GOAL_LIMIT : FREE_TIER_GOAL_LIMIT;
+
+    // Count active goals for this user
+    const { count, error: countError } = await supabase
+      .from("reading_goals")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("is_active", true);
+
+    if (countError) {
+      console.error("Error counting active goals:", countError);
+      return {
+        success: false,
+        error: "Failed to count active goals",
+      };
+    }
+
+    const currentCount = count || 0;
+    const canCreate = currentCount < limit;
+
+    return {
+      success: true,
+      canCreate,
+      currentCount,
+      limit,
+    };
+  } catch (error) {
+    console.error("Can create goal error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
 }
 
 /**
@@ -383,6 +457,156 @@ async function calculateGoalProgress(
 }
 
 /**
+ * Get all active goals for the current user.
+ * Automatically calculates progress from user_books table for each goal.
+ */
+export async function getAllActiveGoals(): Promise<
+  { success: true; goals: ReadingGoal[] } | ReadingGoalError
+> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    const { data: goals, error } = await supabase
+      .from("reading_goals")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching active goals:", error);
+      return { success: false, error: "Failed to fetch active goals" };
+    }
+
+    if (!goals || goals.length === 0) {
+      return { success: true, goals: [] };
+    }
+
+    // Calculate progress for each goal
+    const goalsWithProgress = await Promise.all(
+      goals.map(async (goal) => {
+        const config = (goal.config as Record<string, unknown>) || {};
+        const goalYear = (config.year as number) || new Date().getFullYear();
+        const currentProgress = await calculateGoalProgress(
+          supabase,
+          user.id,
+          goal.type,
+          goalYear,
+          config
+        );
+
+        const componentGoal = dbGoalToComponentGoal(goal);
+        componentGoal.current = currentProgress;
+        return componentGoal;
+      })
+    );
+
+    return {
+      success: true,
+      goals: goalsWithProgress,
+    };
+  } catch (error) {
+    console.error("Get all active goals error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Update a goal's config JSONB field.
+ */
+export async function updateGoalConfig(
+  goalId: string,
+  config: Record<string, unknown>
+): Promise<ReadingGoalResult | ReadingGoalError> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Verify the goal belongs to the user
+    const { data: existingGoal, error: fetchError } = await supabase
+      .from("reading_goals")
+      .select("*")
+      .eq("id", goalId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (fetchError || !existingGoal) {
+      return {
+        success: false,
+        error: "Goal not found or access denied",
+      };
+    }
+
+    // Merge with existing config to preserve other fields
+    const existingConfig =
+      (existingGoal.config as Record<string, unknown>) || {};
+    const updatedConfig = { ...existingConfig, ...config };
+
+    const { data: updatedGoal, error: updateError } = await supabase
+      .from("reading_goals")
+      .update({ config: updatedConfig })
+      .eq("id", goalId)
+      .eq("user_id", user.id)
+      .select("*")
+      .single();
+
+    if (updateError || !updatedGoal) {
+      console.error("Error updating goal config:", updateError);
+      return { success: false, error: "Failed to update goal config" };
+    }
+
+    // Recalculate progress
+    const goalConfig = (updatedGoal.config as Record<string, unknown>) || {};
+    const goalYear = (goalConfig.year as number) || new Date().getFullYear();
+    const currentProgress = await calculateGoalProgress(
+      supabase,
+      user.id,
+      updatedGoal.type,
+      goalYear,
+      goalConfig
+    );
+
+    const componentGoal = dbGoalToComponentGoal(updatedGoal);
+    componentGoal.current = currentProgress;
+
+    return {
+      success: true,
+      goal: componentGoal,
+    };
+  } catch (error) {
+    console.error("Update goal config error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
  * Get the user's current active goal, if any.
  * Automatically calculates progress from user_books table.
  */
@@ -542,6 +766,91 @@ export async function updateGoalProgress(
 > {
   // Simply refresh the goal - progress is calculated automatically
   return getActiveGoal();
+}
+
+/**
+ * Create a new reading goal.
+ * Checks the user's goal limit before creating.
+ *
+ * @param goalData - Partial goal data including type and config
+ * @returns The created goal or an error
+ */
+export async function createReadingGoal(goalData: {
+  type: GoalType;
+  config: Record<string, unknown>;
+  isActive?: boolean;
+}): Promise<ReadingGoalResult | ReadingGoalError> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Check if user can create a new goal
+    const canCreateResult = await canCreateGoal(user.id);
+    if (!canCreateResult.success) {
+      return canCreateResult;
+    }
+
+    if (!canCreateResult.canCreate) {
+      return {
+        success: false,
+        error: `You have reached your goal limit of ${canCreateResult.limit} active goals. Please deactivate an existing goal or upgrade to Bibliophile for more goals.`,
+      };
+    }
+
+    // Verify tier allows this goal type
+    const tier = (await getUserSubscriptionTier(supabase)) ?? "free";
+    const isPremiumType =
+      goalData.type === "pages" ||
+      goalData.type === "diversity" ||
+      goalData.type === "consistency";
+
+    if (isPremiumType && tier !== "bibliophile") {
+      return {
+        success: false,
+        error:
+          "This goal type is available only to Bibliophile (premium) subscribers.",
+      };
+    }
+
+    // Insert new goal (ID will be auto-generated by gen_random_uuid() default)
+    const { data: dbGoal, error: insertError } = await supabase
+      .from("reading_goals")
+      .insert({
+        user_id: user.id,
+        type: goalData.type,
+        is_active: goalData.isActive ?? true,
+        config: goalData.config,
+      })
+      .select("*")
+      .single();
+
+    if (insertError || !dbGoal) {
+      console.error("Error creating reading goal:", insertError);
+      return { success: false, error: "Failed to create reading goal" };
+    }
+
+    return {
+      success: true,
+      goal: dbGoalToComponentGoal(dbGoal),
+    };
+  } catch (error) {
+    console.error("Create reading goal error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
 }
 
 /**

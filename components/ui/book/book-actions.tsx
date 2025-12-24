@@ -248,5 +248,3 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
     </div>
   );
 }
-
-
