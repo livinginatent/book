@@ -18,6 +18,8 @@ export type ReadingStatus =
 
 export type ReadingFormat = "physical" | "ebook" | "audiobook";
 
+export type GoalType = "books" | "pages" | "diversity" | "streak";
+
 export interface Database {
   public: {
     Tables: {
@@ -317,6 +319,35 @@ export interface Database {
           updated_at?: string;
         };
       };
+      reading_goals: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: GoalType;
+          is_active: boolean;
+          config: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: GoalType;
+          is_active?: boolean;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          type?: GoalType;
+          is_active?: boolean;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {};
     Functions: {};
@@ -325,6 +356,7 @@ export interface Database {
       reading_status: ReadingStatus;
       journal_entry_type: "note" | "quote" | "prediction";
       shelf_type: "default" | "custom";
+      goal_type: GoalType;
     };
   };
 }
@@ -357,3 +389,9 @@ export type ReadingSessionUpdate = Database["public"]["Tables"]["reading_session
 export type Shelf = Database["public"]["Tables"]["shelves"]["Row"];
 export type ShelfInsert = Database["public"]["Tables"]["shelves"]["Insert"];
 export type ShelfUpdate = Database["public"]["Tables"]["shelves"]["Update"];
+
+export type ReadingGoal = Database["public"]["Tables"]["reading_goals"]["Row"];
+export type ReadingGoalInsert =
+  Database["public"]["Tables"]["reading_goals"]["Insert"];
+export type ReadingGoalUpdate =
+  Database["public"]["Tables"]["reading_goals"]["Update"];
