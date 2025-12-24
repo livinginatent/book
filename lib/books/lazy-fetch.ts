@@ -11,8 +11,7 @@ import type { Book, BookInsert } from "@/types/database.types";
 function toBookInsert(book: NormalizedBook): BookInsert {
   return {
     google_books_id: book.googleBooksId,
- 
-   
+
     title: book.title,
     subtitle: book.subtitle ?? null,
     authors: book.authors,

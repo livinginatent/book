@@ -370,21 +370,32 @@ export type Book = Database["public"]["Tables"]["books"]["Row"];
 export type BookInsert = Database["public"]["Tables"]["books"]["Insert"];
 export type BookUpdate = Database["public"]["Tables"]["books"]["Update"];
 
-export type ReadingProgress = Database["public"]["Tables"]["reading_progress"]["Row"];
-export type ReadingProgressInsert = Database["public"]["Tables"]["reading_progress"]["Insert"];
-export type ReadingProgressUpdate = Database["public"]["Tables"]["reading_progress"]["Update"];
+export type ReadingProgress =
+  Database["public"]["Tables"]["reading_progress"]["Row"];
+export type ReadingProgressInsert =
+  Database["public"]["Tables"]["reading_progress"]["Insert"];
+export type ReadingProgressUpdate =
+  Database["public"]["Tables"]["reading_progress"]["Update"];
 
 export type UserBook = Database["public"]["Tables"]["user_books"]["Row"];
-export type UserBookInsert = Database["public"]["Tables"]["user_books"]["Insert"];
-export type UserBookUpdate = Database["public"]["Tables"]["user_books"]["Update"];
+export type UserBookInsert =
+  Database["public"]["Tables"]["user_books"]["Insert"];
+export type UserBookUpdate =
+  Database["public"]["Tables"]["user_books"]["Update"];
 
-export type ReadingJournal = Database["public"]["Tables"]["reading_journal"]["Row"];
-export type ReadingJournalInsert = Database["public"]["Tables"]["reading_journal"]["Insert"];
-export type ReadingJournalUpdate = Database["public"]["Tables"]["reading_journal"]["Update"];
+export type ReadingJournal =
+  Database["public"]["Tables"]["reading_journal"]["Row"];
+export type ReadingJournalInsert =
+  Database["public"]["Tables"]["reading_journal"]["Insert"];
+export type ReadingJournalUpdate =
+  Database["public"]["Tables"]["reading_journal"]["Update"];
 
-export type ReadingSession = Database["public"]["Tables"]["reading_sessions"]["Row"];
-export type ReadingSessionInsert = Database["public"]["Tables"]["reading_sessions"]["Insert"];
-export type ReadingSessionUpdate = Database["public"]["Tables"]["reading_sessions"]["Update"];
+export type ReadingSession =
+  Database["public"]["Tables"]["reading_sessions"]["Row"];
+export type ReadingSessionInsert =
+  Database["public"]["Tables"]["reading_sessions"]["Insert"];
+export type ReadingSessionUpdate =
+  Database["public"]["Tables"]["reading_sessions"]["Update"];
 
 export type Shelf = Database["public"]["Tables"]["shelves"]["Row"];
 export type ShelfInsert = Database["public"]["Tables"]["shelves"]["Insert"];

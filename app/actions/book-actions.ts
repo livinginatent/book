@@ -25,6 +25,8 @@ function mapActionToStatus(action: BookAction): ReadingStatus {
     "currently-reading": "currently_reading",
     "up-next": "up_next",
     "did-not-finish": "dnf",
+    "paused": "paused",
+    "finished": "finished",
   };
   return statusMap[action];
 }
