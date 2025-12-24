@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import type { ReadingStatus } from "@/types/database.types";
 
 import { GoodreadsImport } from "../import/goodreads-import";
+import { ReadingGoalsContainer } from "../reading-goals";
 
 interface CurrentlyReadingBook {
   id: string;
@@ -374,6 +375,7 @@ export function AuthenticatedHome() {
               onProgressUpdate={handleProgressUpdate}
               onStatusChange={handleStatusChange}
             />
+            <ReadingGoalsContainer className="..." />
 
             {/* Goodreads Import - Collapsible Section (only shown if not yet imported) */}
             {!profile?.has_imported_from_goodreads && (

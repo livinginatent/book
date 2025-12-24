@@ -27,7 +27,21 @@ export function UpdateProgressDialog({
   onUpdateProgress,
 }: UpdateProgressDialogProps) {
   const [value, setValue] = useState(goal.current);
-  const unit = goal.type === "pages" ? "pages" : "books";
+  
+  const getUnit = () => {
+    switch (goal.type) {
+      case "pages":
+        return "pages";
+      case "genres":
+        return "genres";
+      case "consistency":
+        return "days";
+      default:
+        return "books";
+    }
+  };
+  
+  const unit = getUnit();
 
   const handleIncrement = () => setValue((v) => v + 1);
   const handleDecrement = () => setValue((v) => Math.max(0, v - 1));

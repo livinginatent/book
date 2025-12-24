@@ -57,8 +57,16 @@ export function isGoalCompleted(goal: ReadingGoal): boolean {
 }
 
 export function formatGoalProgress(goal: ReadingGoal): string {
-  const unit = goal.type === "pages" ? "Pages" : "Books";
-  return `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} ${unit}`;
+  if (goal.type === "pages") {
+    return `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} Pages`;
+  }
+  if (goal.type === "genres") {
+    return `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} Genres`;
+  }
+  if (goal.type === "consistency") {
+    return `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} Days`;
+  }
+  return `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} Books`;
 }
 
 export function estimateReadingTime(

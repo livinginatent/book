@@ -73,7 +73,21 @@ export function ReadingGoalWidget({
   const pace = calculatePace(goal);
   const progressPercent = getProgressPercentage(goal);
   const pacePercent = getPacePercentage(goal);
-  const unit = goal.type === "pages" ? "pages" : "books";
+  
+  const getUnit = () => {
+    switch (goal.type) {
+      case "pages":
+        return "pages";
+      case "genres":
+        return "genres";
+      case "consistency":
+        return "days";
+      default:
+        return "books";
+    }
+  };
+  
+  const unit = getUnit();
 
   return (
     <motion.div

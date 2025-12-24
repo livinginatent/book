@@ -18,7 +18,7 @@ export type ReadingStatus =
 
 export type ReadingFormat = "physical" | "ebook" | "audiobook";
 
-export type GoalType = "books" | "pages" | "diversity" | "streak";
+export type GoalType = "books" | "pages" | "diversity" | "consistency";
 
 export interface Database {
   public: {

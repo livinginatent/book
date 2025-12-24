@@ -4,7 +4,7 @@
 -- ============================================
 
 -- Enum for goal type
-create type goal_type as enum ('books', 'pages', 'diversity', 'streak');
+create type goal_type as enum ('books', 'pages', 'diversity', 'consistency');
 
 create table if not exists public.reading_goals (
   id uuid primary key default gen_random_uuid(),
@@ -18,18 +18,18 @@ create table if not exists public.reading_goals (
 
   -- Flexible configuration payload, interpreted by the app depending on type
   -- Examples:
-  --  - books:     { "target_books": 12 }
-  --  - pages:     { "target_pages": 5000 }
-  --  - diversity: { "target_books": 5, "min_genres": 3 }
-  --  - streak:    { "target_days": 30 }
+  --  - books:        { "target": 12, "current": 0, "year": 2025, "is_public": true }
+  --  - pages:        { "target": 5000, "current": 0, "year": 2025, "is_public": true }
+  --  - diversity:    { "target": 5, "current": 0, "year": 2025, "is_public": true, "genres": ["Non-fiction", "Fiction"] }
+  --  - consistency:  { "target": 30, "current": 0, "year": 2025, "is_public": true }
   config jsonb not null default '{}'::jsonb,
 
   created_at timestamp with time zone default now(),
   updated_at timestamp with time zone default now()
 );
 
-comment on table public.reading_goals is 'Stores user reading goals (books, pages, diversity, streak) selected via the goal wizard';
-comment on column public.reading_goals.type is 'Goal type: books, pages, diversity, or streak';
+comment on table public.reading_goals is 'Stores user reading goals (books, pages, diversity, consistency) selected via the goal wizard';
+comment on column public.reading_goals.type is 'Goal type: books, pages, diversity, or consistency';
 comment on column public.reading_goals.config is 'Goal configuration payload (JSON) interpreted per goal type';
 
 -- Indexes for common access patterns

@@ -1,6 +1,6 @@
 export type UserPlan = "FREE" | "PREMIUM";
 
-export type GoalType = "books" | "pages" | "genres";
+export type GoalType = "books" | "pages" | "genres" | "consistency";
 
 export interface ReadingGoal {
   id: string;

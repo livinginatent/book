@@ -89,8 +89,14 @@ export function CelebrationWidget({
               <Sparkles className="h-4 w-4 text-gold" />
             </div>
             <p className="mb-6 text-muted-foreground">
-              You read {goal.current}{" "}
-              {goal.type === "pages" ? "pages" : "books"} in {goal.year}!
+              {goal.type === "pages"
+                ? `You read ${goal.current} pages`
+                : goal.type === "genres"
+                ? `You read from ${goal.current} genres`
+                : goal.type === "consistency"
+                ? `You read for ${goal.current} consecutive days`
+                : `You read ${goal.current} books`}{" "}
+              in {goal.year}!
             </p>
           </motion.div>
 

@@ -4,6 +4,7 @@ import {
   BookOpen,
   FileText,
   Tags,
+  Calendar,
   Lock,
   Globe,
   Eye,
@@ -46,7 +47,7 @@ const goalTypeOptions: Array<{
 }> = [
   {
     type: "books",
-    label: "Total Books",
+    label: "Number of Books",
     description: "Track the number of books you read",
     icon: BookOpen,
     premiumOnly: false,
@@ -61,8 +62,15 @@ const goalTypeOptions: Array<{
   {
     type: "genres",
     label: "Genre Diversity",
-    description: "Explore different genres",
+    description: "Read X books from Y different genres",
     icon: Tags,
+    premiumOnly: true,
+  },
+  {
+    type: "consistency",
+    label: "Consistency",
+    description: "Read every day for X days",
+    icon: Calendar,
     premiumOnly: true,
   },
 ];
@@ -73,7 +81,9 @@ export function GoalSettingWizard({
   onOpenChange,
   onSaveGoal,
 }: GoalSettingWizardProps) {
-  const isPremium = user.plan === "PREMIUM";
+  // Check premium status - user.plan can be "PREMIUM" or "FREE"
+  // Also accept subscription_tier if passed via user object
+  const isPremium = user.plan === "PREMIUM" || (user as any).subscriptionTier === "bibliophile";
   const [step, setStep] = useState<Step>("type");
   const [goalType, setGoalType] = useState<GoalType>("books");
   const [target, setTarget] = useState<number>(12);
@@ -134,6 +144,7 @@ export function GoalSettingWizard({
     if (step === "type") return true;
     if (step === "target") {
       if (goalType === "genres") return selectedGenres.length >= 3;
+      if (goalType === "consistency") return target > 0;
       return target > 0;
     }
     return true;
@@ -305,6 +316,43 @@ export function GoalSettingWizard({
                       {selectedGenres.length}/5 genres selected
                     </p>
                   </>
+                ) : goalType === "consistency" ? (
+                  <>
+                    <div>
+                      <h3 className="mb-1 font-medium">Set your consistency goal</h3>
+                      <p className="text-sm text-muted-foreground">
+                        How many consecutive days do you want to read?
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="target">Days</Label>
+                      <Input
+                        id="target"
+                        type="number"
+                        min={1}
+                        value={target}
+                        onChange={(e) =>
+                          setTarget(parseInt(e.target.value) || 0)
+                        }
+                        className="text-2xl font-bold"
+                      />
+                    </div>
+
+                    {/* Quick select buttons */}
+                    <div className="flex gap-2">
+                      {[7, 30, 60, 90].map((preset) => (
+                        <Button
+                          key={preset}
+                          variant={target === preset ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setTarget(preset)}
+                        >
+                          {preset} days
+                        </Button>
+                      ))}
+                    </div>
+                  </>
                 ) : (
                   <>
                     <div>
@@ -437,6 +485,8 @@ export function GoalSettingWizard({
                   <p className="text-sm">
                     {goalType === "genres"
                       ? `Read from ${selectedGenres.length} different genres`
+                      : goalType === "consistency"
+                      ? `Read every day for ${target} days`
                       : `Read ${target.toLocaleString()} ${goalType}`}{" "}
                     in {new Date().getFullYear()}
                   </p>
