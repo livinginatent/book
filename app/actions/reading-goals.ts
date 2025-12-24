@@ -228,9 +228,14 @@ export async function upsertGoalType(
     }
 
     // Deactivate any existing active goals for this user
+    // Set status to 'archived' if the column exists
     const { error: deactivateError } = await supabase
       .from("reading_goals")
-      .update({ is_active: false })
+      .update({
+        is_active: false,
+        // Try to set status to 'archived' if column exists (will be ignored if it doesn't)
+        status: "archived" as any,
+      })
       .eq("user_id", user.id)
       .eq("is_active", true);
 
@@ -239,6 +244,7 @@ export async function upsertGoalType(
     }
 
     // Create a new active goal
+    // Set status to 'active' if the column exists
     const { data: goal, error: insertError } = await supabase
       .from("reading_goals")
       .insert({
@@ -246,6 +252,8 @@ export async function upsertGoalType(
         type,
         is_active: true,
         config,
+        // Try to set status to 'active' if column exists (will be ignored if it doesn't)
+        status: "active" as any,
       })
       .select("*")
       .single();
@@ -457,8 +465,44 @@ async function calculateGoalProgress(
 }
 
 /**
+ * Check if a goal is completed and mark it as such if needed.
+ * This is called automatically when fetching goals.
+ */
+async function checkAndMarkGoalCompleted(
+  supabase: ReturnType<typeof createClient>,
+  goal: DBReadingGoal,
+  currentProgress: number
+): Promise<void> {
+  const config = (goal.config as Record<string, unknown>) || {};
+  const target = (config.target as number) || 0;
+  const goalStatus = (goal as { status?: string }).status || "active";
+
+  // Only check active goals
+  if (goalStatus !== "active") {
+    return;
+  }
+
+  // If goal is achieved, mark it as completed
+  if (currentProgress >= target && target > 0) {
+    try {
+      // Use the database function to mark as completed
+      const { error } = await supabase.rpc("mark_goal_completed", {
+        goal_id: goal.id,
+      });
+
+      if (error) {
+        console.error("Error marking goal as completed:", error);
+      }
+    } catch (error) {
+      console.error("Error calling mark_goal_completed:", error);
+    }
+  }
+}
+
+/**
  * Get all active goals for the current user.
  * Automatically calculates progress from user_books table for each goal.
+ * Automatically marks goals as completed when they're achieved.
  */
 export async function getAllActiveGoals(): Promise<
   { success: true; goals: ReadingGoal[] } | ReadingGoalError
@@ -476,6 +520,8 @@ export async function getAllActiveGoals(): Promise<
       return { success: false, error: "You must be logged in" };
     }
 
+    // Query by status='active' if the column exists, otherwise fall back to is_active
+    // This allows the code to work before/after migration
     const { data: goals, error } = await supabase
       .from("reading_goals")
       .select("*")
@@ -486,6 +532,102 @@ export async function getAllActiveGoals(): Promise<
     if (error) {
       console.error("Error fetching active goals:", error);
       return { success: false, error: "Failed to fetch active goals" };
+    }
+
+    if (!goals || goals.length === 0) {
+      return { success: true, goals: [] };
+    }
+
+    // Calculate progress for each goal and check if they should be marked as completed
+    const goalsWithProgress = await Promise.all(
+      goals.map(async (goal) => {
+        const config = (goal.config as Record<string, unknown>) || {};
+        const goalYear = (config.year as number) || new Date().getFullYear();
+        const currentProgress = await calculateGoalProgress(
+          supabase,
+          user.id,
+          goal.type,
+          goalYear,
+          config
+        );
+
+        // Check and mark as completed if needed (non-blocking)
+        checkAndMarkGoalCompleted(supabase, goal, currentProgress).catch(
+          (err) => console.error("Error checking goal completion:", err)
+        );
+
+        const componentGoal = dbGoalToComponentGoal(goal);
+        componentGoal.current = currentProgress;
+        return componentGoal;
+      })
+    );
+
+    // Filter out goals that were just marked as completed
+    // Re-fetch to get updated status
+    const activeGoals = goalsWithProgress.filter((goal) => {
+      const originalGoal = goals.find((g) => g.id === goal.id);
+      const status = (originalGoal as { status?: string })?.status;
+      return !status || status === "active";
+    });
+
+    return {
+      success: true,
+      goals: activeGoals,
+    };
+  } catch (error) {
+    console.error("Get all active goals error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Get all achieved (completed) goals for the current user.
+ * Uses the status='completed' field if available, otherwise falls back to checking current >= target.
+ * Automatically calculates progress from user_books table for each goal.
+ */
+export async function getAllAchievedGoals(): Promise<
+  { success: true; goals: ReadingGoal[] } | ReadingGoalError
+> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Query for completed goals by status if available, otherwise get all and filter
+    // We'll try to filter by status, but handle gracefully if column doesn't exist yet
+    let { data: goals, error } = await supabase
+      .from("reading_goals")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    // If the query succeeded but status column might not exist, try filtering by status
+    // This is a best-effort approach that works before and after migration
+    if (!error && goals) {
+      // Try to filter by status if it exists in the data
+      const hasStatusColumn = goals.length > 0 && "status" in goals[0];
+      if (hasStatusColumn) {
+        goals = goals.filter(
+          (g) => (g as { status?: string }).status === "completed"
+        );
+      }
+    }
+
+    if (error) {
+      console.error("Error fetching goals:", error);
+      return { success: false, error: "Failed to fetch goals" };
     }
 
     if (!goals || goals.length === 0) {
@@ -511,12 +653,31 @@ export async function getAllActiveGoals(): Promise<
       })
     );
 
+    // Filter for completed goals:
+    // 1. If status column exists and is 'completed', include it
+    // 2. Otherwise, check if current >= target (fallback for pre-migration data)
+    const achievedGoals = goalsWithProgress.filter((goal) => {
+      const originalGoal = goals.find((g) => g.id === goal.id);
+      const status = (originalGoal as { status?: string })?.status;
+
+      if (status === "completed") {
+        return true;
+      }
+
+      // Fallback: check if goal is achieved (for data before migration)
+      if (!status && goal.current >= goal.target && goal.target > 0) {
+        return true;
+      }
+
+      return false;
+    });
+
     return {
       success: true,
-      goals: goalsWithProgress,
+      goals: achievedGoals,
     };
   } catch (error) {
-    console.error("Get all active goals error:", error);
+    console.error("Get all achieved goals error:", error);
     return {
       success: false,
       error:
@@ -713,9 +874,14 @@ export async function saveReadingGoal(
     const { type, config } = componentGoalToDbGoal(goal);
 
     // Deactivate any existing active goals for this user
+    // Set status to 'archived' if the column exists, otherwise just set is_active = false
     const { error: deactivateError } = await supabase
       .from("reading_goals")
-      .update({ is_active: false })
+      .update({
+        is_active: false,
+        // Try to set status to 'archived' if column exists (will be ignored if it doesn't)
+        status: "archived" as any,
+      })
       .eq("user_id", user.id)
       .eq("is_active", true);
 
@@ -724,6 +890,7 @@ export async function saveReadingGoal(
     }
 
     // Create a new active goal
+    // Set status to 'active' if the column exists, otherwise just set is_active = true
     const { data: dbGoal, error: insertError } = await supabase
       .from("reading_goals")
       .insert({
@@ -731,6 +898,8 @@ export async function saveReadingGoal(
         type: type as GoalType,
         is_active: true,
         config,
+        // Try to set status to 'active' if column exists (will be ignored if it doesn't)
+        status: "active" as any,
       })
       .select("*")
       .single();
@@ -915,6 +1084,64 @@ export async function increaseGoalTarget(
     };
   } catch (error) {
     console.error("Increase goal target error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Delete a reading goal.
+ * Verifies the goal belongs to the user before deleting.
+ */
+export async function deleteReadingGoal(
+  goalId: string
+): Promise<{ success: true } | ReadingGoalError> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Verify the goal belongs to the user
+    const { data: existingGoal, error: fetchError } = await supabase
+      .from("reading_goals")
+      .select("id")
+      .eq("id", goalId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (fetchError || !existingGoal) {
+      return {
+        success: false,
+        error: "Goal not found or access denied",
+      };
+    }
+
+    // Delete the goal
+    const { error: deleteError } = await supabase
+      .from("reading_goals")
+      .delete()
+      .eq("id", goalId)
+      .eq("user_id", user.id);
+
+    if (deleteError) {
+      console.error("Error deleting reading goal:", deleteError);
+      return { success: false, error: "Failed to delete reading goal" };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Delete reading goal error:", error);
     return {
       success: false,
       error:

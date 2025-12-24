@@ -1,13 +1,21 @@
 "use client";
 
-import { BookOpen, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import {
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+} from "lucide-react";
 import Link from "next/link";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { BookCard } from "@/components/ui/book/book-card";
 import type { BookStatus } from "@/components/ui/book/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
+import { cn } from "@/lib/utils";
 
 interface Book {
   id: string;
@@ -30,6 +38,7 @@ export function CurrentlyReading({
   onStatusChange,
 }: CurrentlyReadingProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const scrollByCards = (direction: "left" | "right") => {
     const container = scrollRef.current;
@@ -55,78 +64,102 @@ export function CurrentlyReading({
       } in progress`}
       icon={BookOpen}
       action={
-        <Button variant="ghost" size="sm" className="rounded-xl">
-          <Plus className="w-4 h-4 mr-1" />
-          Add Book
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="rounded-xl">
+            <Plus className="w-4 h-4 mr-1" />
+            Add Book
+          </Button>
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+            aria-label={isCollapsed ? "Expand" : "Collapse"}
+          >
+            {isCollapsed ? (
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+            )}
+          </button>
+        </div>
       }
     >
-      <div className="relative">
-        <div
-          ref={scrollRef}
-          className="flex gap-4 overflow-x-auto pb-4 scroll-smooth scrollbar-hide items-stretch"
-        >
-          {books.map((book) => (
-            <div
-              key={book.id}
-              data-book-card
-              /* 1. Changed: Added 'flex flex-col' to the wrapper 
+      <div
+        className={cn(
+          "overflow-hidden transition-all duration-200",
+          isCollapsed ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
+        )}
+      >
+        <div className="relative">
+          <div
+            ref={scrollRef}
+            className="flex gap-4 overflow-x-auto pb-4 scroll-smooth scrollbar-hide items-stretch"
+          >
+            {books.map((book) => (
+              <div
+                key={book.id}
+                data-book-card
+                /* 1. Changed: Added 'flex flex-col' to the wrapper 
                  2. Added 'min-h-full' to ensure cards match height if parent allows 
               */
-              className="flex flex-col min-w-[70%] sm:min-w-[45%] lg:min-w-[22%]"
-            >
-              <BookCard
-                /* 3. Added 'flex-1': This forces the BookCard to grow and 
+                className="flex flex-col min-w-[70%] sm:min-w-[45%] lg:min-w-[22%]"
+              >
+                <BookCard
+                  /* 3. Added 'flex-1': This forces the BookCard to grow and 
                       fill all available space, pushing the Link below it.
                 */
-                className="flex-1"
-                title={book.title}
-                author={book.author}
-                cover={book.cover}
-                pagesRead={book.pagesRead}
-                totalPages={book.totalPages}
-                editable
-                onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
-                onStatusChange={(status, date) => onStatusChange?.(book.id, status, date)}
-              />
+                  className="flex-1"
+                  title={book.title}
+                  author={book.author}
+                  cover={book.cover}
+                  pagesRead={book.pagesRead}
+                  totalPages={book.totalPages}
+                  editable
+                  onProgressUpdate={(pages) =>
+                    onProgressUpdate?.(book.id, pages)
+                  }
+                  onStatusChange={(status, date) =>
+                    onStatusChange?.(book.id, status, date)
+                  }
+                />
 
-              {/* 4. 'mt-auto' ensures this stays at the very bottom of the flex column */}
-              <Link
-                href={`/currently-reading/${book.id}`}
-                className="mt-auto pt-3 "
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-32 text-xs rounded-xl text-white bg-primary hover:bg-primary/90"
+                {/* 4. 'mt-auto' ensures this stays at the very bottom of the flex column */}
+                <Link
+                  href={`/currently-reading/${book.id}`}
+                  className="mt-auto pt-3 "
                 >
-                  See details
-                </Button>
-              </Link>
-            </div>
-          ))}
-        </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-32 text-xs rounded-xl text-white bg-primary hover:bg-primary/90"
+                  >
+                    See details
+                  </Button>
+                </Link>
+              </div>
+            ))}
+          </div>
 
-        {books.length > 4 && (
-          <>
-            <button
-              type="button"
-              onClick={() => scrollByCards("left")}
-              className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors"
-              aria-label="Scroll left"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollByCards("right")}
-              className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors"
-              aria-label="Scroll right"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </>
-        )}
+          {books.length > 4 && (
+            <>
+              <button
+                type="button"
+                onClick={() => scrollByCards("left")}
+                className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollByCards("right")}
+                className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors"
+                aria-label="Scroll right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </DashboardCard>
   );

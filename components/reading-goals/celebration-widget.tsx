@@ -32,7 +32,7 @@ export function CelebrationWidget({
     >
       <Card
         className={cn(
-          "relative overflow-hidden glow-gold border-gold/30",
+          "relative overflow-hidden glow-gold border-gold/30 h-[330px] flex flex-col",
           className
         )}
       >
@@ -61,7 +61,7 @@ export function CelebrationWidget({
           ))}
         </div>
 
-        <CardContent className="relative py-8 text-center">
+        <CardContent className="relative py-8 text-center flex-1 flex flex-col justify-center">
           {/* Trophy icon with glow */}
           <motion.div
             className="mx-auto mb-4 inline-flex rounded-full gradient-gold p-4"
