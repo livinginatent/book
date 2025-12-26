@@ -2,7 +2,7 @@
 
 import { FolderLock, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useTransition, useMemo } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import type { ShelfData } from "@/app/actions/dashboard-data";
 import { refreshShelves } from "@/app/actions/dashboard-data";
