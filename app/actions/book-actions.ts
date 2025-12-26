@@ -385,3 +385,135 @@ export async function rateBook(
     };
   }
 }
+
+/**
+ * Add a book to the user's up_next array in profiles table
+ */
+export async function addToUpNext(
+  bookId: string
+): Promise<BookActionResult | BookActionError> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Get current profile to fetch existing up_next array
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("up_next")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+      return { success: false, error: "Failed to fetch profile" };
+    }
+
+    const currentUpNext = profile?.up_next || [];
+    
+    // Check if book is already in up_next
+    if (currentUpNext.includes(bookId)) {
+      return {
+        success: false,
+        error: "Book is already in your up next list",
+      };
+    }
+
+    // Add book to up_next array
+    const updatedUpNext = [...currentUpNext, bookId];
+
+    // Update profile with new up_next array
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ up_next: updatedUpNext })
+      .eq("id", user.id);
+
+    if (updateError) {
+      console.error("Error updating up_next:", updateError);
+      return { success: false, error: "Failed to add book to up next" };
+    }
+
+    return {
+      success: true,
+      message: "Book added to up next",
+    };
+  } catch (error) {
+    console.error("Add to up next error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Remove a book from the user's up_next array in profiles table
+ */
+export async function removeFromUpNext(
+  bookId: string
+): Promise<BookActionResult | BookActionError> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Get current profile to fetch existing up_next array
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("up_next")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+      return { success: false, error: "Failed to fetch profile" };
+    }
+
+    const currentUpNext = profile?.up_next || [];
+    
+    // Remove book from up_next array
+    const updatedUpNext = currentUpNext.filter((id) => id !== bookId);
+
+    // Update profile with new up_next array
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ up_next: updatedUpNext })
+      .eq("id", user.id);
+
+    if (updateError) {
+      console.error("Error updating up_next:", updateError);
+      return { success: false, error: "Failed to remove book from up next" };
+    }
+
+    return {
+      success: true,
+      message: "Book removed from up next",
+    };
+  } catch (error) {
+    console.error("Remove from up next error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}

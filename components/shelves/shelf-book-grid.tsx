@@ -19,9 +19,17 @@ interface Book {
 
 interface ShelfBookGridProps {
   books: Book[];
-  sortBy?: "progress" | "added" | "title" | "neglected";
+  sortBy?:
+    | "progress"
+    | "added"
+    | "title"
+    | "neglected"
+    | "oldest"
+    | "newest"
+    | "shortest";
   onProgressUpdate?: (bookId: string, pages: number) => void;
   onStatusChange?: (bookId: string, status: BookStatus) => void;
+  onMoveToUpNext?: (bookId: string) => void;
 }
 
 export function ShelfBookGrid({
@@ -29,12 +37,48 @@ export function ShelfBookGrid({
   sortBy = "progress",
   onProgressUpdate,
   onStatusChange,
+  onMoveToUpNext,
 }: ShelfBookGridProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Helper function to check if a book is neglected (> 3 days since last read)
+  // Helper function to check if a book is neglected (> 3 days since last read, but only if added > 1 week ago)
   const isNeglected = (book: Book): boolean => {
-    if (!book.lastReadDate) return true; // Never read
+    // If book has a date_added, check if it's been at least a week
+    if (book.date_added) {
+      try {
+        const dateAdded = new Date(book.date_added);
+        if (!isNaN(dateAdded.getTime())) {
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+          // If book was added less than a week ago, it's not neglected
+          if (dateAdded > oneWeekAgo) {
+            return false;
+          }
+        }
+      } catch {
+        // If we can't parse date_added, continue with normal logic
+      }
+    }
+
+    // If never read, check if it's been a week since added
+    if (!book.lastReadDate) {
+      // If no date_added, consider it neglected (old behavior)
+      if (!book.date_added) return true;
+      // If date_added exists and is more than a week ago, it's neglected
+      try {
+        const dateAdded = new Date(book.date_added);
+        if (!isNaN(dateAdded.getTime())) {
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+          return dateAdded < oneWeekAgo;
+        }
+      } catch {
+        return true; // Error parsing date
+      }
+      return true;
+    }
+
+    // If book has been read, check if it's been > 3 days since last read
     try {
       const threeDaysAgo = new Date();
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
@@ -61,6 +105,19 @@ export function ShelfBookGrid({
       const dateA = a.date_added ? new Date(a.date_added).getTime() : 0;
       const dateB = b.date_added ? new Date(b.date_added).getTime() : 0;
       return dateB - dateA; // Descending (newest first)
+    } else if (sortBy === "oldest") {
+      // Sort by date_added ascending (oldest first)
+      const dateA = a.date_added ? new Date(a.date_added).getTime() : 0;
+      const dateB = b.date_added ? new Date(b.date_added).getTime() : 0;
+      return dateA - dateB; // Ascending (oldest first)
+    } else if (sortBy === "newest") {
+      // Sort by date_added descending (newest first)
+      const dateA = a.date_added ? new Date(a.date_added).getTime() : 0;
+      const dateB = b.date_added ? new Date(b.date_added).getTime() : 0;
+      return dateB - dateA; // Descending (newest first)
+    } else if (sortBy === "shortest") {
+      // Sort by totalPages ascending (shortest first)
+      return (a.totalPages || 0) - (b.totalPages || 0);
     } else if (sortBy === "title") {
       return a.title.localeCompare(b.title);
     }
@@ -124,6 +181,14 @@ export function ShelfBookGrid({
               onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
               onStatusChange={(status) => onStatusChange?.(book.id, status)}
             />
+            {onMoveToUpNext && (
+              <button
+                onClick={() => onMoveToUpNext(book.id)}
+                className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors w-full"
+              >
+                Move to Up Next
+              </button>
+            )}
           </div>
         ))}
       </div>

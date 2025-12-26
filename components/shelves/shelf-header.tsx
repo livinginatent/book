@@ -8,12 +8,13 @@ import { cn } from "@/lib/utils";
 interface ShelfHeaderProps {
   shelfName: string;
   bookCount: number;
-  onSortChange?: (sort: "progress" | "added" | "title" | "neglected") => void;
+  onSortChange?: (sort: "progress" | "added" | "title" | "neglected" | "oldest" | "newest" | "shortest") => void;
   onViewChange?: (view: "grid" | "list") => void;
-  currentSort?: "progress" | "added" | "title" | "neglected";
+  currentSort?: "progress" | "added" | "title" | "neglected" | "oldest" | "newest" | "shortest";
+  sortOptions?: Array<{ value: string; label: string }>;
 }
 
-const SORT_OPTIONS = [
+const DEFAULT_SORT_OPTIONS = [
   { value: "progress", label: "Progress" },
   { value: "neglected", label: "Neglected" },
   { value: "added", label: "Recently Added" },
@@ -26,6 +27,7 @@ export function ShelfHeader({
   onSortChange,
   onViewChange,
   currentSort = "progress",
+  sortOptions = DEFAULT_SORT_OPTIONS,
 }: ShelfHeaderProps) {
   return (
     <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border">
@@ -58,7 +60,7 @@ export function ShelfHeader({
             </span>
             {/* Filters in 2x2 grid on mobile, horizontal on desktop */}
             <div className="grid grid-cols-2 sm:flex gap-1 bg-muted rounded-lg p-1 w-full sm:w-auto">
-              {SORT_OPTIONS.map((option) => {
+              {sortOptions.map((option) => {
                 const isActive = currentSort === option.value;
                 return (
                   <Button
@@ -72,6 +74,9 @@ export function ShelfHeader({
                           | "added"
                           | "title"
                           | "neglected"
+                          | "oldest"
+                          | "newest"
+                          | "shortest"
                       )
                     }
                     className={cn(

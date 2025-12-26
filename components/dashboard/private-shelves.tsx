@@ -20,7 +20,10 @@ interface PrivateShelvesProps {
   };
 }
 
-export function PrivateShelves({ locked = false, initialShelves }: PrivateShelvesProps) {
+export function PrivateShelves({
+  locked = false,
+  initialShelves,
+}: PrivateShelvesProps) {
   // Initialize from server data if available
   const [defaultShelves, setDefaultShelves] = useState<ShelfData[]>(
     () => initialShelves?.default || []
@@ -32,7 +35,7 @@ export function PrivateShelves({ locked = false, initialShelves }: PrivateShelve
   const [showCustom, setShowCustom] = useState(true);
   const [newShelfName, setNewShelfName] = useState("");
   const [isPending, startTransition] = useTransition();
-  
+
   // Only show loading if we don't have initial data
   const [loading, setLoading] = useState(!initialShelves && !locked);
 
@@ -83,7 +86,7 @@ export function PrivateShelves({ locked = false, initialShelves }: PrivateShelve
 
     window.addEventListener("book-added", handler);
     window.addEventListener("book-status-changed", handler);
-    
+
     return () => {
       isMounted = false;
       window.removeEventListener("book-added", handler);
@@ -160,27 +163,39 @@ export function PrivateShelves({ locked = false, initialShelves }: PrivateShelve
                   </p>
                 ) : (
                   defaultShelves.map((shelf) => {
-                    const isCurrentlyReading = shelf.status === "currently_reading";
+                    const isCurrentlyReading =
+                      shelf.status === "currently_reading";
+                    const isWantToRead = shelf.status === "want_to_read";
+                    const isLinkable = isCurrentlyReading || isWantToRead;
+                    const shelfHref = isCurrentlyReading
+                      ? "/shelves/currently-reading"
+                      : isWantToRead
+                      ? "/shelves/want-to-read"
+                      : undefined;
+
                     const ShelfContent = (
                       <div
                         className={cn(
                           "flex items-center justify-between p-2.5 rounded-xl bg-background transition-colors",
-                          isCurrentlyReading
+                          isLinkable
                             ? "hover:bg-muted/70 cursor-pointer"
                             : "hover:bg-muted/70"
                         )}
                       >
-                        <span className="text-sm font-medium">{shelf.name}</span>
+                        <span className="text-sm font-medium">
+                          {shelf.name}
+                        </span>
                         <span className="text-xs text-muted-foreground">
-                          {shelf.bookCount} book{shelf.bookCount === 1 ? "" : "s"}
+                          {shelf.bookCount} book
+                          {shelf.bookCount === 1 ? "" : "s"}
                         </span>
                       </div>
                     );
 
                     return (
                       <div key={shelf.id}>
-                        {isCurrentlyReading ? (
-                          <Link href="/shelves/currently-reading">{ShelfContent}</Link>
+                        {isLinkable && shelfHref ? (
+                          <Link href={shelfHref}>{ShelfContent}</Link>
                         ) : (
                           ShelfContent
                         )}
