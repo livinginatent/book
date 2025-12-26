@@ -3,7 +3,6 @@ import { Suspense } from "react";
 
 import { getDashboardData } from "@/app/actions/dashboard-data";
 import { AuthenticatedHome } from "@/components/home/authenticated-home";
-import { Footer } from "@/components/layout/footer";
 import { CTASection } from "@/components/sections/cta-section";
 import { FeaturesSection } from "@/components/sections/features-section";
 import { HeroSection } from "@/components/sections/hero-section";
@@ -34,7 +33,7 @@ function PublicHomepage() {
         <HowItWorksSection />
         <CTASection />
       </main>
-      <Footer />
+   
     </div>
   );
 }

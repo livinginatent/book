@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import "./globals.css";
+import { Footer } from "@/components/layout/footer";
 
 // Initialize fonts from your first code block
 const nunito = Nunito({
@@ -44,6 +45,7 @@ export default function RootLayout({
           <AuthProvider>
             <Navbar />
             {children}
+            <Footer/>
           </AuthProvider>
         </ThemeProvider>
       </body>

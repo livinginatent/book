@@ -8,13 +8,10 @@ interface Book {
 
 interface ShelfStatsProps {
   books: Book[];
-  totalReadingTime?: string;
+  totalPagesLeft?: number;
 }
 
-export function ShelfStats({
-  books,
-  totalReadingTime = "42h 15m",
-}: ShelfStatsProps) {
+export function ShelfStats({ books, totalPagesLeft = 0 }: ShelfStatsProps) {
   const totalPages = books.reduce((sum, book) => sum + book.totalPages, 0);
   const totalPagesRead = books.reduce((sum, book) => sum + book.pagesRead, 0);
   const avgProgress =
@@ -25,7 +22,7 @@ export function ShelfStats({
       <DashboardCard title="Total progress" className="p-4">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Total Progress</p>
+            <p className="text-xs text-muted-foreground mb-1">Total progress</p>
             <p className="text-2xl font-bold text-foreground">{avgProgress}%</p>
             <p className="text-xs text-muted-foreground mt-1">
               {totalPagesRead.toLocaleString()} / {totalPages.toLocaleString()}
@@ -38,11 +35,10 @@ export function ShelfStats({
       </DashboardCard>
 
       <DashboardCard title="Books in progress" className="p-4">
-
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs text-muted-foreground mb-1">
-              Books in Progress
+              Books in progress
             </p>
             <p className="text-2xl font-bold text-foreground">{books.length}</p>
             <p className="text-xs text-muted-foreground mt-1">Active reads</p>
@@ -53,14 +49,16 @@ export function ShelfStats({
         </div>
       </DashboardCard>
 
-      <DashboardCard title="Reading time" className="p-4">
+      <DashboardCard title="Total pages to read" className="p-4">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Reading Time</p>
+            <p className="text-xs text-muted-foreground mb-1">Pages left</p>
             <p className="text-2xl font-bold text-foreground">
-              {totalReadingTime}
+              {totalPagesLeft.toLocaleString()}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">This month</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Remaining pages
+            </p>
           </div>
           <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
             <BarChart3 className="w-4 h-4" />

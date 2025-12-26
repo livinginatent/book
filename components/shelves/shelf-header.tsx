@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 interface ShelfHeaderProps {
   shelfName: string;
   bookCount: number;
-  onSortChange?: (sort: "progress" | "added" | "title") => void;
+  onSortChange?: (sort: "progress" | "added" | "title" | "neglected") => void;
   onViewChange?: (view: "grid" | "list") => void;
 }
 
@@ -46,6 +46,7 @@ export function ShelfHeader({
             <div className="flex gap-1 bg-muted rounded-lg p-1">
               {[
                 { value: "progress", label: "Progress" },
+                { value: "neglected", label: "Neglected" },
                 { value: "added", label: "Recently Added" },
                 { value: "title", label: "Title" },
               ].map((option) => (
@@ -55,7 +56,7 @@ export function ShelfHeader({
                   size="sm"
                   onClick={() =>
                     onSortChange?.(
-                      option.value as "progress" | "added" | "title"
+                      option.value as "progress" | "added" | "title" | "neglected"
                     )
                   }
                   className="rounded-lg text-xs"

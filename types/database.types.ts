@@ -265,6 +265,7 @@ export interface Database {
           session_date: string;
           started_at: string;
           ended_at: string | null;
+          last_read_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -277,6 +278,7 @@ export interface Database {
           session_date?: string;
           started_at?: string;
           ended_at?: string | null;
+          last_read_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -289,6 +291,7 @@ export interface Database {
           session_date?: string;
           started_at?: string;
           ended_at?: string | null;
+          last_read_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -24,6 +24,7 @@ interface BookCardProps {
   onProgressUpdate?: (pages: number) => void;
   onStatusChange?: (status: BookStatus, dates?: BookStatusDates) => void;
   editable?: boolean;
+  isNeglected?: boolean;
 }
 
 export function BookCard({
@@ -38,6 +39,7 @@ export function BookCard({
   onProgressUpdate,
   onStatusChange,
   editable = false,
+  isNeglected = false,
 }: BookCardProps) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -65,6 +67,7 @@ export function BookCard({
         "group relative flex flex-col",
         "transition-transform duration-300 hover:-translate-y-2",
         editable && "cursor-pointer",
+        isNeglected && "",
         className
       )}
       onClick={handleCardClick}
@@ -80,6 +83,14 @@ export function BookCard({
           className="object-cover transition-transform duration-500 group-hover:scale-105"
           priority={false}
         />
+
+        {isNeglected && (
+          <div className="absolute top-2 right-2 z-20">
+            <span className="bg-amber-500/90 text-amber-950 text-xs font-medium px-2 py-1 rounded-md shadow-md">
+              Paused?
+            </span>
+          </div>
+        )}
 
         {displayProgress !== undefined && displayProgress < 100 && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-foreground/80 to-transparent p-3 z-10">
