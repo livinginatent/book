@@ -25,8 +25,8 @@ function mapActionToStatus(action: BookAction): ReadingStatus {
     "currently-reading": "currently_reading",
     "up-next": "up_next",
     "did-not-finish": "dnf",
-    "paused": "paused",
-    "finished": "finished",
+    paused: "paused",
+    finished: "finished",
   };
   return statusMap[action];
 }
@@ -219,8 +219,11 @@ export async function updateBookStatus(
     // Parse options - support both old signature and new options object
     let dateStarted: string | null | undefined;
     let dateFinished: string | null | undefined;
-    
-    if (typeof dateFinishedOrOptions === "object" && dateFinishedOrOptions !== null) {
+
+    if (
+      typeof dateFinishedOrOptions === "object" &&
+      dateFinishedOrOptions !== null
+    ) {
       dateStarted = dateFinishedOrOptions.dateStarted;
       dateFinished = dateFinishedOrOptions.dateFinished;
     } else {
@@ -419,7 +422,7 @@ export async function addToUpNext(
     }
 
     const currentUpNext = profile?.up_next || [];
-    
+
     // Check if book is already in up_next
     if (currentUpNext.includes(bookId)) {
       return {
@@ -489,9 +492,9 @@ export async function removeFromUpNext(
     }
 
     const currentUpNext = profile?.up_next || [];
-    
+
     // Remove book from up_next array
-    const updatedUpNext = currentUpNext.filter((id) => id !== bookId);
+    const updatedUpNext = currentUpNext.filter((id: string) => id !== bookId);
 
     // Update profile with new up_next array
     const { error: updateError } = await supabase
