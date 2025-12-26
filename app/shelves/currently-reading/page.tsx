@@ -44,7 +44,13 @@ const SHELVES = [
 export default function CurrentlyReadingShelfPage() {
   const [books, setBooks] = useState<ShelfBook[]>([]);
   const [sortBy, setSortBy] = useState<
-    "progress" | "added" | "title" | "neglected"
+    | "progress"
+    | "added"
+    | "title"
+    | "neglected"
+    | "oldest"
+    | "newest"
+    | "shortest"
   >("progress");
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
