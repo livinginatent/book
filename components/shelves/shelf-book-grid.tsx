@@ -1,5 +1,8 @@
 "use client";
 
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRef } from "react";
+
 import { BookCard } from "../ui/book/book-card";
 import { BookStatus } from "../ui/book/book-progress-editor";
 
@@ -27,6 +30,8 @@ export function ShelfBookGrid({
   onProgressUpdate,
   onStatusChange,
 }: ShelfBookGridProps) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
   // Helper function to check if a book is neglected (> 3 days since last read)
   const isNeglected = (book: Book): boolean => {
     if (!book.lastReadDate) return true; // Never read
@@ -62,6 +67,22 @@ export function ShelfBookGrid({
     return 0;
   });
 
+  const scrollByCards = (direction: "left" | "right") => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const firstChild =
+      container.querySelector<HTMLDivElement>("[data-book-card]");
+    const cardWidth = firstChild?.clientWidth ?? 0;
+    const gap = 16;
+    const amount = (cardWidth + gap) * 2;
+
+    container.scrollBy({
+      left: direction === "left" ? -amount : amount,
+      behavior: "smooth",
+    });
+  };
+
   if (books.length === 0) {
     return (
       <div className="col-span-full py-16 text-center">
@@ -79,21 +100,55 @@ export function ShelfBookGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-      {sortedBooks.map((book) => (
-        <BookCard
-          key={book.id}
-          title={book.title}
-          author={book.author}
-          cover={book.cover}
-          pagesRead={book.pagesRead}
-          totalPages={book.totalPages}
-          editable
-          isNeglected={isNeglected(book)}
-          onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
-          onStatusChange={(status) => onStatusChange?.(book.id, status)}
-        />
-      ))}
+    <div className="relative">
+      {/* Mobile: Horizontal scroll, Desktop: Grid */}
+      <div
+        ref={scrollRef}
+        className="flex gap-4 overflow-x-auto pb-4 scroll-smooth scrollbar-hide items-stretch sm:grid sm:grid-cols-2 sm:overflow-x-visible sm:pb-0 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+      >
+        {sortedBooks.map((book) => (
+          <div
+            key={book.id}
+            data-book-card
+            className="flex flex-col min-w-[70%] sm:min-w-0"
+          >
+            <BookCard
+              className="flex-1"
+              title={book.title}
+              author={book.author}
+              cover={book.cover}
+              pagesRead={book.pagesRead}
+              totalPages={book.totalPages}
+              editable
+              isNeglected={isNeglected(book)}
+              onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
+              onStatusChange={(status) => onStatusChange?.(book.id, status)}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Scroll buttons - only show on mobile when there are more than 2 books */}
+      {books.length > 2 && (
+        <>
+          <button
+            type="button"
+            onClick={() => scrollByCards("left")}
+            className="sm:hidden absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors flex"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollByCards("right")}
+            className="sm:hidden absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors flex"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </>
+      )}
     </div>
   );
 }

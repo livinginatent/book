@@ -271,6 +271,7 @@ export default function CurrentlyReadingShelfPage() {
         shelfName="Currently Reading"
         bookCount={books.length}
         onSortChange={setSortBy}
+        currentSort={sortBy}
       />
 
       {/* Main Content */}
