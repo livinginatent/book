@@ -2,9 +2,11 @@
 
 import { FolderLock, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, useMemo } from "react";
 
-import { getShelves, createCustomShelf } from "@/app/actions/shelf-actions";
+import type { ShelfData } from "@/app/actions/dashboard-data";
+import { refreshShelves } from "@/app/actions/dashboard-data";
+import { createCustomShelf } from "@/app/actions/shelf-actions";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import { Input } from "@/components/ui/input";
@@ -12,106 +14,76 @@ import { cn } from "@/lib/utils";
 
 interface PrivateShelvesProps {
   locked?: boolean;
+  initialShelves?: {
+    default: ShelfData[];
+    custom: ShelfData[];
+  };
 }
 
-interface ShelfItem {
-  id: string;
-  name: string;
-  type: "default" | "custom";
-  bookCount: number;
-  status?: string | null;
-}
-
-export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
-  const [defaultShelves, setDefaultShelves] = useState<ShelfItem[]>([]);
-  const [customShelves, setCustomShelves] = useState<ShelfItem[]>([]);
+export function PrivateShelves({ locked = false, initialShelves }: PrivateShelvesProps) {
+  // Initialize from server data if available
+  const [defaultShelves, setDefaultShelves] = useState<ShelfData[]>(
+    () => initialShelves?.default || []
+  );
+  const [customShelves, setCustomShelves] = useState<ShelfData[]>(
+    () => initialShelves?.custom || []
+  );
   const [showDefault, setShowDefault] = useState(false);
   const [showCustom, setShowCustom] = useState(true);
   const [newShelfName, setNewShelfName] = useState("");
   const [isPending, startTransition] = useTransition();
-  const [loading, setLoading] = useState(true);
+  
+  // Only show loading if we don't have initial data
+  const [loading, setLoading] = useState(!initialShelves && !locked);
 
+  // Fetch data only if we don't have initial data
   useEffect(() => {
-    let isMounted = true;
-
-    async function initialLoad() {
-      if (locked) {
-        if (isMounted) setLoading(false);
-        return;
-      }
-
-      if (isMounted) setLoading(true);
-      const result = await getShelves();
-      if (!isMounted) return;
-
-      if (result.success) {
-        setDefaultShelves(
-          result.defaultShelves.map((shelf) => ({
-            id: shelf.id,
-            name: shelf.name,
-            type: shelf.type,
-            bookCount: shelf.book_count,
-            status: shelf.status,
-          }))
-        );
-        setCustomShelves(
-          result.customShelves.map((shelf) => ({
-            id: shelf.id,
-            name: shelf.name,
-            type: shelf.type,
-            bookCount: shelf.book_count,
-            status: shelf.status,
-          }))
-        );
-      } else {
-        console.error("Failed to load shelves:", result.error);
-      }
-      if (isMounted) setLoading(false);
+    if (locked || initialShelves) {
+      setLoading(false);
+      return;
     }
 
-    initialLoad();
+    let isMounted = true;
+
+    async function fetchShelves() {
+      const result = await refreshShelves();
+      if (!isMounted) return;
+
+      if (result.success && result.shelves) {
+        setDefaultShelves(result.shelves.default);
+        setCustomShelves(result.shelves.custom);
+      }
+      setLoading(false);
+    }
+
+    fetchShelves();
 
     return () => {
       isMounted = false;
     };
-  }, [locked]);
+  }, [locked, initialShelves]);
 
-  // Refresh shelves when books are added/changed elsewhere
+  // Refresh shelves when books are added/changed
   useEffect(() => {
+    if (locked) return;
+
     let isMounted = true;
 
     const handler = async () => {
-      if (!isMounted || locked) return;
-
-      const result = await getShelves();
       if (!isMounted) return;
 
-      if (result.success) {
-        setDefaultShelves(
-          result.defaultShelves.map((shelf) => ({
-            id: shelf.id,
-            name: shelf.name,
-            type: shelf.type,
-            bookCount: shelf.book_count,
-            status: shelf.status,
-          }))
-        );
-        setCustomShelves(
-          result.customShelves.map((shelf) => ({
-            id: shelf.id,
-            name: shelf.name,
-            type: shelf.type,
-            bookCount: shelf.book_count,
-            status: shelf.status,
-          }))
-        );
-      } else {
-        console.error("Failed to refresh shelves:", result.error);
+      const result = await refreshShelves();
+      if (!isMounted) return;
+
+      if (result.success && result.shelves) {
+        setDefaultShelves(result.shelves.default);
+        setCustomShelves(result.shelves.custom);
       }
     };
 
     window.addEventListener("book-added", handler);
     window.addEventListener("book-status-changed", handler);
+    
     return () => {
       isMounted = false;
       window.removeEventListener("book-added", handler);
@@ -131,7 +103,7 @@ export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
           {
             id: result.shelf.id,
             name: result.shelf.name,
-            type: result.shelf.type,
+            type: result.shelf.type as "default" | "custom",
             bookCount: result.shelf.book_count,
           },
         ]);
@@ -188,9 +160,7 @@ export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
                   </p>
                 ) : (
                   defaultShelves.map((shelf) => {
-                    // Link "Currently Reading" shelf to the currently reading page
-                    const isCurrentlyReading =
-                      shelf.status === "currently_reading";
+                    const isCurrentlyReading = shelf.status === "currently_reading";
                     const ShelfContent = (
                       <div
                         className={cn(
@@ -200,12 +170,9 @@ export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
                             : "hover:bg-muted/70"
                         )}
                       >
-                        <span className="text-sm font-medium">
-                          {shelf.name}
-                        </span>
+                        <span className="text-sm font-medium">{shelf.name}</span>
                         <span className="text-xs text-muted-foreground">
-                          {shelf.bookCount} book
-                          {shelf.bookCount === 1 ? "" : "s"}
+                          {shelf.bookCount} book{shelf.bookCount === 1 ? "" : "s"}
                         </span>
                       </div>
                     );
@@ -265,8 +232,7 @@ export function PrivateShelves({ locked = false }: PrivateShelvesProps) {
                     >
                       <span className="text-sm font-medium">{shelf.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {shelf.bookCount} book
-                        {shelf.bookCount === 1 ? "" : "s"}
+                        {shelf.bookCount} book{shelf.bookCount === 1 ? "" : "s"}
                       </span>
                     </div>
                   ))

@@ -50,26 +50,22 @@ const FREE_TIER_GOAL_LIMIT = 3; // Bookworm users can have 3 active goals
 const PREMIUM_TIER_GOAL_LIMIT = 12; // Bibliophile users can have 12 active goals
 
 /**
- * Resolve the current user's subscription tier.
+ * Resolve the subscription tier for a given user ID.
+ * Accepts userId directly to avoid redundant getUser() calls.
  */
 async function getUserSubscriptionTier(
-  supabase: ReturnType<typeof createClient>
-): Promise<SubscriptionTier | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<SubscriptionTier> {
   const { data: profile, error } = await supabase
     .from("profiles")
     .select("subscription_tier")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
 
   if (error) {
     console.error("Error fetching subscription tier:", error);
-    return null;
+    return "free";
   }
 
   return (profile?.subscription_tier as SubscriptionTier | null) ?? "free";
@@ -79,10 +75,12 @@ async function getUserSubscriptionTier(
  * Check if a user can create a new active goal based on their subscription tier limit.
  *
  * @param userId - The user's ID
+ * @param subscriptionTier - Optional subscription tier (if already known from frontend)
  * @returns Object with canCreate boolean and current count, or error
  */
 export async function canCreateGoal(
-  userId: string
+  userId: string,
+  subscriptionTier?: SubscriptionTier
 ): Promise<
   | { success: true; canCreate: boolean; currentCount: number; limit: number }
   | ReadingGoalError
@@ -91,23 +89,25 @@ export async function canCreateGoal(
     const cookieStore = cookies();
     const supabase = await createClient(cookieStore);
 
-    // Get user's subscription tier from profiles table
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("subscription_tier")
-      .eq("id", userId)
-      .single();
+    // If tier not provided, fetch it (otherwise use the provided value)
+    let tier = subscriptionTier;
+    if (!tier) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("subscription_tier")
+        .eq("id", userId)
+        .single();
 
-    if (profileError) {
-      console.error("Error fetching user profile:", profileError);
-      return {
-        success: false,
-        error: "Failed to fetch user profile",
-      };
+      if (profileError) {
+        console.error("Error fetching user profile:", profileError);
+        // Default to free tier on error
+        tier = "free";
+      } else {
+        tier =
+          (profile?.subscription_tier as SubscriptionTier | null) ?? "free";
+      }
     }
 
-    const tier =
-      (profile?.subscription_tier as SubscriptionTier | null) ?? "free";
     const limit =
       tier === "bibliophile" ? PREMIUM_TIER_GOAL_LIMIT : FREE_TIER_GOAL_LIMIT;
 
@@ -168,7 +168,7 @@ export async function getAvailableGoalTypes(): Promise<
       return { success: false, error: "You must be logged in" };
     }
 
-    const tier = (await getUserSubscriptionTier(supabase)) ?? "free";
+    const tier = await getUserSubscriptionTier(supabase, user.id);
 
     const types = tier === "bibliophile" ? PREMIUM_TIER_TYPES : FREE_TIER_TYPES;
 
@@ -214,7 +214,7 @@ export async function upsertGoalType(
       return { success: false, error: "You must be logged in" };
     }
 
-    const tier = (await getUserSubscriptionTier(supabase)) ?? "free";
+    const tier = await getUserSubscriptionTier(supabase, user.id);
 
     const isPremiumType =
       type === "pages" || type === "diversity" || type === "consistency";
@@ -278,61 +278,202 @@ export async function upsertGoalType(
 }
 
 /**
- * Calculate goal progress from user_books table based on goal type
+ * Helper to get date range for a goal
  */
-async function calculateGoalProgress(
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
+function getGoalDateRange(
   goalType: GoalType,
   goalYear: number,
   goalConfig: Record<string, unknown>
-): Promise<number> {
-  // Determine date range based on goal type and config
+): { dateStart: string; dateEnd: string } {
   let dateStart: string;
   let dateEnd: string;
 
   if (goalType === "books") {
-    // For books goals, use custom period if available
     const periodMonths = goalConfig.period_months as number | undefined;
     const startDateStr = goalConfig.start_date as string | undefined;
     const endDateStr = goalConfig.end_date as string | undefined;
 
     if (startDateStr && endDateStr) {
-      // Custom date range
       dateStart = new Date(startDateStr).toISOString().split("T")[0];
       dateEnd = new Date(endDateStr).toISOString().split("T")[0];
     } else if (periodMonths && startDateStr) {
-      // Preset period with stored start date
       dateStart = new Date(startDateStr).toISOString().split("T")[0];
       const startDate = new Date(startDateStr);
       const endDate = new Date(startDate);
       endDate.setMonth(endDate.getMonth() + periodMonths);
       dateEnd = endDate.toISOString().split("T")[0];
     } else if (periodMonths) {
-      // Preset period without stored start (fallback - use current date)
       const now = new Date();
       dateStart = now.toISOString().split("T")[0];
       const endDate = new Date(now);
       endDate.setMonth(endDate.getMonth() + periodMonths);
       dateEnd = endDate.toISOString().split("T")[0];
     } else {
-      // Fallback to year
       dateStart = new Date(goalYear, 0, 1).toISOString().split("T")[0];
       dateEnd = new Date(goalYear, 11, 31, 23, 59, 59, 999)
         .toISOString()
         .split("T")[0];
     }
   } else {
-    // For other goal types, use year
     dateStart = new Date(goalYear, 0, 1).toISOString().split("T")[0];
     dateEnd = new Date(goalYear, 11, 31, 23, 59, 59, 999)
       .toISOString()
       .split("T")[0];
   }
 
+  return { dateStart, dateEnd };
+}
+
+/**
+ * Batch calculate progress for multiple goals using a single set of queries.
+ * This avoids N+1 queries by fetching all user_books once and calculating in memory.
+ */
+async function batchCalculateGoalProgress(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  goals: DBReadingGoal[]
+): Promise<Map<string, number>> {
+  const progressMap = new Map<string, number>();
+
+  if (goals.length === 0) {
+    return progressMap;
+  }
+
+  // Get the widest date range needed (full year for simplicity)
+  const currentYear = new Date().getFullYear();
+  const yearStart = new Date(currentYear, 0, 1).toISOString().split("T")[0];
+  const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999)
+    .toISOString()
+    .split("T")[0];
+
+  // Fetch all finished user_books for this user in the current year - SINGLE QUERY
+  const { data: finishedBooks, error: booksError } = await supabase
+    .from("user_books")
+    .select("book_id, date_finished")
+    .eq("user_id", userId)
+    .eq("status", "finished")
+    .gte("date_finished", yearStart)
+    .lte("date_finished", yearEnd);
+
+  if (booksError) {
+    console.error("Error fetching finished books:", booksError);
+    // Return 0 for all goals
+    goals.forEach((g) => progressMap.set(g.id, 0));
+    return progressMap;
+  }
+
+  const allFinishedBooks = finishedBooks || [];
+  const allBookIds = allFinishedBooks.map((ub) => ub.book_id);
+
+  // Fetch book details only if needed (for pages/diversity goals)
+  let booksData: {
+    id: string;
+    page_count: number | null;
+    subjects: string[] | null;
+  }[] = [];
+  const needsBookDetails = goals.some(
+    (g) => g.type === "pages" || g.type === "diversity"
+  );
+
+  if (needsBookDetails && allBookIds.length > 0) {
+    const { data, error } = await supabase
+      .from("books")
+      .select("id, page_count, subjects")
+      .in("id", allBookIds);
+
+    if (!error && data) {
+      booksData = data;
+    }
+  }
+
+  // Create lookup map for book data
+  const bookDataMap = new Map(booksData.map((b) => [b.id, b]));
+
+  // Calculate progress for each goal
+  for (const goal of goals) {
+    const config = (goal.config as Record<string, unknown>) || {};
+    const goalYear = (config.year as number) || currentYear;
+    const { dateStart, dateEnd } = getGoalDateRange(
+      goal.type,
+      goalYear,
+      config
+    );
+
+    // Filter books to this goal's date range
+    const booksInRange = allFinishedBooks.filter((ub) => {
+      if (!ub.date_finished) return false;
+      const dateOnly = ub.date_finished.split("T")[0];
+      return dateOnly >= dateStart && dateOnly <= dateEnd;
+    });
+
+    let progress = 0;
+
+    switch (goal.type) {
+      case "books":
+        progress = booksInRange.length;
+        break;
+
+      case "pages":
+        progress = booksInRange.reduce((sum, ub) => {
+          const bookInfo = bookDataMap.get(ub.book_id);
+          return sum + (bookInfo?.page_count || 0);
+        }, 0);
+        break;
+
+      case "diversity": {
+        const selectedGenres = (config.genres as string[]) || [];
+        const allGenres = new Set<string>();
+
+        booksInRange.forEach((ub) => {
+          const bookInfo = bookDataMap.get(ub.book_id);
+          (bookInfo?.subjects || []).forEach((genre: string) => {
+            if (selectedGenres.length === 0 || selectedGenres.includes(genre)) {
+              allGenres.add(genre);
+            }
+          });
+        });
+
+        progress = allGenres.size;
+        break;
+      }
+
+      case "consistency": {
+        const uniqueDays = new Set<string>();
+        booksInRange.forEach((ub) => {
+          if (ub.date_finished) {
+            uniqueDays.add(ub.date_finished.split("T")[0]);
+          }
+        });
+        progress = uniqueDays.size;
+        break;
+      }
+    }
+
+    progressMap.set(goal.id, progress);
+  }
+
+  return progressMap;
+}
+
+/**
+ * Calculate goal progress from user_books table based on goal type
+ * (Single goal version - used for individual goal fetches)
+ */
+async function calculateGoalProgress(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  goalType: GoalType,
+  goalYear: number,
+  goalConfig: Record<string, unknown>
+): Promise<number> {
+  const { dateStart, dateEnd } = getGoalDateRange(
+    goalType,
+    goalYear,
+    goalConfig
+  );
+
   switch (goalType) {
     case "books": {
-      // Count finished books in the period
       const { count, error } = await supabase
         .from("user_books")
         .select("*", { count: "exact", head: true })
@@ -349,7 +490,6 @@ async function calculateGoalProgress(
     }
 
     case "pages": {
-      // Sum page_count from finished books in the period
       const { data: finishedBooks, error } = await supabase
         .from("user_books")
         .select("book_id")
@@ -383,8 +523,6 @@ async function calculateGoalProgress(
     }
 
     case "diversity": {
-      // Count distinct genres from finished books in the period
-      // Filter by selected genres if specified
       const selectedGenres = (goalConfig.genres as string[]) || [];
 
       const { data: finishedBooks, error } = await supabase
@@ -413,11 +551,9 @@ async function calculateGoalProgress(
         return 0;
       }
 
-      // Collect all unique genres
       const allGenres = new Set<string>();
       (books || []).forEach((book) => {
         (book.subjects || []).forEach((genre: string) => {
-          // If specific genres are selected, only count those
           if (selectedGenres.length === 0 || selectedGenres.includes(genre)) {
             allGenres.add(genre);
           }
@@ -428,9 +564,6 @@ async function calculateGoalProgress(
     }
 
     case "consistency": {
-      // Count consecutive days with finished books
-      // For simplicity, we'll count unique days with finished books
-      // A more sophisticated approach would track actual consecutive days
       const { data: finishedBooks, error } = await supabase
         .from("user_books")
         .select("date_finished")
@@ -444,18 +577,13 @@ async function calculateGoalProgress(
         return 0;
       }
 
-      // Count unique days
       const uniqueDays = new Set<string>();
       finishedBooks.forEach((ub) => {
         if (ub.date_finished) {
-          // Extract just the date part (YYYY-MM-DD)
-          const dateOnly = ub.date_finished.split("T")[0];
-          uniqueDays.add(dateOnly);
+          uniqueDays.add(ub.date_finished.split("T")[0]);
         }
       });
 
-      // For consistency goals, we want consecutive days
-      // For now, return unique days count - can be enhanced later
       return uniqueDays.size;
     }
 
@@ -502,7 +630,7 @@ async function checkAndMarkGoalCompleted(
 /**
  * Get all active goals for the current user.
  * Automatically calculates progress from user_books table for each goal.
- * Automatically marks goals as completed when they're achieved.
+ * Uses batch calculation to minimize database queries.
  */
 export async function getAllActiveGoals(): Promise<
   { success: true; goals: ReadingGoal[] } | ReadingGoalError
@@ -520,8 +648,7 @@ export async function getAllActiveGoals(): Promise<
       return { success: false, error: "You must be logged in" };
     }
 
-    // Query by status='active' if the column exists, otherwise fall back to is_active
-    // This allows the code to work before/after migration
+    // Fetch all active goals
     const { data: goals, error } = await supabase
       .from("reading_goals")
       .select("*")
@@ -538,32 +665,31 @@ export async function getAllActiveGoals(): Promise<
       return { success: true, goals: [] };
     }
 
-    // Calculate progress for each goal and check if they should be marked as completed
-    const goalsWithProgress = await Promise.all(
-      goals.map(async (goal) => {
-        const config = (goal.config as Record<string, unknown>) || {};
-        const goalYear = (config.year as number) || new Date().getFullYear();
-        const currentProgress = await calculateGoalProgress(
-          supabase,
-          user.id,
-          goal.type,
-          goalYear,
-          config
-        );
-
-        // Check and mark as completed if needed (non-blocking)
-        checkAndMarkGoalCompleted(supabase, goal, currentProgress).catch(
-          (err) => console.error("Error checking goal completion:", err)
-        );
-
-        const componentGoal = dbGoalToComponentGoal(goal);
-        componentGoal.current = currentProgress;
-        return componentGoal;
-      })
+    // Batch calculate progress for all goals (2 queries instead of N*2)
+    const progressMap = await batchCalculateGoalProgress(
+      supabase,
+      user.id,
+      goals
     );
 
-    // Filter out goals that were just marked as completed
-    // Re-fetch to get updated status
+    // Convert to component goals with progress
+    const goalsWithProgress = goals.map((goal) => {
+      const componentGoal = dbGoalToComponentGoal(goal);
+      componentGoal.current = progressMap.get(goal.id) || 0;
+
+      // Check completion in background (non-blocking)
+      const config = (goal.config as Record<string, unknown>) || {};
+      const target = (config.target as number) || 0;
+      if (componentGoal.current >= target && target > 0) {
+        checkAndMarkGoalCompleted(supabase, goal, componentGoal.current).catch(
+          (err) => console.error("Error checking goal completion:", err)
+        );
+      }
+
+      return componentGoal;
+    });
+
+    // Filter out completed goals
     const activeGoals = goalsWithProgress.filter((goal) => {
       const originalGoal = goals.find((g) => g.id === goal.id);
       const status = (originalGoal as { status?: string })?.status;
@@ -586,8 +712,7 @@ export async function getAllActiveGoals(): Promise<
 
 /**
  * Get all achieved (completed) goals for the current user.
- * Uses the status='completed' field if available, otherwise falls back to checking current >= target.
- * Automatically calculates progress from user_books table for each goal.
+ * Uses batch calculation to minimize database queries.
  */
 export async function getAllAchievedGoals(): Promise<
   { success: true; goals: ReadingGoal[] } | ReadingGoalError
@@ -605,57 +730,49 @@ export async function getAllAchievedGoals(): Promise<
       return { success: false, error: "You must be logged in" };
     }
 
-    // Query for completed goals by status if available, otherwise get all and filter
-    // We'll try to filter by status, but handle gracefully if column doesn't exist yet
-    let { data: goals, error } = await supabase
+    // Fetch all goals (we'll filter by status in memory)
+    const { data: allGoals, error: goalsError } = await supabase
       .from("reading_goals")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    // If the query succeeded but status column might not exist, try filtering by status
-    // This is a best-effort approach that works before and after migration
-    if (!error && goals) {
-      // Try to filter by status if it exists in the data
-      const hasStatusColumn = goals.length > 0 && "status" in goals[0];
-      if (hasStatusColumn) {
-        goals = goals.filter(
-          (g) => (g as { status?: string }).status === "completed"
-        );
-      }
-    }
-
-    if (error) {
-      console.error("Error fetching goals:", error);
+    if (goalsError) {
+      console.error("Error fetching goals:", goalsError);
       return { success: false, error: "Failed to fetch goals" };
     }
 
-    if (!goals || goals.length === 0) {
+    if (!allGoals || allGoals.length === 0) {
       return { success: true, goals: [] };
     }
 
-    // Calculate progress for each goal
-    const goalsWithProgress = await Promise.all(
-      goals.map(async (goal) => {
-        const config = (goal.config as Record<string, unknown>) || {};
-        const goalYear = (config.year as number) || new Date().getFullYear();
-        const currentProgress = await calculateGoalProgress(
-          supabase,
-          user.id,
-          goal.type,
-          goalYear,
-          config
-        );
+    // Filter to completed goals first
+    const hasStatusColumn = allGoals.length > 0 && "status" in allGoals[0];
+    const goals = hasStatusColumn
+      ? allGoals.filter(
+          (g) => (g as { status?: string }).status === "completed"
+        )
+      : allGoals;
 
-        const componentGoal = dbGoalToComponentGoal(goal);
-        componentGoal.current = currentProgress;
-        return componentGoal;
-      })
+    if (goals.length === 0) {
+      return { success: true, goals: [] };
+    }
+
+    // Batch calculate progress for all goals
+    const progressMap = await batchCalculateGoalProgress(
+      supabase,
+      user.id,
+      goals
     );
 
-    // Filter for completed goals:
-    // 1. If status column exists and is 'completed', include it
-    // 2. Otherwise, check if current >= target (fallback for pre-migration data)
+    // Convert to component goals with progress
+    const goalsWithProgress = goals.map((goal) => {
+      const componentGoal = dbGoalToComponentGoal(goal);
+      componentGoal.current = progressMap.get(goal.id) || 0;
+      return componentGoal;
+    });
+
+    // Filter for completed goals (status or current >= target)
     const achievedGoals = goalsWithProgress.filter((goal) => {
       const originalGoal = goals.find((g) => g.id === goal.id);
       const status = (originalGoal as { status?: string })?.status;
@@ -854,7 +971,7 @@ export async function saveReadingGoal(
       return { success: false, error: "You must be logged in" };
     }
 
-    const tier = (await getUserSubscriptionTier(supabase)) ?? "free";
+    const tier = await getUserSubscriptionTier(supabase, user.id);
 
     // Map component type to DB type
     const componentType = goal.type || "books";
@@ -977,7 +1094,7 @@ export async function createReadingGoal(goalData: {
     }
 
     // Verify tier allows this goal type
-    const tier = (await getUserSubscriptionTier(supabase)) ?? "free";
+    const tier = await getUserSubscriptionTier(supabase, user.id);
     const isPremiumType =
       goalData.type === "pages" ||
       goalData.type === "diversity" ||

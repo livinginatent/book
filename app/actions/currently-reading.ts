@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
+import { createTimer } from "@/lib/utils/perf";
 import type { Book, ReadingProgress, UserBook } from "@/types/database.types";
 
 export interface BookWithProgress extends Book {
@@ -23,26 +24,30 @@ export interface CurrentlyReadingError {
 
 /**
  * Get currently reading books for the authenticated user with progress data
- * Now reads from user_books table as the single source of truth
+ * Optimized with parallel queries
  */
 export async function getCurrentlyReadingBooks(): Promise<
   CurrentlyReadingResult | CurrentlyReadingError
 > {
+  const timer = createTimer("getCurrentlyReadingBooks");
+  
   try {
     const cookieStore = cookies();
     const supabase = await createClient(cookieStore);
 
-    // Get current user
+    const authTimer = createTimer("getCurrentlyReadingBooks.auth");
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
+    authTimer.end();
 
     if (authError || !user) {
+      timer.end();
       return { success: false, error: "You must be logged in" };
     }
 
-    // Get user's currently reading books from user_books table
+    // Get user's currently reading books
     const { data: userBooks, error: userBooksError } = await supabase
       .from("user_books")
       .select("*")
@@ -52,53 +57,45 @@ export async function getCurrentlyReadingBooks(): Promise<
 
     if (userBooksError) {
       console.error("Error fetching user_books:", userBooksError);
+      timer.end();
       return { success: false, error: "Failed to fetch reading list" };
     }
 
     if (!userBooks || userBooks.length === 0) {
+      timer.end();
       return { success: true, books: [], total: 0 };
     }
 
     const bookIds = userBooks.map((ub) => ub.book_id);
 
-    // Fetch books by IDs
-    const { data: books, error: booksError } = await supabase
-      .from("books")
-      .select("*")
-      .in("id", bookIds);
+    // Parallel fetch of books and progress
+    const queryTimer = createTimer("getCurrentlyReadingBooks.queries");
+    const [booksResult, progressResult] = await Promise.all([
+      supabase.from("books").select("*").in("id", bookIds),
+      supabase
+        .from("reading_progress")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("book_id", bookIds),
+    ]);
+    queryTimer.end();
 
-    if (booksError) {
-      console.error("Error fetching books:", booksError);
+    if (booksResult.error) {
+      console.error("Error fetching books:", booksResult.error);
+      timer.end();
       return { success: false, error: "Failed to fetch books" };
     }
 
-    // Fetch reading progress for these books
-    const { data: progressList, error: progressError } = await supabase
-      .from("reading_progress")
-      .select("*")
-      .eq("user_id", user.id)
-      .in("book_id", bookIds);
-
-    if (progressError) {
-      console.error("Error fetching reading progress:", progressError);
-      // Continue without progress data
-    }
-
-    // Create maps for quick lookup
+    // Create progress map
     const progressMap: Record<string, ReadingProgress> = {};
-    for (const progress of progressList || []) {
+    for (const progress of progressResult.data || []) {
       progressMap[progress.book_id] = progress;
     }
 
-    const userBookMap: Record<string, UserBook> = {};
-    for (const ub of userBooks) {
-      userBookMap[ub.book_id] = ub;
-    }
-
-    // Build the result maintaining order from user_books
+    // Build ordered result
     const orderedBooks: BookWithProgress[] = userBooks
       .map((ub) => {
-        const book = books?.find((b) => b.id === ub.book_id);
+        const book = booksResult.data?.find((b) => b.id === ub.book_id);
         if (!book) return undefined;
         return {
           ...book,
@@ -108,12 +105,14 @@ export async function getCurrentlyReadingBooks(): Promise<
       })
       .filter((book): book is BookWithProgress => book !== undefined);
 
+    timer.end();
     return {
       success: true,
       books: orderedBooks,
       total: orderedBooks.length,
     };
   } catch (error) {
+    timer.end();
     console.error("Get currently reading books error:", error);
     return {
       success: false,

@@ -1,8 +1,7 @@
-"use client";
+import { cookies } from "next/headers";
+import { Suspense } from "react";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
-
+import { getDashboardData } from "@/app/actions/dashboard-data";
 import { AuthenticatedHome } from "@/components/home/authenticated-home";
 import { Footer } from "@/components/layout/footer";
 import { CTASection } from "@/components/sections/cta-section";
@@ -10,66 +9,29 @@ import { FeaturesSection } from "@/components/sections/features-section";
 import { HeroSection } from "@/components/sections/hero-section";
 import { HowItWorksSection } from "@/components/sections/how-it-works";
 import { PricingSection } from "@/components/sections/pricing-section";
-import { useAuth } from "@/hooks/use-auth";
+import { createClient } from "@/lib/supabase/server";
 
-function HomePageContent() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  // Handle auth callback codes/errors that land on root URL
-  // This happens when Supabase redirects to Site URL instead of callback URL
-  useEffect(() => {
-    const code = searchParams.get("code");
-    const error = searchParams.get("error");
-    const errorDescription = searchParams.get("error_description");
-    
-    // Don't process if no params
-    if (!code && !error) return;
-    
-    if (error) {
-      const errorMsg = errorDescription || error;
-      
-      // PKCE flow errors - redirect to forgot password
-      if (errorMsg.toLowerCase().includes("flow")) {
-        router.replace("/forgot-password?error=Your reset link expired. Please request a new one.");
-      } else {
-        router.replace(`/login?error=${encodeURIComponent(errorMsg)}`);
-      }
-      return;
-    }
-    
-    if (code) {
-      // Forward to auth callback
-      router.replace(`/auth/callback?code=${code}`);
-    }
-  }, [searchParams, router]);
-
-  // Show loading state with a nice skeleton
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-primary/20 animate-pulse" />
-          <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-        </div>
+// Loading skeleton
+function LoadingSkeleton() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-primary/20 animate-pulse" />
+        <div className="h-4 w-24 rounded bg-muted animate-pulse" />
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // Show authenticated homepage if user is logged in
-  if (user) {
-    return <AuthenticatedHome />;
-  }
-
-  // Show public homepage for non-authenticated users
+// Public homepage for non-authenticated users
+function PublicHomepage() {
   return (
     <div className="min-h-screen flex flex-col">
       <main className="flex-1">
         <HeroSection />
         <FeaturesSection />
-        <PricingSection/>
-        <HowItWorksSection/>
+        <PricingSection />
+        <HowItWorksSection />
         <CTASection />
       </main>
       <Footer />
@@ -77,19 +39,43 @@ function HomePageContent() {
   );
 }
 
+// Server component that fetches data
+async function HomePageServer() {
+  // Quick auth check first (server-side, no network latency like client)
+  const cookieStore = cookies();
+  const supabase = await createClient(cookieStore);
+  
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // If not authenticated, show public page immediately
+  if (!user) {
+    return <PublicHomepage />;
+  }
+
+  // Fetch all dashboard data in one go (server-side)
+  const dashboardData = await getDashboardData();
+
+  if (!dashboardData.success) {
+    // Fallback to public page if data fetch fails
+    console.error("Dashboard data fetch failed:", dashboardData.error);
+    return <PublicHomepage />;
+  }
+
+  // Log timing in development
+  if (process.env.NODE_ENV === "development") {
+    console.log("[PERF] Dashboard data timing:", dashboardData.timing);
+  }
+
+  // Pass pre-fetched data to client component
+  return <AuthenticatedHome initialData={dashboardData} />;
+}
+
 export default function HomePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/20 animate-pulse" />
-            <div className="h-4 w-24 rounded bg-muted animate-pulse" />
-          </div>
-        </div>
-      }
-    >
-      <HomePageContent />
+    <Suspense fallback={<LoadingSkeleton />}>
+      <HomePageServer />
     </Suspense>
   );
 }

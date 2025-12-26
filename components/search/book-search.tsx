@@ -1,11 +1,11 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { Search, Loader2, BookOpen, X, ChevronDown } from "lucide-react";
-import { useState, useTransition, useEffect, useRef } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback, memo } from "react";
 
 import { getUserBookStatuses } from "@/app/actions/book-actions";
 import { searchBooks } from "@/app/actions/books";
+import { addBookToReadingList } from "@/app/actions/book-actions";
 import { BookAction } from "@/components/ui/book/book-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,6 @@ import { useAuth } from "@/hooks/use-auth";
 import type { Book, ReadingStatus } from "@/types/database.types";
 
 import { BookSearchResultCard } from "./book-search-result-card";
-
 
 interface BookSearchProps {
   className?: string;
@@ -24,8 +23,13 @@ const LOAD_MORE_LIMIT = 10;
 const DEBOUNCE_DELAY = 500;
 const MIN_QUERY_LENGTH = 3;
 
-export function BookSearch({ className }: BookSearchProps) {
+// Memoized result card
+const MemoizedBookSearchResultCard = memo(BookSearchResultCard);
+
+function BookSearchComponent({ className }: BookSearchProps) {
+  // Use auth hook directly
   const { user } = useAuth();
+  
   const [query, setQuery] = useState("");
   const [displayedResults, setDisplayedResults] = useState<Book[]>([]);
   const [total, setTotal] = useState(0);
@@ -37,14 +41,20 @@ export function BookSearch({ className }: BookSearchProps) {
     Record<string, ReadingStatus>
   >({});
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+
+  // Memoize user ID
+  const userId = user?.id;
 
   // Listen for book status changes and refresh user book statuses
   useEffect(() => {
+    isMountedRef.current = true;
+    
     const handleStatusChange = async () => {
-      if (user && displayedResults.length > 0) {
+      if (userId && displayedResults.length > 0) {
         const bookIds = displayedResults.map((b) => b.id);
         const statusesResult = await getUserBookStatuses(bookIds);
-        if (statusesResult && !("success" in statusesResult)) {
+        if (isMountedRef.current && statusesResult && !("success" in statusesResult)) {
           setUserBookStatuses(statusesResult);
         }
       }
@@ -52,9 +62,10 @@ export function BookSearch({ className }: BookSearchProps) {
 
     window.addEventListener("book-status-changed", handleStatusChange);
     return () => {
+      isMountedRef.current = false;
       window.removeEventListener("book-status-changed", handleStatusChange);
     };
-  }, [user, displayedResults]);
+  }, [userId, displayedResults]);
 
   // Debounced search effect
   useEffect(() => {
@@ -94,15 +105,17 @@ export function BookSearch({ className }: BookSearchProps) {
       startTransition(async () => {
         const result = await searchBooks(currentQuery, INITIAL_LIMIT, 0);
 
+        if (!isMountedRef.current) return;
+
         if (result.success) {
           setDisplayedResults(result.books);
           setTotal(result.total);
 
           // Fetch user book statuses for these books
-          if (user && result.books.length > 0) {
+          if (userId && result.books.length > 0) {
             const bookIds = result.books.map((b) => b.id);
             const statusesResult = await getUserBookStatuses(bookIds);
-            if (statusesResult && !("success" in statusesResult)) {
+            if (isMountedRef.current && statusesResult && !("success" in statusesResult)) {
               setUserBookStatuses(statusesResult);
             } else {
               setUserBookStatuses({});
@@ -125,9 +138,9 @@ export function BookSearch({ className }: BookSearchProps) {
         debounceTimerRef.current = null;
       }
     };
-  }, [query, hasSearched]);
+  }, [query, hasSearched, userId]);
 
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery || trimmedQuery.length < MIN_QUERY_LENGTH) return;
 
@@ -140,15 +153,17 @@ export function BookSearch({ className }: BookSearchProps) {
         newOffset
       );
 
+      if (!isMountedRef.current) return;
+
       if (result.success) {
         setDisplayedResults((prev) => [...prev, ...result.books]);
         setCurrentOffset(newOffset);
 
         // Fetch user book statuses for newly loaded books
-        if (user && result.books.length > 0) {
+        if (userId && result.books.length > 0) {
           const bookIds = result.books.map((b) => b.id);
           const statusesResult = await getUserBookStatuses(bookIds);
-          if (statusesResult && !("success" in statusesResult)) {
+          if (isMountedRef.current && statusesResult && !("success" in statusesResult)) {
             setUserBookStatuses((prev) => ({
               ...prev,
               ...statusesResult,
@@ -157,39 +172,67 @@ export function BookSearch({ className }: BookSearchProps) {
         }
       }
     });
-  };
+  }, [query, currentOffset, displayedResults.length, userId]);
 
-  const clearSearch = () => {
+  const clearSearch = useCallback(() => {
     setQuery("");
     setDisplayedResults([]);
     setTotal(0);
     setError(null);
     setHasSearched(false);
     setCurrentOffset(0);
+    setUserBookStatuses({});
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
+  }, []);
+
+  const handleQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(e.target.value);
+  }, []);
+
+  // Map action to reading status
+  const actionToStatus: Record<BookAction, ReadingStatus> = {
+    "to-read": "want_to_read",
+    "currently-reading": "currently_reading",
+    "up-next": "up_next",
+    "did-not-finish": "dnf",
   };
 
-  const handleBookAction = async (action: BookAction, book: Book) => {
-    const { addBookToReadingList } = await import("@/app/actions/book-actions");
+  const handleBookAction = useCallback(async (action: BookAction, book: Book) => {
+    // Optimistically update status immediately for instant UI feedback
+    const newStatus = actionToStatus[action];
+    if (newStatus) {
+      setUserBookStatuses((prev) => ({
+        ...prev,
+        [book.id]: newStatus,
+      }));
+    }
+
     const result = await addBookToReadingList(book.id, action);
     
     if (result.success) {
       // Dispatch event to refresh currently reading component
-      // Use a small delay to ensure server action has completed
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("book-added", { 
-          detail: { action, bookId: book.id } 
-        }));
-      }, 100);
-      // Show success feedback (you can add a toast notification here)
-      console.log(result.message);
+      window.dispatchEvent(new CustomEvent("book-added", { 
+        detail: { action, bookId: book.id } 
+      }));
     } else {
-      // Show error feedback
+      // Revert optimistic update on error
+      setUserBookStatuses((prev) => {
+        const updated = { ...prev };
+        delete updated[book.id];
+        return updated;
+      });
       console.error(result.error);
     }
-  };
+  }, []);
+
+  const handleStatusChange = useCallback((bookId: string, newStatus: ReadingStatus) => {
+    setUserBookStatuses((prev) => ({
+      ...prev,
+      [bookId]: newStatus,
+    }));
+  }, []);
 
   const hasMore = displayedResults.length < total;
 
@@ -202,7 +245,7 @@ export function BookSearch({ className }: BookSearchProps) {
             type="text"
             placeholder="Search for books by title, author, or ISBN..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={handleQueryChange}
             icon={<Search className="w-5 h-5" />}
             rightIcon={
               query ? (
@@ -220,7 +263,7 @@ export function BookSearch({ className }: BookSearchProps) {
               ) : null
             }
             disabled={isPending}
-            className="text-lg  h-14 pr-12"
+            className="text-lg h-14 pr-12"
           />
         </div>
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
@@ -254,18 +297,12 @@ export function BookSearch({ className }: BookSearchProps) {
               {/* Results Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {displayedResults.map((book) => (
-                  <BookSearchResultCard
+                  <MemoizedBookSearchResultCard
                     key={book.id}
                     book={book}
                     userBookStatus={userBookStatuses[book.id]}
                     onAction={handleBookAction}
-                    onStatusChange={(bookId, newStatus) => {
-                      // Optimistically update the status in local state
-                      setUserBookStatuses((prev) => ({
-                        ...prev,
-                        [bookId]: newStatus,
-                      }));
-                    }}
+                    onStatusChange={handleStatusChange}
                   />
                 ))}
               </div>
@@ -306,19 +343,9 @@ export function BookSearch({ className }: BookSearchProps) {
           )}
         </div>
       )}
-
-      {/* Empty State - Before Search */}
-   {/*    {!hasSearched && (
-        <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-border rounded-2xl bg-muted/30">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-            <Search className="w-8 h-8 text-primary" />
-          </div>
-          <p className="text-xl font-semibold mb-2">Search for Books</p>
-          <p className="text-sm text-muted-foreground max-w-md">
-            Search the database to discover millions of books.
-          </p>
-        </div>
-      )} */}
     </div>
   );
 }
+
+// Export memoized component
+export const BookSearch = memo(BookSearchComponent);

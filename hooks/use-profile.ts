@@ -1,79 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useOptionalAuthContext } from "@/components/providers/auth-provider";
 
-import { createClient } from "@/lib/supabase/client";
-import type { Profile } from "@/types/database.types";
-
+/**
+ * Hook to access profile state.
+ * Uses AuthContext when available, providing centralized profile state.
+ */
 export function useProfile() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const supabase = createClient();
-
-    async function fetchProfile() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      if (error) {
-        console.error("Error fetching profile:", error);
-        setProfile(null);
-      } else {
-        setProfile(data);
-      }
-
-      setLoading(false);
-    }
-
-    fetchProfile();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        fetchProfile();
-      } else {
-        setProfile(null);
-        setLoading(false);
-      }
-    });
-
-    // Listen for profile refresh events
-    const handleProfileRefresh = () => {
-      fetchProfile();
-    };
-    window.addEventListener("profile-refresh", handleProfileRefresh);
-
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener("profile-refresh", handleProfileRefresh);
-    };
-  }, []);
-
-  const isPremium = profile?.subscription_tier === "bibliophile";
-  const isFree = profile?.subscription_tier === "free";
-
+  const context = useOptionalAuthContext();
+  
+  if (!context) {
+    throw new Error("useProfile must be used within an AuthProvider");
+  }
+  
   return {
-    profile,
-    loading,
-    isPremium,
-    isFree,
-    subscriptionTier: profile?.subscription_tier ?? null,
+    profile: context.profile,
+    loading: context.profileLoading,
+    isPremium: context.isPremium,
+    isFree: context.isFree,
+    subscriptionTier: context.subscriptionTier,
+    refreshProfile: context.refreshProfile,
   };
 }
-

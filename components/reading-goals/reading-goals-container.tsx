@@ -9,7 +9,7 @@ import {
   Target,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 
 import {
   getAllActiveGoals,
@@ -20,8 +20,8 @@ import {
   deleteReadingGoal,
 } from "@/app/actions/reading-goals";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { useProfile } from "@/hooks/use-profile";
+import { Card, CardContent } from "@/components/ui/card";
 import { componentGoalToDbGoal } from "@/lib/goal-wizard/goal-converters";
 import { cn } from "@/lib/utils";
 import type { ReadingGoal, UserPlan } from "@/types/user.type";
@@ -32,7 +32,6 @@ import { ReadingGoalWidget } from "./reading-goal-widget";
 // Toast notifications - can be replaced with your preferred toast library
 const toast = {
   success: (message: string) => {
-    // eslint-disable-next-line no-console
     console.log("Success:", message);
   },
   error: (message: string) => console.error("Error:", message),
@@ -40,13 +39,30 @@ const toast = {
 
 interface ReadingGoalsContainerProps {
   className?: string;
+  initialProfile?: {
+    id: string;
+    subscription_tier?: string | null;
+  } | null;
 }
 
-export function ReadingGoalsContainer({
+// Memoized components
+const MemoizedReadingGoalWidget = memo(ReadingGoalWidget);
+const MemoizedGoalSettingWizard = memo(GoalSettingWizard);
+
+function ReadingGoalsContainerComponent({
   className,
+  initialProfile,
 }: ReadingGoalsContainerProps) {
-  const { profile, isPremium, loading: profileLoading } = useProfile();
+  // Use the profile hook as fallback, but prefer initialProfile for immediate data
+  const { profile: contextProfile, isPremium: contextIsPremium, loading: profileLoading } = useProfile();
   const router = useRouter();
+  
+  // Use initialProfile if available (server-fetched), otherwise fall back to context
+  const profile = initialProfile || contextProfile;
+  const isPremium = initialProfile 
+    ? initialProfile.subscription_tier === "bibliophile"
+    : contextIsPremium;
+  
   const [wizardOpen, setWizardOpen] = useState(false);
   const [goals, setGoals] = useState<ReadingGoal[]>([]);
   const [achievedGoals, setAchievedGoals] = useState<ReadingGoal[]>([]);
@@ -58,15 +74,29 @@ export function ReadingGoalsContainer({
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const activeGoalsScrollRef = useRef<HTMLDivElement>(null);
+  const isMountedRef = useRef(true);
 
-  const refreshGoals = useCallback(async () => {
-    if (!profile?.id) return;
+  // Memoize profile ID - use initialProfile first for immediate availability
+  const profileId = profile?.id;
+
+  // Get subscription tier for optimization
+  const subscriptionTier = profile?.subscription_tier as "free" | "bibliophile" | undefined;
+  
+  // If we have initialProfile, we don't need to wait for context to load
+  const effectiveProfileLoading = initialProfile ? false : profileLoading;
+
+  const refreshGoals = useCallback(async (userId?: string, tier?: "free" | "bibliophile") => {
+    // Use provided userId or fall back to profileId from state
+    const id = userId || profileId;
+    if (!id) return;
 
     const [goalsResult, achievedResult, limitResult] = await Promise.all([
       getAllActiveGoals(),
       getAllAchievedGoals(),
-      canCreateGoal(profile.id),
+      canCreateGoal(id, tier || subscriptionTier),
     ]);
+
+    if (!isMountedRef.current) return;
 
     if (goalsResult.success) {
       setGoals(goalsResult.goals);
@@ -83,18 +113,50 @@ export function ReadingGoalsContainer({
         limit: limitResult.limit,
       });
     }
-  }, [profile]);
+  }, [profileId, subscriptionTier]);
 
-  // Fetch all active goals and check limit on mount
+  // Track if we've done initial fetch for current user
+  const lastFetchedUserRef = useRef<string | null>(null);
+
+  // Fetch all active goals when profile becomes available
   useEffect(() => {
+    isMountedRef.current = true;
+    
     async function fetchData() {
-      if (profile?.id) {
-        await refreshGoals();
+      // Only fetch if we have a profile ID
+      if (profileId) {
+        // Only fetch if this is a new user (different from last fetched)
+        const needsFetch = lastFetchedUserRef.current !== profileId;
+        
+        if (needsFetch) {
+          setLoading(true);
+          // Pass profileId directly to avoid stale closure issues
+          await refreshGoals(profileId, subscriptionTier);
+          lastFetchedUserRef.current = profileId;
+        }
+        
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
+      // If profile finished loading and there's no profileId, we're not logged in
+      else if (!effectiveProfileLoading) {
+        lastFetchedUserRef.current = null;
+        if (isMountedRef.current) {
+          setLoading(false);
+          setGoals([]);
+          setAchievedGoals([]);
+        }
+      }
+      // While profile is still loading, keep showing loading state
     }
+    
     fetchData();
-  }, [profile, refreshGoals]);
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [profileId, effectiveProfileLoading, subscriptionTier, refreshGoals]);
 
   // Listen for book status changes to refresh goal progress
   useEffect(() => {
@@ -107,7 +169,7 @@ export function ReadingGoalsContainer({
     return () => {
       window.removeEventListener("book-status-changed", handleStatusChange);
     };
-  }, [router, refreshGoals, profile]);
+  }, [router, refreshGoals]);
 
   // Update scroll arrow visibility
   const updateScrollArrows = useCallback(() => {
@@ -122,10 +184,10 @@ export function ReadingGoalsContainer({
   // Update scroll arrows when goals change or container opens
   useEffect(() => {
     if (!isCollapsed && goals.length > 3) {
-      // Small delay to ensure DOM is updated
-      setTimeout(updateScrollArrows, 100);
+      const timer = setTimeout(updateScrollArrows, 100);
+      return () => clearTimeout(timer);
     }
-  }, [goals, isCollapsed, updateScrollArrows]);
+  }, [goals.length, isCollapsed, updateScrollArrows]);
 
   // Update scroll arrows on window resize
   useEffect(() => {
@@ -138,25 +200,26 @@ export function ReadingGoalsContainer({
     return () => window.removeEventListener("resize", handleResize);
   }, [isCollapsed, goals.length, updateScrollArrows]);
 
-  // Create user object for components
-  const user = profile
-    ? {
-        id: profile.id,
-        name: profile.full_name || profile.username || profile.email || "User",
-        plan: (isPremium ? "PREMIUM" : "FREE") as UserPlan,
-        currentGoal: goals[0] || null, // For backward compatibility
-        averageReadingSpeed: 30, // Default, could be fetched from profile
-        streak: 0, // Could be fetched from reading stats
-      }
-    : null;
+  // Memoize user object for components - only recreate when dependencies change
+  const user = useMemo(() => {
+    if (!profile) return null;
+    return {
+      id: profile.id,
+      name: profile.full_name || profile.username || profile.email || "User",
+      plan: (isPremium ? "PREMIUM" : "FREE") as UserPlan,
+      currentGoal: goals[0] || null,
+      averageReadingSpeed: 30,
+      streak: 0,
+    };
+  }, [profile, isPremium, goals]);
 
-  const handleSaveGoal = async (goalData: Partial<ReadingGoal>) => {
-    if (!profile?.id) {
+  // Memoized handlers
+  const handleSaveGoal = useCallback(async (goalData: Partial<ReadingGoal>) => {
+    if (!profileId) {
       toast.error("You must be logged in");
       return;
     }
 
-    // Convert component goal format to DB format
     const { type, config } = componentGoalToDbGoal(goalData);
 
     const result = await createReadingGoal({
@@ -173,14 +236,14 @@ export function ReadingGoalsContainer({
     } else {
       toast.error(result.error);
     }
-  };
+  }, [profileId, refreshGoals, router]);
 
-  const handleUpdateProgress = async () => {
+  const handleUpdateProgress = useCallback(async () => {
     await refreshGoals();
     router.refresh();
-  };
+  }, [refreshGoals, router]);
 
-  const handleIncreaseGoal = async () => {
+  const handleIncreaseGoal = useCallback(async () => {
     const result = await increaseGoalTarget(10);
     if (result.success) {
       toast.success("Goal increased!");
@@ -189,9 +252,9 @@ export function ReadingGoalsContainer({
     } else {
       toast.error(result.error);
     }
-  };
+  }, [refreshGoals, router]);
 
-  const handleShare = (goal: ReadingGoal) => {
+  const handleShare = useCallback((goal: ReadingGoal) => {
     const getUnit = () => {
       switch (goal.type) {
         case "pages":
@@ -212,9 +275,9 @@ export function ReadingGoalsContainer({
       navigator.clipboard.writeText(text);
       toast.success("Goal copied to clipboard!");
     }
-  };
+  }, []);
 
-  const handleDeleteGoal = async (goalId: string) => {
+  const handleDeleteGoal = useCallback(async (goalId: string) => {
     if (
       !confirm(
         "Are you sure you want to delete this goal? This action cannot be undone."
@@ -231,7 +294,43 @@ export function ReadingGoalsContainer({
     } else {
       toast.error(result.error);
     }
-  };
+  }, [refreshGoals, router]);
+
+  const handleOpenWizard = useCallback(() => {
+    setWizardOpen(true);
+  }, []);
+
+  const handleCloseWizard = useCallback((open: boolean) => {
+    setWizardOpen(open);
+  }, []);
+
+  const toggleCollapsed = useCallback(() => {
+    setIsCollapsed((prev) => !prev);
+  }, []);
+
+  const toggleAchievedCollapsed = useCallback(() => {
+    setIsAchievedCollapsed((prev) => !prev);
+  }, []);
+
+  const scrollLeft = useCallback(() => {
+    if (activeGoalsScrollRef.current) {
+      const scrollAmount = activeGoalsScrollRef.current.clientWidth * 0.8;
+      activeGoalsScrollRef.current.scrollBy({
+        left: -scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  }, []);
+
+  const scrollRight = useCallback(() => {
+    if (activeGoalsScrollRef.current) {
+      const scrollAmount = activeGoalsScrollRef.current.clientWidth * 0.8;
+      activeGoalsScrollRef.current.scrollBy({
+        left: scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  }, []);
 
   if (profileLoading || loading || !user) {
     return (
@@ -247,7 +346,7 @@ export function ReadingGoalsContainer({
     <div className={cn("space-y-4", className)}>
       {/* Collapsible Header */}
       <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
+        onClick={toggleCollapsed}
         className="flex w-full items-center justify-between rounded-lg border border-border bg-card p-4 text-left hover:bg-accent/50 transition-colors"
       >
         <div className="flex items-center gap-3">
@@ -286,16 +385,7 @@ export function ReadingGoalsContainer({
                   {/* Left Arrow */}
                   {canScrollLeft && (
                     <button
-                      onClick={() => {
-                        if (activeGoalsScrollRef.current) {
-                          const scrollAmount =
-                            activeGoalsScrollRef.current.clientWidth * 0.8;
-                          activeGoalsScrollRef.current.scrollBy({
-                            left: -scrollAmount,
-                            behavior: "smooth",
-                          });
-                        }
-                      }}
+                      onClick={scrollLeft}
                       className="absolute left-0 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background border border-border shadow-lg p-2 hover:bg-accent transition-colors"
                       aria-label="Scroll left"
                     >
@@ -314,12 +404,12 @@ export function ReadingGoalsContainer({
                         key={goal.id}
                         className="flex-shrink-0 w-full sm:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.667rem)]"
                       >
-                        <ReadingGoalWidget
+                        <MemoizedReadingGoalWidget
                           user={{
                             ...user,
                             currentGoal: goal,
                           }}
-                          onSetGoal={() => setWizardOpen(true)}
+                          onSetGoal={handleOpenWizard}
                           onUpdateProgress={handleUpdateProgress}
                           onIncreaseGoal={handleIncreaseGoal}
                           onShare={() => handleShare(goal)}
@@ -332,16 +422,7 @@ export function ReadingGoalsContainer({
                   {/* Right Arrow */}
                   {canScrollRight && (
                     <button
-                      onClick={() => {
-                        if (activeGoalsScrollRef.current) {
-                          const scrollAmount =
-                            activeGoalsScrollRef.current.clientWidth * 0.8;
-                          activeGoalsScrollRef.current.scrollBy({
-                            left: scrollAmount,
-                            behavior: "smooth",
-                          });
-                        }
-                      }}
+                      onClick={scrollRight}
                       className="absolute right-0 top-1/2 -translate-y-1/2 z-10 rounded-full bg-background border border-border shadow-lg p-2 hover:bg-accent transition-colors"
                       aria-label="Scroll right"
                     >
@@ -352,13 +433,13 @@ export function ReadingGoalsContainer({
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {goals.map((goal) => (
-                    <ReadingGoalWidget
+                    <MemoizedReadingGoalWidget
                       key={goal.id}
                       user={{
                         ...user,
                         currentGoal: goal,
                       }}
-                      onSetGoal={() => setWizardOpen(true)}
+                      onSetGoal={handleOpenWizard}
                       onUpdateProgress={handleUpdateProgress}
                       onIncreaseGoal={handleIncreaseGoal}
                       onShare={() => handleShare(goal)}
@@ -388,7 +469,7 @@ export function ReadingGoalsContainer({
                     : `You have ${goalLimit.current} of ${goalLimit.limit} active goals. Create another to track different aspects of your reading.`}
                 </p>
                 <Button
-                  onClick={() => setWizardOpen(true)}
+                  onClick={handleOpenWizard}
                   size="lg"
                   className="gap-2"
                 >
@@ -416,10 +497,10 @@ export function ReadingGoalsContainer({
             </Card>
           )}
 
-          <GoalSettingWizard
+          <MemoizedGoalSettingWizard
             user={user}
             open={wizardOpen}
-            onOpenChange={setWizardOpen}
+            onOpenChange={handleCloseWizard}
             onSaveGoal={handleSaveGoal}
           />
         </div>
@@ -429,7 +510,7 @@ export function ReadingGoalsContainer({
       {achievedGoals.length > 0 && (
         <>
           <button
-            onClick={() => setIsAchievedCollapsed(!isAchievedCollapsed)}
+            onClick={toggleAchievedCollapsed}
             className="flex w-full items-center justify-between rounded-lg border border-border bg-card p-4 text-left hover:bg-accent/50 transition-colors"
           >
             <div className="flex items-center gap-3">
@@ -462,13 +543,13 @@ export function ReadingGoalsContainer({
           >
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-4">
               {achievedGoals.map((goal) => (
-                <ReadingGoalWidget
+                <MemoizedReadingGoalWidget
                   key={goal.id}
                   user={{
                     ...user,
                     currentGoal: goal,
                   }}
-                  onSetGoal={() => setWizardOpen(true)}
+                  onSetGoal={handleOpenWizard}
                   onUpdateProgress={handleUpdateProgress}
                   onIncreaseGoal={handleIncreaseGoal}
                   onShare={() => handleShare(goal)}
@@ -482,3 +563,6 @@ export function ReadingGoalsContainer({
     </div>
   );
 }
+
+// Export memoized component
+export const ReadingGoalsContainer = memo(ReadingGoalsContainerComponent);

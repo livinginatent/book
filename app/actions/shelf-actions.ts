@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
+import { createTimer } from "@/lib/utils/perf";
 import type { ReadingStatus, Shelf } from "@/types/database.types";
 
 export type ShelfType = "default" | "custom";
@@ -24,56 +25,61 @@ export interface ShelvesError {
 
 /**
  * Get shelves for the authenticated user, including book counts
+ * Optimized with parallel queries
  */
 export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
+  const timer = createTimer("getShelves");
+  
   try {
     const cookieStore = cookies();
     const supabase = await createClient(cookieStore);
 
+    const authTimer = createTimer("getShelves.auth");
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
+    authTimer.end();
 
     if (authError || !user) {
+      timer.end();
       return { success: false, error: "You must be logged in" };
     }
 
-    const { data: shelves, error: shelvesError } = await supabase
-      .from("shelves")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("type", { ascending: true })
-      .order("name", { ascending: true });
+    // Parallel queries for shelves and user_books
+    const queryTimer = createTimer("getShelves.queries");
+    const [shelvesResult, userBooksResult] = await Promise.all([
+      supabase
+        .from("shelves")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("type", { ascending: true })
+        .order("name", { ascending: true }),
+      supabase
+        .from("user_books")
+        .select("status")
+        .eq("user_id", user.id),
+    ]);
+    queryTimer.end();
 
-    if (shelvesError) {
-      console.error("Error fetching shelves:", shelvesError);
+    if (shelvesResult.error) {
+      console.error("Error fetching shelves:", shelvesResult.error);
+      timer.end();
       return { success: false, error: "Failed to fetch shelves" };
     }
 
-    // Get counts for default shelves based on user_books.status
+    // Count statuses in memory
     const countMap: Record<ReadingStatus, number> = {
       want_to_read: 0,
       currently_reading: 0,
       finished: 0,
       dnf: 0,
       up_next: 0,
-      paused: 0
+      paused: 0,
     };
 
-    // Fetch all user_books for the user and count in memory
-    const { data: userBooks, error: userBooksError } = await supabase
-      .from("user_books")
-      .select("status")
-      .eq("user_id", user.id);
-
-    if (userBooksError) {
-      console.error(
-        "Error fetching user_books for shelf counts:",
-        userBooksError
-      );
-    } else {
-      for (const row of userBooks || []) {
+    if (!userBooksResult.error) {
+      for (const row of userBooksResult.data || []) {
         const status = row.status as ReadingStatus;
         if (status in countMap) {
           countMap[status] += 1;
@@ -84,7 +90,7 @@ export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
     const defaultShelves: ShelfWithCount[] = [];
     const customShelves: ShelfWithCount[] = [];
 
-    for (const shelf of shelves || []) {
+    for (const shelf of shelvesResult.data || []) {
       const base: ShelfWithCount = {
         ...shelf,
         book_count:
@@ -100,12 +106,14 @@ export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
       }
     }
 
+    timer.end();
     return {
       success: true,
       defaultShelves,
       customShelves,
     };
   } catch (error) {
+    timer.end();
     console.error("Get shelves error:", error);
     return {
       success: false,

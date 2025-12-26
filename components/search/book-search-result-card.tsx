@@ -178,7 +178,23 @@ export function BookSearchResultCard({
   const isOwned = !!currentStatus;
   const statusInfo = currentStatus ? formatReadingStatus(currentStatus) : null;
 
+  // Map action IDs to reading statuses
+  const actionToStatusMap: Record<MobileActionId | BookAction, ReadingStatus> =
+    {
+      "to-read": "want_to_read",
+      "currently-reading": "currently_reading",
+      "up-next": "up_next",
+      "did-not-finish": "dnf",
+      paused: "paused",
+      finished: "finished",
+    };
+
   const handleAction = async (action: MobileActionId | BookAction) => {
+    const targetStatus = actionToStatusMap[action];
+
+    // Optimistically update status immediately for instant feedback
+    setOptimisticStatus(targetStatus);
+
     // Handle paused and finished
     if (action === "paused" || action === "finished") {
       // If book is not owned, we need to add it first, then update status
@@ -187,9 +203,6 @@ export function BookSearchResultCard({
         const addResult = await addBookToReadingList(book.id, "to-read");
 
         if (addResult.success) {
-          // Update optimistic status immediately
-          setOptimisticStatus(action === "finished" ? "finished" : "paused");
-
           // For finished status, we need to provide a date
           // Since this is a quick action (not from modal), use today's date
           if (action === "finished") {
@@ -218,6 +231,9 @@ export function BookSearchResultCard({
             // For paused, just update status
             await handleStatusChange("paused");
           }
+        } else {
+          // Revert on error
+          setOptimisticStatus(undefined);
         }
       } else {
         // Book is already owned, just update status
@@ -225,8 +241,13 @@ export function BookSearchResultCard({
       }
       return;
     }
+
     // Handle other actions through the onAction callback
+    // The optimistic update is already done above
     onAction?.(action as BookAction, book);
+
+    // Notify about status change
+    onStatusChange?.(book.id, targetStatus);
   };
 
   const handleCardClick = () => {

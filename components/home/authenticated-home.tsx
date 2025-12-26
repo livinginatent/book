@@ -2,13 +2,14 @@
 
 import { Sparkles, Crown, Upload, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, memo } from "react";
 
 import {
   removeBookFromReadingList,
   updateBookStatus,
 } from "@/app/actions/book-actions";
-import { getCurrentlyReadingBooks } from "@/app/actions/currently-reading";
+import type { DashboardData, BookWithProgress } from "@/app/actions/dashboard-data";
+import { refreshCurrentlyReading } from "@/app/actions/dashboard-data";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
 import { getReadingStats } from "@/app/actions/reading-stats";
 import { AdvancedInsights } from "@/components/dashboard/advanced-insights";
@@ -20,8 +21,6 @@ import { ReadingStats } from "@/components/dashboard/reading-stats";
 import { BookSearch } from "@/components/search/book-search";
 import type { BookStatus } from "@/components/ui/book/book-progress-editor";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
-import { useProfile } from "@/hooks/use-profile";
 import { cn } from "@/lib/utils";
 import type { ReadingStatus } from "@/types/database.types";
 
@@ -37,143 +36,125 @@ interface CurrentlyReadingBook {
   totalPages: number;
 }
 
-export function AuthenticatedHome() {
-  const { user } = useAuth();
-  const { profile, loading: profileLoading, isPremium, isFree } = useProfile();
-  const [currentlyReadingBooks, setCurrentlyReadingBooks] = useState<
-    CurrentlyReadingBook[]
-  >([]);
-  const [loadingBooks, setLoadingBooks] = useState(true);
+interface ReadingStatsData {
+  booksRead: number;
+  pagesRead: number;
+  readingStreak: number;
+  avgPagesPerDay: number;
+}
+
+interface AuthenticatedHomeProps {
+  initialData: DashboardData;
+}
+
+// Memoized child components to prevent re-renders
+const MemoizedBookSearch = memo(BookSearch);
+const MemoizedCurrentlyReading = memo(CurrentlyReading);
+const MemoizedReadingGoalsContainer = memo(ReadingGoalsContainer);
+const MemoizedReadingStats = memo(ReadingStats);
+const MemoizedAdvancedInsights = memo(AdvancedInsights);
+const MemoizedBookRecommendations = memo(BookRecommendations);
+const MemoizedPrivateShelves = memo(PrivateShelves);
+const MemoizedMoodTracker = memo(MoodTracker);
+const MemoizedGoodreadsImport = memo(GoodreadsImport);
+
+// Transform database books to component format
+function transformBooks(books: BookWithProgress[]): CurrentlyReadingBook[] {
+  return books.map((book) => ({
+    id: book.id,
+    title: book.title,
+    author: book.authors?.join(", ") || "Unknown Author",
+    cover:
+      book.cover_url_medium ||
+      book.cover_url_large ||
+      book.cover_url_small ||
+      "",
+    pagesRead: book.progress?.pages_read || 0,
+    totalPages: book.page_count || 0,
+  }));
+}
+
+export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
+  // Use pre-fetched data from server - NO client-side auth fetching!
+  const { user, profile, currentlyReading, stats: initialStats, shelves: initialShelves } = initialData;
+
+  // Derive auth info from pre-fetched data
+  const isPremium = profile?.subscription_tier === "bibliophile";
+  const isFree = profile?.subscription_tier === "free" || !profile?.subscription_tier;
+
+  // State initialized from server data
+  const [currentlyReadingBooks, setCurrentlyReadingBooks] = useState<CurrentlyReadingBook[]>(
+    () => transformBooks(currentlyReading)
+  );
+  const [loadingBooks, setLoadingBooks] = useState(false); // Start as false since we have initial data!
   const [showImport, setShowImport] = useState(false);
-  const [readingStats, setReadingStats] = useState<{
-    booksRead: number;
-    pagesRead: number;
-    readingStreak: number;
-    avgPagesPerDay: number;
-  } | null>(null);
-  const hasLoadedRef = useRef(false);
+  const [readingStats, setReadingStats] = useState<ReadingStatsData | null>(initialStats);
+
   const hasInitializedImportRef = useRef(false);
+  const isMountedRef = useRef(true);
 
-  const displayName =
-    profile?.username || user?.email?.split("@")[0] || "there";
+  // Memoize display name
+  const displayName = useMemo(
+    () => profile?.username || user.email?.split("@")[0] || "there",
+    [profile?.username, user.email]
+  );
 
-  // Store user ID to use as stable dependency
-  const userId = user?.id;
+  // Check if user has imported from Goodreads
+  const shouldHighlightImport = useMemo(
+    () => profile !== null && !profile.has_imported_from_goodreads,
+    [profile]
+  );
 
-  // Check if user has imported from Goodreads and should see highlight
-  const shouldHighlightImport =
-    profile !== null && !profile.has_imported_from_goodreads;
-
-  // Auto-expand the import section for new users on first load
+  // Auto-expand the import section for new users
   useEffect(() => {
-    if (
-      shouldHighlightImport &&
-      !hasInitializedImportRef.current &&
-      !profileLoading
-    ) {
+    if (shouldHighlightImport && !hasInitializedImportRef.current) {
       hasInitializedImportRef.current = true;
-      // Use requestAnimationFrame to defer state update
       requestAnimationFrame(() => {
         setShowImport(true);
       });
     }
-  }, [shouldHighlightImport, profileLoading]);
+  }, [shouldHighlightImport]);
 
-  // Fetch currently reading books and reading stats - only once on mount or when user ID changes
+  // Listen for book changes (from search, import, etc.)
   useEffect(() => {
-    let isMounted = true;
+    isMountedRef.current = true;
 
-    async function fetchData() {
-      if (!userId) {
-        setCurrentlyReadingBooks([]);
-        setLoadingBooks(false);
-        setReadingStats(null);
-        hasLoadedRef.current = false;
-        return;
-      }
-
-      // Only show loading on initial load, not on refetch
-      const isInitialLoad = !hasLoadedRef.current;
-      if (isInitialLoad) {
-        setLoadingBooks(true);
-      }
-
-      // Fetch books and stats in parallel
+    const refreshData = async () => {
+      if (!isMountedRef.current) return;
+      
+      // Use lightweight refresh instead of full dashboard refetch
       const [booksResult, statsResult] = await Promise.all([
-        getCurrentlyReadingBooks(),
+        refreshCurrentlyReading(),
         getReadingStats(),
       ]);
 
-      if (booksResult.success && isMounted) {
-        // Transform database books to component format
-        const transformedBooks: CurrentlyReadingBook[] = booksResult.books.map(
-          (book) => ({
-            id: book.id,
-            title: book.title,
-            author: book.authors?.join(", ") || "Unknown Author",
-            cover:
-              book.cover_url_medium ||
-              book.cover_url_large ||
-              book.cover_url_small ||
-              "",
-            pagesRead: book.progress?.pages_read || 0,
-            totalPages: book.page_count || 0,
-          })
-        );
-        setCurrentlyReadingBooks(transformedBooks);
-      } else if (isMounted) {
-        setCurrentlyReadingBooks([]);
+      if (!isMountedRef.current) return;
+
+      if (booksResult.success && booksResult.books) {
+        setCurrentlyReadingBooks(transformBooks(booksResult.books));
       }
 
-      if (statsResult.success && isMounted) {
+      if (statsResult.success) {
         setReadingStats({
           booksRead: statsResult.booksRead,
           pagesRead: statsResult.pagesRead,
           readingStreak: statsResult.readingStreak,
           avgPagesPerDay: statsResult.avgPagesPerDay,
         });
-      } else if (isMounted) {
-        // Use default values if fetch fails
-        setReadingStats({
-          booksRead: 0,
-          pagesRead: 0,
-          readingStreak: 0,
-          avgPagesPerDay: 0,
-        });
-      }
-
-      if (isMounted) {
-        setLoadingBooks(false);
-        hasLoadedRef.current = true;
-      }
-    }
-
-    fetchData();
-
-    // Listen for book added/status changed events
-    const handleBookAdded = () => {
-      if (isMounted) {
-        fetchData();
       }
     };
 
-    const handleStatusChange = () => {
-      if (isMounted) {
-        fetchData();
-      }
-    };
-
-    window.addEventListener("book-added", handleBookAdded);
-    window.addEventListener("book-status-changed", handleStatusChange);
+    window.addEventListener("book-added", refreshData);
+    window.addEventListener("book-status-changed", refreshData);
 
     return () => {
-      isMounted = false;
-      window.removeEventListener("book-added", handleBookAdded);
-      window.removeEventListener("book-status-changed", handleStatusChange);
+      isMountedRef.current = false;
+      window.removeEventListener("book-added", refreshData);
+      window.removeEventListener("book-status-changed", refreshData);
     };
-  }, [userId]); // Use stable userId instead of user object
+  }, []);
 
-  // Handle progress update
+  // Handle progress update - optimistic UI
   const handleProgressUpdate = useCallback(
     async (bookId: string, pages: number) => {
       // Optimistically update the UI
@@ -183,27 +164,14 @@ export function AuthenticatedHome() {
         )
       );
 
-      // Save to database
       const result = await updateReadingProgress(bookId, pages);
+
       if (!result.success) {
         console.error("Failed to update progress:", result.error);
-        // Revert on error - refetch books
-        const fetchResult = await getCurrentlyReadingBooks();
-        if (fetchResult.success) {
-          const transformedBooks: CurrentlyReadingBook[] =
-            fetchResult.books.map((book) => ({
-              id: book.id,
-              title: book.title,
-              author: book.authors?.join(", ") || "Unknown Author",
-              cover:
-                book.cover_url_medium ||
-                book.cover_url_large ||
-                book.cover_url_small ||
-                "",
-              pagesRead: book.progress?.pages_read || 0,
-              totalPages: book.page_count || 0,
-            }));
-          setCurrentlyReadingBooks(transformedBooks);
+        // Revert on error
+        const refreshResult = await refreshCurrentlyReading();
+        if (refreshResult.success && refreshResult.books) {
+          setCurrentlyReadingBooks(transformBooks(refreshResult.books));
         }
       } else {
         // Refresh reading stats after successful progress update
@@ -221,7 +189,7 @@ export function AuthenticatedHome() {
     []
   );
 
-  // Handle status change
+  // Handle status change - optimistic UI
   const handleStatusChange = useCallback(
     async (bookId: string, status: BookStatus, date?: string) => {
       if (status === "remove") {
@@ -230,34 +198,18 @@ export function AuthenticatedHome() {
           prev.filter((book) => book.id !== bookId)
         );
 
-        // Call server action to remove book from currently_reading list
         const result = await removeBookFromReadingList(
           bookId,
           "currently-reading"
         );
         if (!result.success) {
           console.error("Failed to remove book:", result.error);
-          // Revert on error - refetch books
-          const fetchResult = await getCurrentlyReadingBooks();
-          if (fetchResult.success) {
-            const transformedBooks: CurrentlyReadingBook[] =
-              fetchResult.books.map((book) => ({
-                id: book.id,
-                title: book.title,
-                author: book.authors?.join(", ") || "Unknown Author",
-                cover:
-                  book.cover_url_medium ||
-                  book.cover_url_large ||
-                  book.cover_url_small ||
-                  "",
-                pagesRead: book.progress?.pages_read || 0,
-                totalPages: book.page_count || 0,
-              }));
-            setCurrentlyReadingBooks(transformedBooks);
+          const refreshResult = await refreshCurrentlyReading();
+          if (refreshResult.success && refreshResult.books) {
+            setCurrentlyReadingBooks(transformBooks(refreshResult.books));
           }
         }
       } else {
-        // Map BookStatus to ReadingStatus
         const statusMap: Record<BookStatus, ReadingStatus | null> = {
           finished: "finished",
           paused: "paused",
@@ -267,31 +219,14 @@ export function AuthenticatedHome() {
         };
 
         const readingStatus = statusMap[status];
-        if (!readingStatus) {
-          return;
-        }
+        if (!readingStatus) return;
 
-        // Update the book status using updateBookStatus with optional date
         const result = await updateBookStatus(bookId, readingStatus, date);
         if (!result.success) {
           console.error("Failed to update book status:", result.error);
-          // Revert on error - refetch books
-          const fetchResult = await getCurrentlyReadingBooks();
-          if (fetchResult.success) {
-            const transformedBooks: CurrentlyReadingBook[] =
-              fetchResult.books.map((book) => ({
-                id: book.id,
-                title: book.title,
-                author: book.authors?.join(", ") || "Unknown Author",
-                cover:
-                  book.cover_url_medium ||
-                  book.cover_url_large ||
-                  book.cover_url_small ||
-                  "",
-                pagesRead: book.progress?.pages_read || 0,
-                totalPages: book.page_count || 0,
-              }));
-            setCurrentlyReadingBooks(transformedBooks);
+          const refreshResult = await refreshCurrentlyReading();
+          if (refreshResult.success && refreshResult.books) {
+            setCurrentlyReadingBooks(transformBooks(refreshResult.books));
           }
           return;
         }
@@ -305,23 +240,19 @@ export function AuthenticatedHome() {
     []
   );
 
-  // Show loading skeleton while profile is loading
-  if (profileLoading) {
-    return (
-      <div className="min-h-screen">
-        <div className="container mx-auto px-4 py-12">
-          <div className="animate-pulse space-y-8">
-            <div className="h-12 bg-muted rounded-lg w-1/3" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-64 bg-muted rounded-2xl" />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Handle import complete
+  const handleImportComplete = useCallback(async (imported: number) => {
+    window.dispatchEvent(new CustomEvent("book-added"));
+    if (imported > 0) {
+      window.dispatchEvent(new CustomEvent("profile-refresh"));
+      setTimeout(() => setShowImport(false), 2000);
+    }
+  }, []);
+
+  // Toggle import visibility
+  const toggleImport = useCallback(() => {
+    setShowImport((prev) => !prev);
+  }, []);
 
   return (
     <div className="min-h-screen">
@@ -334,7 +265,7 @@ export function AuthenticatedHome() {
                 Welcome back, {displayName}!
               </h1>
               {isPremium && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full  border border-primary/30">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-primary/30">
                   <Crown className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium text-primary">
                     Bibliophile
@@ -362,7 +293,7 @@ export function AuthenticatedHome() {
 
         {/* Book Search - Available to all users */}
         <div id="book-search" className="mb-8">
-          <BookSearch />
+          <MemoizedBookSearch />
         </div>
 
         {/* Main Dashboard Grid */}
@@ -370,14 +301,16 @@ export function AuthenticatedHome() {
           {/* Left Column - Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Currently Reading - Available to all */}
-            <CurrentlyReading
+            <MemoizedCurrentlyReading
               books={loadingBooks ? [] : currentlyReadingBooks}
               onProgressUpdate={handleProgressUpdate}
               onStatusChange={handleStatusChange}
             />
-            <ReadingGoalsContainer className="..." />
+            <MemoizedReadingGoalsContainer 
+              initialProfile={profile}
+            />
 
-            {/* Goodreads Import - Collapsible Section (only shown if not yet imported) */}
+            {/* Goodreads Import - Collapsible Section */}
             {!profile?.has_imported_from_goodreads && (
               <div
                 className={cn(
@@ -388,7 +321,7 @@ export function AuthenticatedHome() {
                 )}
               >
                 <button
-                  onClick={() => setShowImport(!showImport)}
+                  onClick={toggleImport}
                   className="w-full p-6 flex items-center justify-between hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
@@ -440,19 +373,8 @@ export function AuthenticatedHome() {
                   )}
                 >
                   <div className="px-6 pb-6 pt-0">
-                    <GoodreadsImport
-                      onImportComplete={async (imported) => {
-                        // Refresh currently reading after import
-                        window.dispatchEvent(new CustomEvent("book-added"));
-                        // Refresh profile to get updated import status
-                        if (imported > 0) {
-                          window.dispatchEvent(
-                            new CustomEvent("profile-refresh")
-                          );
-                          // Optionally close the import section after successful import
-                          setTimeout(() => setShowImport(false), 2000);
-                        }
-                      }}
+                    <MemoizedGoodreadsImport
+                      onImportComplete={handleImportComplete}
                     />
                   </div>
                 </div>
@@ -460,28 +382,25 @@ export function AuthenticatedHome() {
             )}
 
             {/* Reading Stats - Available to all */}
-            {readingStats && <ReadingStats {...readingStats} />}
+            {readingStats && <MemoizedReadingStats {...readingStats} />}
 
             {/* Advanced Insights - Premium only */}
-            <AdvancedInsights locked={isFree} />
+            <MemoizedAdvancedInsights locked={isFree} />
           </div>
 
           {/* Right Column - Sidebar */}
           <div className="space-y-6">
             {/* Book Recommendations */}
-            {isPremium ? (
-              // Premium users get priority recommendations
-              <BookRecommendations isPriority />
-            ) : (
-              // Free users get basic recommendations
-              <BookRecommendations />
-            )}
+            <MemoizedBookRecommendations isPriority={isPremium} />
 
-            {/* Private Shelves - Premium only */}
-            <PrivateShelves locked={isFree} />
+            {/* Private Shelves - Pass initial data */}
+            <MemoizedPrivateShelves 
+              locked={isFree} 
+              initialShelves={initialShelves}
+            />
 
             {/* Mood Tracker - Premium only */}
-            <MoodTracker locked={isFree} />
+            <MemoizedMoodTracker locked={isFree} />
           </div>
         </div>
 
