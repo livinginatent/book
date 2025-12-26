@@ -394,7 +394,7 @@ function ReadingGoalsContainerComponent({
     }
   }, []);
 
-  if (profileLoading || loading || !user) {
+  if (effectiveProfileLoading || loading || !user) {
     return (
       <div className={className}>
         <div className="animate-pulse rounded-lg bg-secondary h-48" />

@@ -1,13 +1,31 @@
-import { Suspense } from "react";
-
 import { LoginForm } from "@/components/auth/login-form";
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams:
+    | Promise<{
+        message?: string;
+        error?: string;
+        redirect?: string;
+      }>
+    | {
+        message?: string;
+        error?: string;
+        redirect?: string;
+      };
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  // Handle both sync and async searchParams (Next.js 15+)
+  const params =
+    searchParams instanceof Promise ? await searchParams : searchParams;
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12 relative">
-      <Suspense fallback={<div className="w-full max-w-md h-96 bg-muted/50 rounded-xl animate-pulse" />}>
-        <LoginForm />
-      </Suspense>
+      <LoginForm
+        initialMessage={params.message}
+        initialError={params.error}
+        initialRedirect={params.redirect}
+      />
     </div>
   );
 }

@@ -2,7 +2,6 @@
 
 import { Eye, EyeOff, User, Lock, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { signIn } from "@/app/actions/auth";
@@ -12,8 +11,17 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { loginSchema } from "@/lib/validations/auth";
 
-export function LoginForm() {
-  const searchParams = useSearchParams();
+interface LoginFormProps {
+  initialMessage?: string;
+  initialError?: string;
+  initialRedirect?: string;
+}
+
+export function LoginForm({ 
+  initialMessage, 
+  initialError, 
+  initialRedirect 
+}: LoginFormProps = {}) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -22,10 +30,10 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-  // Check for messages from URL params
-  const successMessage = searchParams.get("message");
-  const errorMessage = searchParams.get("error");
-  const redirectTo = searchParams.get("redirect");
+  // Use props passed from server component
+  const successMessage = initialMessage;
+  const errorMessage = initialError;
+  const redirectTo = initialRedirect;
 
   const getSuccessText = () => {
     switch (successMessage) {
@@ -69,7 +77,7 @@ export function LoginForm() {
 
     setLoading(true);
 
-    const response = await signIn({ identifier, password }, redirectTo || undefined);
+    const response = await signIn({ identifier, password }, redirectTo);
 
     if (response?.error) {
       setError(response.error);

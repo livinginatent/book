@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import { Nunito, Merriweather } from "next/font/google";
 import type React from "react";
 
-import { Navbar } from "@/components/layout/navbar";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import "./globals.css";
 import { Footer } from "@/components/layout/footer";
+import { Navbar } from "@/components/layout/navbar";
 
 // Initialize fonts from your first code block
 const nunito = Nunito({
@@ -45,7 +45,7 @@ export default function RootLayout({
           <AuthProvider>
             <Navbar />
             {children}
-            <Footer/>
+            <Footer />
           </AuthProvider>
         </ThemeProvider>
       </body>

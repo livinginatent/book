@@ -1,6 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
+import { usePathname } from "next/navigation";
 import {
   createContext,
   useContext,
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [profileLoading, setProfileLoading] = useState(true);
 
   const userRef = useRef<User | null>(null);
+  const pathname = usePathname();
 
   // Memoize supabase client
   const supabase = useMemo(() => createClient(), []);
@@ -111,8 +113,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const newUserId = newUser?.id ?? null;
       const currentUserId = userRef.current?.id ?? null;
 
-      // Only update if user actually changed
-      if (newUserId !== currentUserId) {
+      // Update on any auth state change (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc.)
+      // This ensures we catch login events even if the user ID comparison might miss them
+      if (
+        event === "SIGNED_IN" ||
+        event === "SIGNED_OUT" ||
+        event === "TOKEN_REFRESHED" ||
+        newUserId !== currentUserId
+      ) {
         userRef.current = newUser;
         setUser(newUser);
 
@@ -132,6 +140,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setLoading(false);
     });
 
+    // Refresh auth state when page becomes visible (handles cases where auth state changed while tab was in background)
+    const handleVisibilityChange = async () => {
+      if (!isMounted || document.hidden) return;
+
+      try {
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
+
+        if (!isMounted) return;
+
+        const currentUserId = currentUser?.id ?? null;
+        const storedUserId = userRef.current?.id ?? null;
+
+        // Only update if user actually changed
+        if (currentUserId !== storedUserId) {
+          userRef.current = currentUser;
+          setUser(currentUser);
+
+          if (currentUser) {
+            setProfileLoading(true);
+            const userProfile = await fetchProfileForUser(currentUser.id);
+            if (isMounted) {
+              setProfile(userProfile);
+              setProfileLoading(false);
+            }
+          } else {
+            setProfile(null);
+            setProfileLoading(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error refreshing auth on visibility change:", error);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     // Listen for profile refresh events
     const handleProfileRefresh = async () => {
       const currentUser = userRef.current;
@@ -150,8 +196,55 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isMounted = false;
       subscription.unsubscribe();
       window.removeEventListener("profile-refresh", handleProfileRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [supabase, fetchProfileForUser]);
+
+  // Refresh auth state on route changes (helps catch auth state changes after server-side redirects)
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkAuthState = async () => {
+      try {
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
+
+        if (!isMounted) return;
+
+        const currentUserId = currentUser?.id ?? null;
+        const storedUserId = userRef.current?.id ?? null;
+
+        // Only update if user actually changed
+        if (currentUserId !== storedUserId) {
+          userRef.current = currentUser;
+          setUser(currentUser);
+
+          if (currentUser) {
+            setProfileLoading(true);
+            const userProfile = await fetchProfileForUser(currentUser.id);
+            if (isMounted) {
+              setProfile(userProfile);
+              setProfileLoading(false);
+            }
+          } else {
+            setProfile(null);
+            setProfileLoading(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking auth state on route change:", error);
+      }
+    };
+
+    // Small delay to ensure cookies are available after redirect
+    const timeoutId = setTimeout(checkAuthState, 100);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [pathname, supabase, fetchProfileForUser]);
 
   // Manual refresh functions
   const refreshUser = useCallback(async () => {

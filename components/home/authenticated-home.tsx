@@ -86,6 +86,7 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
   const [currentlyReadingBooks, setCurrentlyReadingBooks] = useState<CurrentlyReadingBook[]>(
     () => transformBooks(currentlyReading)
   );
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingBooks, setLoadingBooks] = useState(false); // Start as false since we have initial data!
   const [showImport, setShowImport] = useState(false);
   const [readingStats, setReadingStats] = useState<ReadingStatsData | null>(initialStats);
