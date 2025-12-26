@@ -530,7 +530,7 @@ function ReadingGoalsContainerComponent({
                 onClick={handleOpenWizard}
                 size="lg"
                 variant="outline"
-                className="gap-2"
+                className="gap-2 "
               >
                 <Plus className="h-5 w-5" />
                 Create Another Goal

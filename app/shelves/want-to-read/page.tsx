@@ -8,15 +8,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   removeBookFromReadingList,
   updateBookStatus,
-  addToUpNext,
 } from "@/app/actions/book-actions";
 import { getWantToReadBooks } from "@/app/actions/want-to-read";
 import { ShelfBookGrid } from "@/components/shelves/shelf-book-grid";
 import { ShelfHeader } from "@/components/shelves/shelf-header";
 import { ShelfStats } from "@/components/shelves/shelf-stats";
 import type { BookStatus } from "@/components/ui/book/book-progress-editor";
-import { DashboardCard } from "@/components/ui/dashboard-card";
 import { Button } from "@/components/ui/button";
+import { DashboardCard } from "@/components/ui/dashboard-card";
 import type { ReadingStatus } from "@/types/database.types";
 
 // Simple toast implementation
@@ -98,8 +97,8 @@ export default function WantToReadShelfPage() {
           title: book.title,
           author: book.authors?.join(", ") || "Unknown Author",
           cover:
-            book.cover_url_medium ||
             book.cover_url_large ||
+            book.cover_url_medium ||
             book.cover_url_small ||
             "",
           totalPages: book.page_count || 0,
@@ -213,37 +212,6 @@ export default function WantToReadShelfPage() {
     },
     [router]
   );
-
-  // Handle "Move to Up Next" action
-  const handleMoveToUpNext = useCallback(async (bookId: string) => {
-    const result = await addToUpNext(bookId);
-
-    if (!result.success) {
-      toast.error(result.error);
-      return;
-    }
-
-    toast.success(result.message);
-
-    // Refresh the books list to update isPrioritized flag
-    const fetchResult = await getWantToReadBooks();
-    if (fetchResult.success) {
-      const transformed: ShelfBook[] = fetchResult.books.map((book) => ({
-        id: book.id,
-        title: book.title,
-        author: book.authors?.join(", ") || "Unknown Author",
-        cover:
-          book.cover_url_medium ||
-          book.cover_url_large ||
-          book.cover_url_small ||
-          "",
-        totalPages: book.page_count || 0,
-        date_added: book.date_added,
-        isPrioritized: book.isPrioritized,
-      }));
-      setBooks(transformed);
-    }
-  }, []);
 
   // Calculate derived values
   const { totalPageCount, averageBookLength } = useMemo(() => {
@@ -390,7 +358,6 @@ export default function WantToReadShelfPage() {
                 }))}
                 sortBy={sortBy}
                 onStatusChange={handleStatusChange}
-                onMoveToUpNext={handleMoveToUpNext}
               />
             </div>
           </div>

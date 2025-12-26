@@ -176,7 +176,7 @@ export function PrivateShelves({
                     const ShelfContent = (
                       <div
                         className={cn(
-                          "flex items-center justify-between p-2.5 rounded-xl bg-background transition-colors",
+                          "flex items-center justify-between p-2.5 rounded-xl bg-muted/50 hover:bg-muted  transition-colors",
                           isLinkable
                             ? "hover:bg-muted/70 cursor-pointer"
                             : "hover:bg-muted/70"
@@ -243,7 +243,7 @@ export function PrivateShelves({
                   customShelves.map((shelf) => (
                     <div
                       key={shelf.id}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-background hover:bg-muted/70 transition-colors"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-muted/50 hover:bg-muted transition-colors transition-colors"
                     >
                       <span className="text-sm font-medium">{shelf.name}</span>
                       <span className="text-xs text-muted-foreground">
@@ -266,13 +266,13 @@ export function PrivateShelves({
                     value={newShelfName}
                     onChange={(e) => setNewShelfName(e.target.value)}
                     placeholder="New shelf name"
-                    className="h-8 text-sm"
+                    className="h-8 bg-muted/50 hover:bg-muted transition-colors text-sm"
                   />
                   <Button
                     type="submit"
                     size="icon"
                     variant="outline"
-                    className="h-8 w-8 rounded-xl"
+                    className="h-8 w-8  rounded-xl"
                     disabled={isPending || !newShelfName.trim()}
                   >
                     <Plus className="w-4 h-4" />
