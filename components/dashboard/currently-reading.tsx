@@ -117,8 +117,12 @@ export function CurrentlyReading({
                   onProgressUpdate={(pages) =>
                     onProgressUpdate?.(book.id, pages)
                   }
-                  onStatusChange={(status, date) =>
-                    onStatusChange?.(book.id, status, date)
+                  onStatusChange={(status, dates) =>
+                    onStatusChange?.(
+                      book.id,
+                      status,
+                      dates?.dateFinished || dates?.dateStarted
+                    )
                   }
                 />
 
