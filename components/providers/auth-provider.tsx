@@ -38,26 +38,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(true);
-  
+
   const userRef = useRef<User | null>(null);
 
   // Memoize supabase client
   const supabase = useMemo(() => createClient(), []);
 
   // Fetch profile for a user
-  const fetchProfileForUser = useCallback(async (userId: string): Promise<Profile | null> => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+  const fetchProfileForUser = useCallback(
+    async (userId: string): Promise<Profile | null> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-    if (error) {
-      console.error("Error fetching profile:", error);
-      return null;
-    }
-    return data;
-  }, [supabase]);
+      if (error) {
+        console.error("Error fetching profile:", error);
+        return null;
+      }
+      return data;
+    },
+    [supabase]
+  );
 
   // Initialize on mount
   useEffect(() => {
@@ -65,8 +68,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const initialize = async () => {
       try {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
+
         if (!isMounted) return;
 
         userRef.current = currentUser;
@@ -97,41 +102,41 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initialize();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!isMounted) return;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
 
-        const newUser = session?.user ?? null;
-        const newUserId = newUser?.id ?? null;
-        const currentUserId = userRef.current?.id ?? null;
+      const newUser = session?.user ?? null;
+      const newUserId = newUser?.id ?? null;
+      const currentUserId = userRef.current?.id ?? null;
 
-        // Only update if user actually changed
-        if (newUserId !== currentUserId) {
-          userRef.current = newUser;
-          setUser(newUser);
+      // Only update if user actually changed
+      if (newUserId !== currentUserId) {
+        userRef.current = newUser;
+        setUser(newUser);
 
-          if (newUser) {
-            setProfileLoading(true);
-            const userProfile = await fetchProfileForUser(newUser.id);
-            if (isMounted) {
-              setProfile(userProfile);
-              setProfileLoading(false);
-            }
-          } else {
-            setProfile(null);
+        if (newUser) {
+          setProfileLoading(true);
+          const userProfile = await fetchProfileForUser(newUser.id);
+          if (isMounted) {
+            setProfile(userProfile);
             setProfileLoading(false);
           }
+        } else {
+          setProfile(null);
+          setProfileLoading(false);
         }
-
-        setLoading(false);
       }
-    );
+
+      setLoading(false);
+    });
 
     // Listen for profile refresh events
     const handleProfileRefresh = async () => {
       const currentUser = userRef.current;
       if (!isMounted || !currentUser) return;
-      
+
       setProfileLoading(true);
       const userProfile = await fetchProfileForUser(currentUser.id);
       if (isMounted) {
@@ -151,11 +156,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Manual refresh functions
   const refreshUser = useCallback(async () => {
     setLoading(true);
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+
     userRef.current = currentUser;
     setUser(currentUser);
-    
+
     if (currentUser) {
       setProfileLoading(true);
       const userProfile = await fetchProfileForUser(currentUser.id);
@@ -163,7 +170,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } else {
       setProfile(null);
     }
-    
+
     setLoading(false);
     setProfileLoading(false);
   }, [supabase, fetchProfileForUser]);
@@ -171,7 +178,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshProfile = useCallback(async () => {
     const currentUser = userRef.current;
     if (!currentUser) return;
-    
+
     setProfileLoading(true);
     const userProfile = await fetchProfileForUser(currentUser.id);
     setProfile(userProfile);
@@ -180,7 +187,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Memoize derived values
   const isPremium = profile?.subscription_tier === "bibliophile";
-  const isFree = profile?.subscription_tier === "free" || !profile?.subscription_tier;
+  const isFree =
+    profile?.subscription_tier === "free" || !profile?.subscription_tier;
   const subscriptionTier = profile?.subscription_tier ?? null;
 
   // Memoize context value
@@ -196,7 +204,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       refreshUser,
       refreshProfile,
     }),
-    [user, profile, loading, profileLoading, isPremium, isFree, subscriptionTier, refreshUser, refreshProfile]
+    [
+      user,
+      profile,
+      loading,
+      profileLoading,
+      isPremium,
+      isFree,
+      subscriptionTier,
+      refreshUser,
+      refreshProfile,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
