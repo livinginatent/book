@@ -25,7 +25,7 @@ function useIsClient() {
 }
 
 export type BookAction =
-  | "to-read"
+  | "want-to-read"
   | "currently-reading"
   | "did-not-finish"
   | "up-next"

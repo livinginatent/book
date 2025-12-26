@@ -178,7 +178,7 @@ export function GoodreadsImport({
     "currently-reading": books.filter(
       (b) => b.shelf === "currently-reading" && b.selected
     ).length,
-    "to-read": books.filter((b) => b.shelf === "to-read" && b.selected).length,
+    "want-to-read": books.filter((b) => b.shelf === "want-to-read" && b.selected).length,
   };
 
   return (
@@ -351,7 +351,7 @@ export function GoodreadsImport({
                   {shelfCounts["currently-reading"]} reading
                 </span>
                 <span className="px-2 py-1 rounded-full bg-muted text-muted-foreground">
-                  {shelfCounts["to-read"]} to-read
+                  {shelfCounts["want-to-read"]} to-read
                 </span>
               </div>
             </div>
@@ -403,7 +403,7 @@ export function GoodreadsImport({
                         book.shelf === "read" && "bg-accent/10 text-accent",
                         book.shelf === "currently-reading" &&
                           "bg-primary/10 text-primary",
-                        book.shelf === "to-read" &&
+                        book.shelf === "want-to-read" &&
                           "bg-muted text-muted-foreground"
                       )}
                     >

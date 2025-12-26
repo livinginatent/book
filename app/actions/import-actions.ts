@@ -11,7 +11,6 @@ import type { Book, BookInsert, ReadingStatus } from "@/types/database.types";
 export type GoodreadsShelf =
   | "read"
   | "currently-reading"
-  | "to-read"
   | "did-not-finish"
   | "up-next"
   | "want-to-read";

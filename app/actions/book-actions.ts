@@ -21,7 +21,7 @@ export interface BookActionError {
  */
 function mapActionToStatus(action: BookAction): ReadingStatus {
   const statusMap: Record<BookAction, ReadingStatus> = {
-    "to-read": "want_to_read",
+    "want-to-read": "want_to_read",
     "currently-reading": "currently_reading",
     "up-next": "up_next",
     "did-not-finish": "dnf",

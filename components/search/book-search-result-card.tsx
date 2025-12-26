@@ -38,7 +38,7 @@ const mobileActions: Array<{
   color: string;
 }> = [
   {
-    id: "to-read",
+    id: "want-to-read",
     icon: BookMarked,
     label: "Want to Read",
     color: "bg-primary text-primary-foreground",
@@ -184,7 +184,7 @@ export function BookSearchResultCard({
   const actionToStatusMap: Record<MobileActionId | BookAction, ReadingStatus> =
     {
       "currently-reading": "currently_reading",
-      "to-read": "want_to_read",
+      "want-to-read": "want_to_read",
       "up-next": "up_next",
       "did-not-finish": "dnf",
       paused: "paused",
@@ -202,7 +202,7 @@ export function BookSearchResultCard({
       // If book is not owned, we need to add it first, then update status
       if (!isOwned) {
         // First add the book to the library (we'll use "want_to_read" as initial status)
-        const addResult = await addBookToReadingList(book.id, "to-read");
+        const addResult = await addBookToReadingList(book.id, "want-to-read");
 
         if (addResult.success) {
           // For finished status, we need to provide a date

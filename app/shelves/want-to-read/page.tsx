@@ -61,7 +61,13 @@ const SHELVES = [
 export default function WantToReadShelfPage() {
   const [books, setBooks] = useState<ShelfBook[]>([]);
   const [sortBy, setSortBy] = useState<
-    "progress" | "added" | "title" | "neglected" | "oldest" | "newest" | "shortest"
+    | "progress"
+    | "added"
+    | "title"
+    | "neglected"
+    | "oldest"
+    | "newest"
+    | "shortest"
   >("newest");
   const [loading, setLoading] = useState(true);
   const [suggestedBook, setSuggestedBook] = useState<ShelfBook | null>(null);
@@ -125,10 +131,7 @@ export default function WantToReadShelfPage() {
         // Optimistically remove from UI
         setBooks((prev) => prev.filter((book) => book.id !== bookId));
 
-        const result = await removeBookFromReadingList(
-          bookId,
-          "want_to_read"
-        );
+        const result = await removeBookFromReadingList(bookId, "want-to-read");
 
         if (!result.success) {
           console.error("Failed to remove book:", result.error);
@@ -212,38 +215,35 @@ export default function WantToReadShelfPage() {
   );
 
   // Handle "Move to Up Next" action
-  const handleMoveToUpNext = useCallback(
-    async (bookId: string) => {
-      const result = await addToUpNext(bookId);
+  const handleMoveToUpNext = useCallback(async (bookId: string) => {
+    const result = await addToUpNext(bookId);
 
-      if (!result.success) {
-        toast.error(result.error);
-        return;
-      }
+    if (!result.success) {
+      toast.error(result.error);
+      return;
+    }
 
-      toast.success(result.message);
-      
-      // Refresh the books list to update isPrioritized flag
-      const fetchResult = await getWantToReadBooks();
-      if (fetchResult.success) {
-        const transformed: ShelfBook[] = fetchResult.books.map((book) => ({
-          id: book.id,
-          title: book.title,
-          author: book.authors?.join(", ") || "Unknown Author",
-          cover:
-            book.cover_url_medium ||
-            book.cover_url_large ||
-            book.cover_url_small ||
-            "",
-          totalPages: book.page_count || 0,
-          date_added: book.date_added,
-          isPrioritized: book.isPrioritized,
-        }));
-        setBooks(transformed);
-      }
-    },
-    []
-  );
+    toast.success(result.message);
+
+    // Refresh the books list to update isPrioritized flag
+    const fetchResult = await getWantToReadBooks();
+    if (fetchResult.success) {
+      const transformed: ShelfBook[] = fetchResult.books.map((book) => ({
+        id: book.id,
+        title: book.title,
+        author: book.authors?.join(", ") || "Unknown Author",
+        cover:
+          book.cover_url_medium ||
+          book.cover_url_large ||
+          book.cover_url_small ||
+          "",
+        totalPages: book.page_count || 0,
+        date_added: book.date_added,
+        isPrioritized: book.isPrioritized,
+      }));
+      setBooks(transformed);
+    }
+  }, []);
 
   // Calculate derived values
   const { totalPageCount, averageBookLength } = useMemo(() => {
@@ -399,4 +399,3 @@ export default function WantToReadShelfPage() {
     </div>
   );
 }
-

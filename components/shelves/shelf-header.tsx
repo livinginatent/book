@@ -8,10 +8,26 @@ import { cn } from "@/lib/utils";
 interface ShelfHeaderProps {
   shelfName: string;
   bookCount: number;
-  onSortChange?: (sort: "progress" | "added" | "title" | "neglected" | "oldest" | "newest" | "shortest") => void;
+  onSortChange?: (
+    sort:
+      | "progress"
+      | "added"
+      | "title"
+      | "neglected"
+      | "oldest"
+      | "newest"
+      | "shortest"
+  ) => void;
   onViewChange?: (view: "grid" | "list") => void;
-  currentSort?: "progress" | "added" | "title" | "neglected" | "oldest" | "newest" | "shortest";
-  sortOptions?: Array<{ value: string; label: string }>;
+  currentSort?:
+    | "progress"
+    | "added"
+    | "title"
+    | "neglected"
+    | "oldest"
+    | "newest"
+    | "shortest";
+  sortOptions?: readonly { value: string; label: string }[];
 }
 
 const DEFAULT_SORT_OPTIONS = [
@@ -25,7 +41,7 @@ export function ShelfHeader({
   shelfName,
   bookCount,
   onSortChange,
-  onViewChange,
+  onViewChange: _onViewChange,
   currentSort = "progress",
   sortOptions = DEFAULT_SORT_OPTIONS,
 }: ShelfHeaderProps) {
