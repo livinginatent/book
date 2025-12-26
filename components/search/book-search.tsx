@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { Search, Loader2, BookOpen, X, ChevronDown } from "lucide-react";
@@ -197,6 +198,8 @@ function BookSearchComponent({ className }: BookSearchProps) {
     "currently-reading": "currently_reading",
     "up-next": "up_next",
     "did-not-finish": "dnf",
+    "paused": "paused",
+    "finished": "finished",
   };
 
   const handleBookAction = useCallback(async (action: BookAction, book: Book) => {
