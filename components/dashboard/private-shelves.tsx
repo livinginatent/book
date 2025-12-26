@@ -180,7 +180,7 @@ export function PrivateShelves({ locked = false, initialShelves }: PrivateShelve
                     return (
                       <div key={shelf.id}>
                         {isCurrentlyReading ? (
-                          <Link href="/currently-reading">{ShelfContent}</Link>
+                          <Link href="/shelves/currently-reading">{ShelfContent}</Link>
                         ) : (
                           ShelfContent
                         )}

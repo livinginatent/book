@@ -24,6 +24,7 @@ import { SessionAnalytics } from "@/components/currently-reading/session-analyti
 import {
   BookProgressEditor,
   type BookStatus,
+  type BookStatusDates,
 } from "@/components/ui/book/book-progress-editor";
 import type { BookFormat } from "@/components/ui/book/format-badge";
 import { DashboardCard } from "@/components/ui/dashboard-card";
@@ -239,7 +240,7 @@ export default function CurrentlyReadingDetailPage() {
     setIsProgressEditorOpen(false);
   };
 
-  const handleStatusChange = async (status: BookStatus, date?: string) => {
+  const handleStatusChange = async (status: BookStatus, dates?: BookStatusDates) => {
     if (status === "remove") {
       // Remove from currently reading
       const result = await removeBookFromReadingList(
@@ -268,8 +269,8 @@ export default function CurrentlyReadingDetailPage() {
       return;
     }
 
-    // Update the book status with optional date
-    const result = await updateBookStatus(bookId, readingStatus, date);
+    // Update the book status with optional dates
+    const result = await updateBookStatus(bookId, readingStatus, dates);
     if (!result.success) {
       setIsProgressEditorOpen(false);
       return;

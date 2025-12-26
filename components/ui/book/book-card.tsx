@@ -1,11 +1,16 @@
 "use client";
 
+import { BookOpen, Star } from "lucide-react";
+import Image from "next/image";
 import { useState } from "react";
-import Image from "next/image"; // 1. Import Next Image
-import { Star, BookOpen } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { BookProgressEditor, BookStatus } from "./book-progress-editor";
+
+import {
+  BookProgressEditor,
+  BookStatus,
+  BookStatusDates,
+} from "./book-progress-editor";
 
 interface BookCardProps {
   title: string;
@@ -17,7 +22,7 @@ interface BookCardProps {
   totalPages?: number;
   className?: string;
   onProgressUpdate?: (pages: number) => void;
-  onStatusChange?: (status: BookStatus, date?: string) => void;
+  onStatusChange?: (status: BookStatus, dates?: BookStatusDates) => void;
   editable?: boolean;
 }
 
@@ -50,8 +55,8 @@ export function BookCard({
     onProgressUpdate?.(pages);
   };
 
-  const handleStatusChange = (status: BookStatus, date?: string) => {
-    onStatusChange?.(status, date);
+  const handleStatusChange = (status: BookStatus, dates?: BookStatusDates) => {
+    onStatusChange?.(status, dates);
   };
 
   return (

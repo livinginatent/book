@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { BookAction, BookActionMenu } from "@/components/ui/book/book-actions";
 import { GenreTag } from "@/components/ui/book/genre-tag";
+import { ReadingDatePicker } from "@/components/ui/book/reading-date-picker";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Book, ReadingStatus } from "@/types/database.types";
@@ -141,9 +142,9 @@ export function BookSearchResultCard({
   const [showModal, setShowModal] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [finishedDate, setFinishedDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const today = new Date().toISOString().split("T")[0];
+  const [startDate, setStartDate] = useState("");
+  const [finishDate, setFinishDate] = useState(today);
   const [optimisticStatus, setOptimisticStatus] = useState<
     ReadingStatus | undefined
   >(userBookStatus);
@@ -161,7 +162,8 @@ export function BookSearchResultCard({
   useEffect(() => {
     if (!showModal) {
       setShowDatePicker(false);
-      setFinishedDate(new Date().toISOString().split("T")[0]);
+      setStartDate("");
+      setFinishDate(new Date().toISOString().split("T")[0]);
     }
   }, [showModal]);
 
@@ -181,8 +183,8 @@ export function BookSearchResultCard({
   // Map action IDs to reading statuses
   const actionToStatusMap: Record<MobileActionId | BookAction, ReadingStatus> =
     {
-      "to-read": "want_to_read",
       "currently-reading": "currently_reading",
+      "to-read": "want_to_read",
       "up-next": "up_next",
       "did-not-finish": "dnf",
       paused: "paused",
@@ -258,9 +260,9 @@ export function BookSearchResultCard({
 
   const handleStatusChange = async (
     newStatus: ReadingStatus,
-    date?: string
+    dates?: { dateStarted?: string; dateFinished?: string }
   ) => {
-    if (newStatus === "finished" && !date) {
+    if (newStatus === "finished" && !dates?.dateFinished) {
       // Show date picker instead of immediately updating
       setShowDatePicker(true);
       return;
@@ -274,7 +276,7 @@ export function BookSearchResultCard({
     // Notify parent component for optimistic update
     onStatusChange?.(book.id, newStatus);
 
-    const result = await updateBookStatus(book.id, newStatus, date);
+    const result = await updateBookStatus(book.id, newStatus, dates);
     if (result.success) {
       // Dispatch events to refresh UI components
       window.dispatchEvent(
@@ -301,14 +303,28 @@ export function BookSearchResultCard({
   };
 
   const handleDateConfirm = async () => {
-    // Convert date string to ISO string (end of day in user's timezone)
-    const date = new Date(finishedDate);
-    date.setHours(23, 59, 59, 999);
-    await handleStatusChange("finished", date.toISOString());
+    // Convert finish date string to ISO string (end of day in user's timezone)
+    const finishDateObj = new Date(finishDate);
+    finishDateObj.setHours(23, 59, 59, 999);
+
+    const dates: { dateStarted?: string; dateFinished: string } = {
+      dateFinished: finishDateObj.toISOString(),
+    };
+
+    // Convert start date if provided
+    if (startDate) {
+      const startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+      dates.dateStarted = startDateObj.toISOString();
+    }
+
+    await handleStatusChange("finished", dates);
   };
 
   const handleDateCancel = () => {
     setShowDatePicker(false);
+    setStartDate("");
+    setFinishDate(today);
   };
 
   const modalContent =
@@ -371,45 +387,16 @@ export function BookSearchResultCard({
 
                 {/* Date Picker for Finished Status */}
                 {showDatePicker ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-primary" />
-                      <p className="text-sm font-medium text-foreground">
-                        When did you finish reading?
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <input
-                        type="date"
-                        value={finishedDate}
-                        onChange={(e) => setFinishedDate(e.target.value)}
-                        className={cn(
-                          "w-full px-3 py-2 rounded-lg border border-border",
-                          "bg-background text-foreground",
-                          "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-                          "transition-all"
-                        )}
-                        max={new Date().toISOString().split("T")[0]}
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={handleDateConfirm}
-                          size="sm"
-                          className="flex-1 rounded-xl"
-                        >
-                          Confirm
-                        </Button>
-                        <Button
-                          onClick={handleDateCancel}
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 rounded-xl"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                  <ReadingDatePicker
+                    startDate={startDate}
+                    finishDate={finishDate}
+                    onStartDateChange={setStartDate}
+                    onFinishDateChange={setFinishDate}
+                    onConfirm={handleDateConfirm}
+                    onCancel={handleDateCancel}
+                    showStartDate={true}
+                    title="When did you read this book?"
+                  />
                 ) : (
                   <div>
                     <p className="text-sm text-muted-foreground mb-2">

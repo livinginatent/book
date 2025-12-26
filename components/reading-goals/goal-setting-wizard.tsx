@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   X,
   CalendarDays,
+  LoaderCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -29,7 +30,6 @@ import { Label } from "@/components/ui/label";
 import { AVAILABLE_GENRES, estimateReadingTime } from "@/lib/goal-wizard/goals";
 import { cn } from "@/lib/utils";
 import { User, GoalType, ReadingGoal } from "@/types/user.type";
-
 
 interface GoalSettingWizardProps {
   user: User;
@@ -85,7 +85,8 @@ export function GoalSettingWizard({
 }: GoalSettingWizardProps) {
   // Check premium status - user.plan can be "PREMIUM" or "FREE"
   // Also accept subscription_tier if passed via user object
-  const isPremium = user.plan === "PREMIUM" || (user as any).subscriptionTier === "bibliophile";
+  const isPremium =
+    user.plan === "PREMIUM" || (user as any).subscriptionTier === "bibliophile";
   const [step, setStep] = useState<Step>("type");
   const [goalType, setGoalType] = useState<GoalType>("books");
   const [target, setTarget] = useState<number>(12);
@@ -94,11 +95,13 @@ export function GoalSettingWizard({
   const [periodMonths, setPeriodMonths] = useState<number | null>(12); // 3, 6, 9, 12, or null for custom
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Determine steps based on goal type
-  const steps: Step[] = goalType === "books" 
-    ? ["type", "target", "period", "privacy"]
-    : ["type", "target", "privacy"];
+  const steps: Step[] =
+    goalType === "books"
+      ? ["type", "target", "period", "privacy"]
+      : ["type", "target", "privacy"];
   const currentStepIndex = steps.indexOf(step);
 
   // Reset form when dialog opens
@@ -112,6 +115,7 @@ export function GoalSettingWizard({
       setPeriodMonths(12);
       setCustomStartDate("");
       setCustomEndDate("");
+      setIsSaving(false);
     }
   }, [open]);
 
@@ -131,46 +135,65 @@ export function GoalSettingWizard({
     }
   };
 
-  const handleSave = () => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    
-    // Calculate start and end dates based on period
-    let startDate: Date | undefined;
-    let endDate: Date | undefined;
-    
-    if (goalType === "books" && periodMonths) {
-      // Preset period (3, 6, 9, 12 months) - start from today
-      startDate = new Date(now);
-      startDate.setHours(0, 0, 0, 0); // Start of day
-      endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + periodMonths);
-      endDate.setHours(23, 59, 59, 999); // End of day
-    } else if (goalType === "books" && customStartDate && customEndDate) {
-      // Custom period
-      startDate = new Date(customStartDate);
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date(customEndDate);
-      endDate.setHours(23, 59, 59, 999);
-    } else {
-      // Default to current year for other goal types
-      startDate = new Date(currentYear, 0, 1);
-      endDate = new Date(currentYear, 11, 31, 23, 59, 59, 999);
-    }
+  const handleSave = async () => {
+    if (isSaving) return;
 
-    onSaveGoal({
-      type: goalType,
-      target: goalType === "genres" ? selectedGenres.length : target,
-      genres: goalType === "genres" ? selectedGenres : undefined,
-      isPublic,
-      year: currentYear,
-      current: 0,
-      periodMonths: goalType === "books" ? periodMonths || undefined : undefined,
-      startDate: goalType === "books" ? startDate : undefined,
-      endDate: goalType === "books" ? endDate : undefined,
-    });
-    onOpenChange(false);
-    resetForm();
+    setIsSaving(true);
+
+    try {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+
+      // Calculate start and end dates based on period
+      let startDate: Date | undefined;
+      let endDate: Date | undefined;
+
+      if (goalType === "books" && periodMonths) {
+        // Preset period (3, 6, 9, 12 months) - start from today
+        startDate = new Date(now);
+        startDate.setHours(0, 0, 0, 0); // Start of day
+        endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + periodMonths);
+        endDate.setHours(23, 59, 59, 999); // End of day
+      } else if (goalType === "books" && customStartDate && customEndDate) {
+        // Custom period
+        startDate = new Date(customStartDate);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(customEndDate);
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        // Default to current year for other goal types
+        startDate = new Date(currentYear, 0, 1);
+        endDate = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+      }
+
+      // Call onSaveGoal - it may be async, so we'll handle it accordingly
+      const savePromise = Promise.resolve(
+        onSaveGoal({
+          type: goalType,
+          target: goalType === "genres" ? selectedGenres.length : target,
+          genres: goalType === "genres" ? selectedGenres : undefined,
+          isPublic,
+          year: currentYear,
+          current: 0,
+          periodMonths:
+            goalType === "books" ? periodMonths || undefined : undefined,
+          startDate: goalType === "books" ? startDate : undefined,
+          endDate: goalType === "books" ? endDate : undefined,
+        })
+      );
+
+      // Wait for the save operation to complete
+      await savePromise;
+
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error saving goal:", error);
+      // Keep dialog open on error so user can retry
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const resetForm = () => {
@@ -182,6 +205,7 @@ export function GoalSettingWizard({
     setPeriodMonths(12);
     setCustomStartDate("");
     setCustomEndDate("");
+    setIsSaving(false);
   };
 
   const toggleGenre = (genre: string) => {
@@ -224,7 +248,10 @@ export function GoalSettingWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md gap-0 overflow-hidden p-0" showCloseButton={false}>
+      <DialogContent
+        className="max-w-md gap-0 overflow-hidden p-0"
+        showCloseButton={false}
+      >
         <DialogHeader className="border-b border-border p-6 pb-4">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
@@ -235,6 +262,7 @@ export function GoalSettingWizard({
               variant="ghost"
               size="icon"
               onClick={() => onOpenChange(false)}
+              disabled={isSaving}
               className="h-8 w-8"
             >
               <X className="h-4 w-4" />
@@ -361,7 +389,7 @@ export function GoalSettingWizard({
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {AVAILABLE_GENRES.map((genre:string) => {
+                      {AVAILABLE_GENRES.map((genre: string) => {
                         const isSelected = selectedGenres.includes(genre);
                         return (
                           <Badge
@@ -386,7 +414,9 @@ export function GoalSettingWizard({
                 ) : goalType === "consistency" ? (
                   <>
                     <div>
-                      <h3 className="mb-1 font-medium">Set your consistency goal</h3>
+                      <h3 className="mb-1 font-medium">
+                        Set your consistency goal
+                      </h3>
                       <p className="text-sm text-muted-foreground">
                         How many consecutive days do you want to read?
                       </p>
@@ -497,7 +527,9 @@ export function GoalSettingWizard({
                     {[3, 6, 9, 12].map((months) => (
                       <Button
                         key={months}
-                        variant={periodMonths === months ? "default" : "outline"}
+                        variant={
+                          periodMonths === months ? "default" : "outline"
+                        }
                         onClick={() => {
                           setPeriodMonths(months);
                           setCustomStartDate("");
@@ -569,7 +601,8 @@ export function GoalSettingWizard({
                 {periodMonths === null && customStartDate && customEndDate && (
                   <div className="rounded-lg bg-secondary/50 p-3 text-sm">
                     <p className="text-muted-foreground">
-                      Goal period: {new Date(customStartDate).toLocaleDateString()} to{" "}
+                      Goal period:{" "}
+                      {new Date(customStartDate).toLocaleDateString()} to{" "}
                       {new Date(customEndDate).toLocaleDateString()}
                     </p>
                   </div>
@@ -660,8 +693,15 @@ export function GoalSettingWizard({
                       ? `Read every day for ${target} days`
                       : goalType === "books" && periodMonths
                       ? `Read ${target.toLocaleString()} books in ${periodMonths} months`
-                      : goalType === "books" && periodMonths === null && customStartDate && customEndDate
-                      ? `Read ${target.toLocaleString()} books from ${new Date(customStartDate).toLocaleDateString()} to ${new Date(customEndDate).toLocaleDateString()}`
+                      : goalType === "books" &&
+                        periodMonths === null &&
+                        customStartDate &&
+                        customEndDate
+                      ? `Read ${target.toLocaleString()} books from ${new Date(
+                          customStartDate
+                        ).toLocaleDateString()} to ${new Date(
+                          customEndDate
+                        ).toLocaleDateString()}`
                       : `Read ${target.toLocaleString()} ${goalType}`}{" "}
                     {goalType !== "books" && `in ${new Date().getFullYear()}`}
                   </p>
@@ -676,7 +716,7 @@ export function GoalSettingWizard({
           <Button
             variant="ghost"
             onClick={handleBack}
-            disabled={currentStepIndex === 0}
+            disabled={currentStepIndex === 0 || isSaving}
             className="gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -685,12 +725,21 @@ export function GoalSettingWizard({
 
           <Button
             onClick={handleNext}
-            disabled={!canProceed()}
+            disabled={!canProceed() || isSaving}
             className="gap-2"
           >
-            {currentStepIndex === steps.length - 1 ? "Create Goal" : "Next"}
-            {currentStepIndex < steps.length - 1 && (
-              <ChevronRight className="h-4 w-4" />
+            {isSaving ? (
+              <>
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                {currentStepIndex === steps.length - 1 ? "Create Goal" : "Next"}
+                {currentStepIndex < steps.length - 1 && (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </>
             )}
           </Button>
         </div>

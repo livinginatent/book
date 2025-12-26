@@ -9,7 +9,14 @@ import {
   Target,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  memo,
+} from "react";
 
 import {
   getAllActiveGoals,
@@ -44,7 +51,6 @@ interface ReadingGoalsContainerProps {
     subscription_tier?: string | null;
     username?: string | null;
     email?: string | null;
-   
   } | null;
 }
 
@@ -52,20 +58,61 @@ interface ReadingGoalsContainerProps {
 const MemoizedReadingGoalWidget = memo(ReadingGoalWidget);
 const MemoizedGoalSettingWizard = memo(GoalSettingWizard);
 
+// Create Goal Card Component (similar to ReadingGoalWidget)
+interface CreateGoalCardProps {
+  goalsLength: number;
+  goalLimit: { current: number; limit: number };
+  onCreateGoal: () => void;
+}
+
+const CreateGoalCardComponent = ({
+  goalsLength,
+  goalLimit,
+  onCreateGoal,
+}: CreateGoalCardProps) => (
+  <Card className="border-dashed border-2 hover:border-primary/50 transition-colors h-[330px] flex flex-col">
+    <CardContent className="flex flex-col items-center justify-center flex-1 py-8 text-center">
+      <div className="mb-4 rounded-full bg-primary/10 p-3">
+        <Plus className="h-6 w-6 text-primary" />
+      </div>
+      <h3 className="mb-1 text-lg font-semibold">
+        {goalsLength === 0 ? "Set Your Reading Goal" : "Create Another Goal"}
+      </h3>
+      <p className="mb-4 text-sm text-muted-foreground px-4">
+        {goalsLength === 0
+          ? "Track your progress and stay motivated"
+          : `You have ${goalLimit.current} of ${goalLimit.limit} active goals`}
+      </p>
+      <Button onClick={onCreateGoal} className="gap-2">
+        <Plus className="h-4 w-4" />
+        Create Goal
+      </Button>
+    </CardContent>
+  </Card>
+);
+
+CreateGoalCardComponent.displayName = "CreateGoalCard";
+
+const CreateGoalCard = memo(CreateGoalCardComponent);
+
 function ReadingGoalsContainerComponent({
   className,
   initialProfile,
 }: ReadingGoalsContainerProps) {
   // Use the profile hook as fallback, but prefer initialProfile for immediate data
-  const { profile: contextProfile, isPremium: contextIsPremium, loading: profileLoading } = useProfile();
+  const {
+    profile: contextProfile,
+    isPremium: contextIsPremium,
+    loading: profileLoading,
+  } = useProfile();
   const router = useRouter();
-  
+
   // Use initialProfile if available (server-fetched), otherwise fall back to context
   const profile = initialProfile || contextProfile;
-  const isPremium = initialProfile 
+  const isPremium = initialProfile
     ? initialProfile.subscription_tier === "bibliophile"
     : contextIsPremium;
-  
+
   const [wizardOpen, setWizardOpen] = useState(false);
   const [goals, setGoals] = useState<ReadingGoal[]>([]);
   const [achievedGoals, setAchievedGoals] = useState<ReadingGoal[]>([]);
@@ -83,40 +130,46 @@ function ReadingGoalsContainerComponent({
   const profileId = profile?.id;
 
   // Get subscription tier for optimization
-  const subscriptionTier = profile?.subscription_tier as "free" | "bibliophile" | undefined;
-  
+  const subscriptionTier = profile?.subscription_tier as
+    | "free"
+    | "bibliophile"
+    | undefined;
+
   // If we have initialProfile, we don't need to wait for context to load
   const effectiveProfileLoading = initialProfile ? false : profileLoading;
 
-  const refreshGoals = useCallback(async (userId?: string, tier?: "free" | "bibliophile") => {
-    // Use provided userId or fall back to profileId from state
-    const id = userId || profileId;
-    if (!id) return;
+  const refreshGoals = useCallback(
+    async (userId?: string, tier?: "free" | "bibliophile") => {
+      // Use provided userId or fall back to profileId from state
+      const id = userId || profileId;
+      if (!id) return;
 
-    const [goalsResult, achievedResult, limitResult] = await Promise.all([
-      getAllActiveGoals(),
-      getAllAchievedGoals(),
-      canCreateGoal(id, tier || subscriptionTier),
-    ]);
+      const [goalsResult, achievedResult, limitResult] = await Promise.all([
+        getAllActiveGoals(),
+        getAllAchievedGoals(),
+        canCreateGoal(id, tier || subscriptionTier),
+      ]);
 
-    if (!isMountedRef.current) return;
+      if (!isMountedRef.current) return;
 
-    if (goalsResult.success) {
-      setGoals(goalsResult.goals);
-    }
+      if (goalsResult.success) {
+        setGoals(goalsResult.goals);
+      }
 
-    if (achievedResult.success) {
-      setAchievedGoals(achievedResult.goals);
-    }
+      if (achievedResult.success) {
+        setAchievedGoals(achievedResult.goals);
+      }
 
-    if (limitResult.success) {
-      setCanCreate(limitResult.canCreate);
-      setGoalLimit({
-        current: limitResult.currentCount,
-        limit: limitResult.limit,
-      });
-    }
-  }, [profileId, subscriptionTier]);
+      if (limitResult.success) {
+        setCanCreate(limitResult.canCreate);
+        setGoalLimit({
+          current: limitResult.currentCount,
+          limit: limitResult.limit,
+        });
+      }
+    },
+    [profileId, subscriptionTier]
+  );
 
   // Track if we've done initial fetch for current user
   const lastFetchedUserRef = useRef<string | null>(null);
@@ -124,20 +177,20 @@ function ReadingGoalsContainerComponent({
   // Fetch all active goals when profile becomes available
   useEffect(() => {
     isMountedRef.current = true;
-    
+
     async function fetchData() {
       // Only fetch if we have a profile ID
       if (profileId) {
         // Only fetch if this is a new user (different from last fetched)
         const needsFetch = lastFetchedUserRef.current !== profileId;
-        
+
         if (needsFetch) {
           setLoading(true);
           // Pass profileId directly to avoid stale closure issues
           await refreshGoals(profileId, subscriptionTier);
           lastFetchedUserRef.current = profileId;
         }
-        
+
         if (isMountedRef.current) {
           setLoading(false);
         }
@@ -153,7 +206,7 @@ function ReadingGoalsContainerComponent({
       }
       // While profile is still loading, keep showing loading state
     }
-    
+
     fetchData();
 
     return () => {
@@ -208,7 +261,7 @@ function ReadingGoalsContainerComponent({
     if (!profile) return null;
     return {
       id: profile.id,
-      name:  profile.username || profile.email || "User",
+      name: profile.username || profile.email || "User",
       plan: (isPremium ? "PREMIUM" : "FREE") as UserPlan,
       currentGoal: goals[0] || null,
       averageReadingSpeed: 30,
@@ -217,29 +270,32 @@ function ReadingGoalsContainerComponent({
   }, [profile, isPremium, goals]);
 
   // Memoized handlers
-  const handleSaveGoal = useCallback(async (goalData: Partial<ReadingGoal>) => {
-    if (!profileId) {
-      toast.error("You must be logged in");
-      return;
-    }
+  const handleSaveGoal = useCallback(
+    async (goalData: Partial<ReadingGoal>) => {
+      if (!profileId) {
+        toast.error("You must be logged in");
+        return;
+      }
 
-    const { type, config } = componentGoalToDbGoal(goalData);
+      const { type, config } = componentGoalToDbGoal(goalData);
 
-    const result = await createReadingGoal({
-      type: type as "books" | "pages" | "diversity" | "consistency",
-      config,
-      isActive: true,
-    });
+      const result = await createReadingGoal({
+        type: type as "books" | "pages" | "diversity" | "consistency",
+        config,
+        isActive: true,
+      });
 
-    if (result.success) {
-      toast.success("Goal created successfully!");
-      await refreshGoals();
-      router.refresh();
-      setWizardOpen(false);
-    } else {
-      toast.error(result.error);
-    }
-  }, [profileId, refreshGoals, router]);
+      if (result.success) {
+        toast.success("Goal created successfully!");
+        await refreshGoals();
+        router.refresh();
+        setWizardOpen(false);
+      } else {
+        toast.error(result.error);
+      }
+    },
+    [profileId, refreshGoals, router]
+  );
 
   const handleUpdateProgress = useCallback(async () => {
     await refreshGoals();
@@ -280,24 +336,27 @@ function ReadingGoalsContainerComponent({
     }
   }, []);
 
-  const handleDeleteGoal = useCallback(async (goalId: string) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this goal? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
+  const handleDeleteGoal = useCallback(
+    async (goalId: string) => {
+      if (
+        !confirm(
+          "Are you sure you want to delete this goal? This action cannot be undone."
+        )
+      ) {
+        return;
+      }
 
-    const result = await deleteReadingGoal(goalId);
-    if (result.success) {
-      toast.success("Goal deleted successfully!");
-      await refreshGoals();
-      router.refresh();
-    } else {
-      toast.error(result.error);
-    }
-  }, [refreshGoals, router]);
+      const result = await deleteReadingGoal(goalId);
+      if (result.success) {
+        toast.success("Goal deleted successfully!");
+        await refreshGoals();
+        router.refresh();
+      } else {
+        toast.error(result.error);
+      }
+    },
+    [refreshGoals, router]
+  );
 
   const handleOpenWizard = useCallback(() => {
     setWizardOpen(true);
@@ -344,6 +403,8 @@ function ReadingGoalsContainerComponent({
   }
 
   const showCreateButton = canCreate || goals.length === 0;
+  const showCreateAsCard = showCreateButton && goals.length < 3;
+  const showCreateAsButton = showCreateButton && goals.length >= 3;
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -381,9 +442,9 @@ function ReadingGoalsContainerComponent({
       >
         <div className="space-y-4">
           {/* Active Goals - Horizontal Scroll if > 3, otherwise Grid */}
-          {goals.length > 0 ? (
+          {goals.length > 0 || showCreateAsCard ? (
             <div className="relative">
-              {goals.length > 3 ? (
+              {goals.length >= 3 ? (
                 <>
                   {/* Left Arrow */}
                   {canScrollLeft && (
@@ -449,38 +510,32 @@ function ReadingGoalsContainerComponent({
                       onDeleteGoal={() => handleDeleteGoal(goal.id)}
                     />
                   ))}
+                  {/* Show Create Goal Card in grid when < 3 goals */}
+                  {showCreateAsCard && (
+                    <CreateGoalCard
+                      goalsLength={goals.length}
+                      goalLimit={goalLimit}
+                      onCreateGoal={handleOpenWizard}
+                    />
+                  )}
                 </div>
               )}
             </div>
           ) : null}
 
-          {/* Create Goal Card - Always show when user can create or has no goals */}
-          {showCreateButton && (
-            <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="mb-4 rounded-full bg-primary/10 p-4">
-                  <Plus className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="mb-2 text-xl font-semibold">
-                  {goals.length === 0
-                    ? "Set Your First Reading Goal"
-                    : "Create Another Goal"}
-                </h3>
-                <p className="mb-6 text-sm text-muted-foreground max-w-md">
-                  {goals.length === 0
-                    ? "Track your progress and stay motivated on your reading journey"
-                    : `You have ${goalLimit.current} of ${goalLimit.limit} active goals. Create another to track different aspects of your reading.`}
-                </p>
-                <Button
-                  onClick={handleOpenWizard}
-                  size="lg"
-                  className="gap-2"
-                >
-                  <Plus className="h-5 w-5" />
-                  Create Goal
-                </Button>
-              </CardContent>
-            </Card>
+          {/* Create Goal Button - Show below container when >= 3 goals */}
+          {showCreateAsButton && (
+            <div className="flex justify-center">
+              <Button
+                onClick={handleOpenWizard}
+                size="lg"
+                variant="outline"
+                className="gap-2"
+              >
+                <Plus className="h-5 w-5" />
+                Create Another Goal
+              </Button>
+            </div>
           )}
 
           {/* Limit Reached Message */}

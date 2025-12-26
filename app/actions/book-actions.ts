@@ -187,12 +187,20 @@ export async function removeBookFromReadingList(
 }
 
 /**
+ * Options for updating book status with optional dates
+ */
+export interface UpdateBookStatusOptions {
+  dateStarted?: string | null;
+  dateFinished?: string | null;
+}
+
+/**
  * Update a user's book status
  */
 export async function updateBookStatus(
   bookId: string,
   status: ReadingStatus,
-  dateFinished?: string | null
+  dateFinishedOrOptions?: string | null | UpdateBookStatusOptions
 ): Promise<BookActionResult | BookActionError> {
   try {
     const cookieStore = cookies();
@@ -208,6 +216,17 @@ export async function updateBookStatus(
       return { success: false, error: "You must be logged in" };
     }
 
+    // Parse options - support both old signature and new options object
+    let dateStarted: string | null | undefined;
+    let dateFinished: string | null | undefined;
+    
+    if (typeof dateFinishedOrOptions === "object" && dateFinishedOrOptions !== null) {
+      dateStarted = dateFinishedOrOptions.dateStarted;
+      dateFinished = dateFinishedOrOptions.dateFinished;
+    } else {
+      dateFinished = dateFinishedOrOptions;
+    }
+
     const updateData: Record<string, unknown> = {
       status,
       updated_at: new Date().toISOString(),
@@ -215,12 +234,14 @@ export async function updateBookStatus(
 
     // Set appropriate dates based on status
     if (status === "currently_reading") {
-      updateData.date_started = new Date().toISOString();
+      updateData.date_started = dateStarted || new Date().toISOString();
       updateData.date_finished = null;
     } else if (status === "finished") {
-      // Use provided dateFinished or default to today
-      updateData.date_finished =
-        dateFinished || new Date().toISOString();
+      // Use provided dates or default to today
+      if (dateStarted !== undefined) {
+        updateData.date_started = dateStarted;
+      }
+      updateData.date_finished = dateFinished || new Date().toISOString();
     } else if (status === "paused") {
       // Keep date_started but don't set date_finished
       updateData.date_finished = null;

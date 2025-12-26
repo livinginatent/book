@@ -53,12 +53,6 @@ const actions = [
     color: "bg-chart-4 text-foreground hover:bg-chart-4/90",
   },
   {
-    id: "currently-reading" as BookAction,
-    icon: BookOpen,
-    label: "Currently Reading",
-    color: "bg-accent text-accent-foreground hover:bg-accent/90",
-  },
-  {
     id: "paused" as BookAction,
     icon: Pause,
     label: "Paused",
@@ -75,6 +69,12 @@ const actions = [
     icon: BookMarked,
     label: "Want to Read",
     color: "bg-primary text-primary-foreground hover:bg-primary/90",
+  },
+  {
+    id: "currently-reading" as BookAction,
+    icon: BookOpen,
+    label: "Currently Reading",
+    color: "bg-accent text-accent-foreground hover:bg-accent/90",
   },
 ];
 
