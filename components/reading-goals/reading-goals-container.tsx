@@ -42,6 +42,9 @@ interface ReadingGoalsContainerProps {
   initialProfile?: {
     id: string;
     subscription_tier?: string | null;
+    username?: string | null;
+    email?: string | null;
+   
   } | null;
 }
 
@@ -205,7 +208,7 @@ function ReadingGoalsContainerComponent({
     if (!profile) return null;
     return {
       id: profile.id,
-      name: profile.full_name || profile.username || profile.email || "User",
+      name:  profile.username || profile.email || "User",
       plan: (isPremium ? "PREMIUM" : "FREE") as UserPlan,
       currentGoal: goals[0] || null,
       averageReadingSpeed: 30,
