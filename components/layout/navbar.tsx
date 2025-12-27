@@ -5,13 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { signOutClient } from "@/app/actions/auth-client";
+import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { useAuth } from "@/hooks/use-auth";
-import { useProfile } from "@/hooks/use-profile";
 import { cn } from "@/lib/utils";
-
+import type { Profile } from "@/types/database.types";
 
 const navLinks = [
   { href: "/discover", label: "Discover" },
@@ -19,17 +17,31 @@ const navLinks = [
   { href: "/challenges", label: "Challenges" },
 ];
 
-export function Navbar() {
+interface NavbarProps {
+  initialAuth?: {
+    user: { id: string; email?: string } | null;
+    profile: Profile | null;
+  };
+}
+
+export function Navbar({ initialAuth }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, loading: authLoading } = useAuth();
-  const { profile, loading: profileLoading } = useProfile();
+  const auth = useAuth();
   const router = useRouter();
 
-  const loading = authLoading || profileLoading;
+  // Use server data if available, otherwise fall back to client auth
+  const user = initialAuth?.user ?? auth.user;
+  const profile = initialAuth?.profile ?? auth.profile;
+  const loading = !initialAuth && auth.loading;
+
+  // Only show skeleton on true initial load (loading AND no user data)
+  const showSkeleton = loading && user === null;
   const displayName = profile?.username || user?.email?.split("@")[0] || "User";
 
   const handleSignOut = async () => {
-    await signOutClient();
+    // Clear state and wait for signout to complete
+    await auth.signOut();
+    // Navigate to home and refresh server components
     router.push("/");
     router.refresh();
   };
@@ -62,7 +74,7 @@ export function Navbar() {
           {/* Auth Buttons & Theme Toggle */}
           <div className="hidden md:flex items-center gap-3">
             <ThemeToggle />
-            {loading ? (
+            {showSkeleton ? (
               <div className="h-9 w-20 bg-secondary animate-pulse rounded-md" />
             ) : user ? (
               <>
@@ -88,7 +100,7 @@ export function Navbar() {
                 <Link href="/login">
                   <Button
                     variant="ghost"
-                    className="text-muted-foreground  bg-transparent hover:bg-primary/90"
+                    className="text-muted-foreground bg-transparent hover:bg-primary/90"
                   >
                     Sign in
                   </Button>
@@ -136,7 +148,7 @@ export function Navbar() {
               </Link>
             ))}
             <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-border">
-              {loading ? (
+              {showSkeleton ? (
                 <div className="h-9 bg-secondary animate-pulse rounded-md" />
               ) : user ? (
                 <>

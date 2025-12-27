@@ -2,6 +2,7 @@
 
 import { Eye, EyeOff, User, Lock, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { signIn } from "@/app/actions/auth";
@@ -63,6 +64,8 @@ export function LoginForm({
     setFieldErrors((prev) => ({ ...prev, [field]: errors }));
   };
 
+  const router = useRouter();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -85,8 +88,11 @@ export function LoginForm({
     } else if (response?.errors) {
       setFieldErrors(response.errors);
       setLoading(false);
+    } else if (response?.success && response?.redirectTo) {
+      // Client-side redirect to avoid NEXT_REDIRECT error
+      router.push(response.redirectTo);
+      router.refresh();
     }
-    // If successful, the server action will redirect
   };
 
   const successText = getSuccessText();

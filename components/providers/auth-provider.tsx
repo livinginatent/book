@@ -1,15 +1,14 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { usePathname } from "next/navigation";
 import {
   createContext,
   useContext,
   useEffect,
   useState,
   useCallback,
-  useRef,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react";
 
@@ -20,310 +19,239 @@ interface AuthContextValue {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  profileLoading: boolean;
-  isPremium: boolean;
-  isFree: boolean;
-  subscriptionTier: string | null;
-  refreshUser: () => Promise<void>;
+  signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-interface AuthProviderProps {
-  children: ReactNode;
+// Singleton supabase client for the browser
+let supabaseClient: ReturnType<typeof createClient> | null = null;
+function getSupabase() {
+  if (!supabaseClient) {
+    supabaseClient = createClient();
+  }
+  return supabaseClient;
 }
 
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(true);
+// Serializable user data from server
+export interface InitialAuthData {
+  user: {
+    id: string;
+    email?: string;
+  } | null;
+  profile: Profile | null;
+}
 
-  const userRef = useRef<User | null>(null);
-  const pathname = usePathname();
+interface AuthProviderProps {
+  children: ReactNode;
+  initialAuth?: InitialAuthData;
+}
 
-  // Memoize supabase client
-  const supabase = useMemo(() => createClient(), []);
+export function AuthProvider({ children, initialAuth }: AuthProviderProps) {
+  // Initialize with server data if available
+  const [user, setUser] = useState<User | null>(
+    initialAuth?.user ? (initialAuth.user as User) : null
+  );
+  const [profile, setProfile] = useState<Profile | null>(
+    initialAuth?.profile ?? null
+  );
+  // If we have initial auth data, we're not loading
+  const [loading, setLoading] = useState(!initialAuth);
+
+  // Refs to track current values inside callbacks
+  const userRef = useRef<User | null>(user);
+
+  const supabase = useMemo(() => getSupabase(), []);
 
   // Fetch profile for a user
-  const fetchProfileForUser = useCallback(
+  const fetchProfile = useCallback(
     async (userId: string): Promise<Profile | null> => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
 
-      if (error) {
-        console.error("Error fetching profile:", error);
+        if (error) {
+          console.error("Error fetching profile:", error);
+          return null;
+        }
+        return data;
+      } catch (err) {
+        console.error("Profile fetch error:", err);
         return null;
       }
-      return data;
     },
     [supabase]
   );
 
-  // Initialize on mount
+  // Initialize auth state on mount
   useEffect(() => {
-    let isMounted = true;
+    const mounted = { current: true };
 
-    const initialize = async () => {
-      try {
-        const {
-          data: { user: currentUser },
-        } = await supabase.auth.getUser();
+    // If we have initial auth, just set up listeners (no need to fetch)
+    // If we don't have initial auth, fetch the current user
+    const initializeAuth = async () => {
+      if (!initialAuth) {
+        try {
+          const {
+            data: { user: currentUser },
+          } = await supabase.auth.getUser();
 
-        if (!isMounted) return;
+          if (!mounted.current) return;
 
-        userRef.current = currentUser;
-        setUser(currentUser);
-
-        if (currentUser) {
-          const userProfile = await fetchProfileForUser(currentUser.id);
-          if (isMounted) {
-            setProfile(userProfile);
-          }
-        } else {
-          setProfile(null);
-        }
-      } catch (error) {
-        console.error("Error initializing auth:", error);
-        if (isMounted) {
-          setUser(null);
-          setProfile(null);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-          setProfileLoading(false);
-        }
-      }
-    };
-
-    initialize();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
-
-      const newUser = session?.user ?? null;
-      const newUserId = newUser?.id ?? null;
-      const currentUserId = userRef.current?.id ?? null;
-
-      // Update on any auth state change (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc.)
-      // This ensures we catch login events even if the user ID comparison might miss them
-      if (
-        event === "SIGNED_IN" ||
-        event === "SIGNED_OUT" ||
-        event === "TOKEN_REFRESHED" ||
-        newUserId !== currentUserId
-      ) {
-        userRef.current = newUser;
-        setUser(newUser);
-
-        if (newUser) {
-          setProfileLoading(true);
-          const userProfile = await fetchProfileForUser(newUser.id);
-          if (isMounted) {
-            setProfile(userProfile);
-            setProfileLoading(false);
-          }
-        } else {
-          setProfile(null);
-          setProfileLoading(false);
-        }
-      }
-
-      setLoading(false);
-    });
-
-    // Refresh auth state when page becomes visible (handles cases where auth state changed while tab was in background)
-    const handleVisibilityChange = async () => {
-      if (!isMounted || document.hidden) return;
-
-      try {
-        const {
-          data: { user: currentUser },
-        } = await supabase.auth.getUser();
-
-        if (!isMounted) return;
-
-        const currentUserId = currentUser?.id ?? null;
-        const storedUserId = userRef.current?.id ?? null;
-
-        // Only update if user actually changed
-        if (currentUserId !== storedUserId) {
           userRef.current = currentUser;
           setUser(currentUser);
 
           if (currentUser) {
-            setProfileLoading(true);
-            const userProfile = await fetchProfileForUser(currentUser.id);
-            if (isMounted) {
+            const userProfile = await fetchProfile(currentUser.id);
+            if (mounted.current) {
               setProfile(userProfile);
-              setProfileLoading(false);
             }
-          } else {
-            setProfile(null);
-            setProfileLoading(false);
+          }
+        } catch (error) {
+          console.error("Auth initialization error:", error);
+        } finally {
+          if (mounted.current) {
+            setLoading(false);
           }
         }
-      } catch (error) {
-        console.error("Error refreshing auth on visibility change:", error);
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    initializeAuth();
 
-    // Listen for profile refresh events
+    // Listen for auth state changes (sign in, sign out, etc.)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted.current) return;
+
+      // Skip token refresh - no UI change needed
+      if (event === "TOKEN_REFRESHED") {
+        return;
+      }
+
+      // Skip INITIAL_SESSION if we already have initial auth data
+      if (event === "INITIAL_SESSION" && initialAuth) {
+        return;
+      }
+
+      const newUser = session?.user ?? null;
+
+      // Handle sign out
+      if (event === "SIGNED_OUT") {
+        userRef.current = null;
+        setUser(null);
+        setProfile(null);
+        return;
+      }
+
+      // Handle sign in or user change
+      if (
+        event === "SIGNED_IN" ||
+        (event === "INITIAL_SESSION" && !initialAuth)
+      ) {
+        if (newUser && newUser.id !== userRef.current?.id) {
+          userRef.current = newUser;
+          setUser(newUser);
+          const userProfile = await fetchProfile(newUser.id);
+          if (mounted.current) {
+            setProfile(userProfile);
+          }
+        }
+        setLoading(false);
+      }
+    });
+
+    // Listen for manual profile refresh requests
     const handleProfileRefresh = async () => {
+      if (!mounted.current) return;
       const currentUser = userRef.current;
-      if (!isMounted || !currentUser) return;
-
-      setProfileLoading(true);
-      const userProfile = await fetchProfileForUser(currentUser.id);
-      if (isMounted) {
-        setProfile(userProfile);
-        setProfileLoading(false);
+      if (currentUser) {
+        const userProfile = await fetchProfile(currentUser.id);
+        if (mounted.current) {
+          setProfile(userProfile);
+        }
       }
     };
     window.addEventListener("profile-refresh", handleProfileRefresh);
 
     return () => {
-      isMounted = false;
+      mounted.current = false;
       subscription.unsubscribe();
       window.removeEventListener("profile-refresh", handleProfileRefresh);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [supabase, fetchProfileForUser]);
+  }, [supabase, fetchProfile, initialAuth]);
 
-  // Refresh auth state on route changes (helps catch auth state changes after server-side redirects)
-  useEffect(() => {
-    let isMounted = true;
+  // Sign out - clears state immediately, waits for async cleanup
+  const signOut = useCallback(async () => {
+    // Clear state immediately for instant UI update
+    userRef.current = null;
+    setUser(null);
+    setProfile(null);
 
-    const checkAuthState = async () => {
-      try {
-        const {
-          data: { user: currentUser },
-        } = await supabase.auth.getUser();
-
-        if (!isMounted) return;
-
-        const currentUserId = currentUser?.id ?? null;
-        const storedUserId = userRef.current?.id ?? null;
-
-        // Only update if user actually changed
-        if (currentUserId !== storedUserId) {
-          userRef.current = currentUser;
-          setUser(currentUser);
-
-          if (currentUser) {
-            setProfileLoading(true);
-            const userProfile = await fetchProfileForUser(currentUser.id);
-            if (isMounted) {
-              setProfile(userProfile);
-              setProfileLoading(false);
-            }
-          } else {
-            setProfile(null);
-            setProfileLoading(false);
-          }
-        }
-      } catch (error) {
-        console.error("Error checking auth state on route change:", error);
-      }
-    };
-
-    // Small delay to ensure cookies are available after redirect
-    const timeoutId = setTimeout(checkAuthState, 100);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-    };
-  }, [pathname, supabase, fetchProfileForUser]);
-
-  // Manual refresh functions
-  const refreshUser = useCallback(async () => {
-    setLoading(true);
-    const {
-      data: { user: currentUser },
-    } = await supabase.auth.getUser();
-
-    userRef.current = currentUser;
-    setUser(currentUser);
-
-    if (currentUser) {
-      setProfileLoading(true);
-      const userProfile = await fetchProfileForUser(currentUser.id);
-      setProfile(userProfile);
-    } else {
-      setProfile(null);
+    // Wait for actual signout to complete
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Sign out error:", error);
     }
+  }, [supabase]);
 
-    setLoading(false);
-    setProfileLoading(false);
-  }, [supabase, fetchProfileForUser]);
-
+  // Manual profile refresh
   const refreshProfile = useCallback(async () => {
     const currentUser = userRef.current;
     if (!currentUser) return;
-
-    setProfileLoading(true);
-    const userProfile = await fetchProfileForUser(currentUser.id);
+    const userProfile = await fetchProfile(currentUser.id);
     setProfile(userProfile);
-    setProfileLoading(false);
-  }, [fetchProfileForUser]);
+  }, [fetchProfile]);
 
-  // Memoize derived values
-  const isPremium = profile?.subscription_tier === "bibliophile";
-  const isFree =
-    profile?.subscription_tier === "free" || !profile?.subscription_tier;
-  const subscriptionTier = profile?.subscription_tier ?? null;
-
-  // Memoize context value
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       profile,
       loading,
-      profileLoading,
-      isPremium,
-      isFree,
-      subscriptionTier,
-      refreshUser,
+      signOut,
       refreshProfile,
     }),
-    [
-      user,
-      profile,
-      loading,
-      profileLoading,
-      isPremium,
-      isFree,
-      subscriptionTier,
-      refreshUser,
-      refreshProfile,
-    ]
+    [user, profile, loading, signOut, refreshProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuthContext() {
+export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === null) {
-    throw new Error("useAuthContext must be used within an AuthProvider");
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
 
-// Check if we're inside the provider (for hooks that need to work both with and without context)
-export function useOptionalAuthContext() {
-  return useContext(AuthContext);
+// Convenience hooks for specific data
+export function useUser() {
+  const { user, loading } = useAuth();
+  return { user, loading };
+}
+
+export function useProfile() {
+  const { profile, loading, refreshProfile } = useAuth();
+
+  const isPremium = profile?.subscription_tier === "bibliophile";
+  const isFree =
+    profile?.subscription_tier === "free" || !profile?.subscription_tier;
+
+  return {
+    profile,
+    loading,
+    isPremium,
+    isFree,
+    subscriptionTier: profile?.subscription_tier ?? null,
+    refreshProfile,
+  };
 }
 
 export { AuthContext };

@@ -21,6 +21,7 @@ type AuthResult = {
   success?: boolean;
   error?: string;
   errors?: Record<string, string[]>;
+  redirectTo?: string;
 };
 
 // Check if email or username already exists
@@ -172,9 +173,9 @@ export async function signIn(
 
   revalidatePath("/", "layout");
 
-  // Redirect to the specified URL or home
+  // Return success with redirect URL - client handles navigation
   const safeRedirect = redirectTo?.startsWith("/") ? redirectTo : "/";
-  redirect(safeRedirect);
+  return { success: true, redirectTo: safeRedirect };
 }
 
 export async function signOut(): Promise<void> {
