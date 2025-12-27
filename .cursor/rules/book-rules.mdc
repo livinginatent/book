@@ -1,0 +1,41 @@
+---
+alwaysApply: true
+---
+### Essential Next.js React TypeScript Development Checklist
+
+#### Code Style & Structure
+- Craft compact, precise TypeScript code featuring practical examples.
+- Adopt functional and declarative approaches; steer clear of class-based patterns.
+- Prioritize loops and modular functions to eliminate repetition.
+- Select meaningful variable names incorporating helper verbs like `isActive` or `shouldFetch`.
+- Organize files logically: main exported component first, followed by subcomponents, utilities, constants, and type definitions.
+
+#### Naming Standards
+- Employ lowercase kebab-case for folder names (e.g., `ui-button-group`).
+- Opt for named exports when defining components.
+
+#### TypeScript Best Practices
+- Implement TypeScript universally; choose interfaces instead of type aliases.
+- Replace enums with object maps for better flexibility.
+- Build functional components backed by TypeScript interfaces.
+
+#### Syntax & Formatting Guidelines
+- Declare pure functions using the `function` keyword.
+- Skip curly braces for straightforward conditional statements; leverage terse syntax.
+- Employ declarative JSX patterns for cleaner renders.
+
+#### UI Components & Styling
+- Leverage Shadcn UI, Radix primitives, and Tailwind classes exclusively.
+- Ensure responsive layouts via Tailwind with a mobile-first strategy.
+
+#### Performance Enhancements
+- Reduce reliance on `'use client'`, `useEffect`, and `setState`; emphasize React Server Components.
+- Enclose client-side elements in Suspense boundaries with suitable fallbacks.
+- Dynamically import non-essential components to boost load times.
+- Optimize images by preferring WebP, specifying dimensions, and enabling lazy loading.
+
+#### Core Conventions
+- Manage URL query states with `nuqs` library.
+- Target top Web Vitals scores (LCP, CLS, INP).
+- Restrict `'use client'` to minimal cases like browser APIs in compact components; avoid for fetching or global state.
+- Adhere to official Next.js documentation on data fetching, rendering strategies, and app routing.

@@ -1,10 +1,11 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { useRef } from "react";
 
 import { BookCard } from "../ui/book/book-card";
 import { BookStatus } from "../ui/book/book-progress-editor";
+import { ReadingStatus } from "@/types";
 
 interface Book {
   id: string;
@@ -15,6 +16,8 @@ interface Book {
   totalPages: number;
   lastReadDate?: Date | null;
   date_added?: string;
+  dateFinished?: string | null;
+  status?: ReadingStatus;
 }
 
 interface ShelfBookGridProps {
@@ -43,6 +46,11 @@ export function ShelfBookGrid({
 
   // Helper function to check if a book is neglected (> 3 days since last read, but only if added > 1 week ago)
   const isNeglected = (book: Book): boolean => {
+    // Finished books cannot be neglected
+    if (book.status === "finished") {
+      return false;
+    }
+
     // If book has a date_added, check if it's been at least a week
     if (book.date_added) {
       try {
@@ -163,34 +171,54 @@ export function ShelfBookGrid({
         ref={scrollRef}
         className="flex gap-4 overflow-x-auto pb-4 scroll-smooth scrollbar-hide items-stretch sm:grid sm:grid-cols-2 sm:overflow-x-visible sm:pb-0 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
       >
-        {sortedBooks.map((book) => (
-          <div
-            key={book.id}
-            data-book-card
-            className="flex flex-col min-w-[70%] sm:min-w-0"
-          >
-            <BookCard
-              className="flex-1"
-              title={book.title}
-              author={book.author}
-              cover={book.cover}
-              pagesRead={book.pagesRead}
-              totalPages={book.totalPages}
-              editable
-              isNeglected={isNeglected(book)}
-              onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
-              onStatusChange={(status) => onStatusChange?.(book.id, status)}
-            />
-            {onMoveToUpNext && (
-              <button
-                onClick={() => onMoveToUpNext(book.id)}
-                className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors w-full"
-              >
-                Move to Up Next
-              </button>
-            )}
-          </div>
-        ))}
+        {sortedBooks.map((book) => {
+          const isFinished = book.status === "finished";
+          const finishedDate = book.dateFinished
+            ? new Date(book.dateFinished)
+            : null;
+          const formattedDate = finishedDate
+            ? finishedDate.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })
+            : null;
+
+          return (
+            <div
+              key={book.id}
+              data-book-card
+              className="flex flex-col min-w-[70%] sm:min-w-0"
+            >
+              <BookCard
+                className="flex-1"
+                title={book.title}
+                author={book.author}
+                cover={book.cover}
+                pagesRead={book.pagesRead}
+                totalPages={book.totalPages}
+                editable
+                isNeglected={isNeglected(book)}
+                onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
+                onStatusChange={(status) => onStatusChange?.(book.id, status)}
+              />
+              {isFinished && formattedDate && (
+                <div className=" flex items-center gap-1.5 text-xs text-muted-foreground px-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Finished {formattedDate}</span>
+                </div>
+              )}
+              {onMoveToUpNext && (
+                <button
+                  onClick={() => onMoveToUpNext(book.id)}
+                  className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors w-full"
+                >
+                  Move to Up Next
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Scroll buttons - only show on mobile when there are more than 2 books */}

@@ -42,7 +42,6 @@ export function PrivateShelves({
   // Fetch data only if we don't have initial data
   useEffect(() => {
     if (locked || initialShelves) {
-      setLoading(false);
       return;
     }
 
@@ -120,6 +119,20 @@ export function PrivateShelves({
 
   const hasCustomShelves = customShelves.length > 0;
 
+  // Map reading status to shelf routes
+  const statusToRoute: Record<string, string> = {
+    currently_reading: "/shelves/currently-reading",
+    want_to_read: "/shelves/want-to-read",
+    finished: "/shelves/finished",
+  };
+
+  const getShelfHref = (
+    status: string | null | undefined
+  ): string | undefined => {
+    if (!status) return undefined;
+    return statusToRoute[status];
+  };
+
   return (
     <DashboardCard
       title="Shelves"
@@ -163,23 +176,14 @@ export function PrivateShelves({
                   </p>
                 ) : (
                   defaultShelves.map((shelf) => {
-                    const isCurrentlyReading =
-                      shelf.status === "currently_reading";
-                    const isWantToRead = shelf.status === "want_to_read";
-                    const isLinkable = isCurrentlyReading || isWantToRead;
-                    const shelfHref = isCurrentlyReading
-                      ? "/shelves/currently-reading"
-                      : isWantToRead
-                      ? "/shelves/want-to-read"
-                      : undefined;
+                    const shelfHref = getShelfHref(shelf.status);
+                    const isLinkable = !!shelfHref;
 
                     const ShelfContent = (
                       <div
                         className={cn(
-                          "flex items-center justify-between p-2.5 rounded-xl bg-muted/50 hover:bg-muted  transition-colors",
-                          isLinkable
-                            ? "hover:bg-muted/70 cursor-pointer"
-                            : "hover:bg-muted/70"
+                          "flex items-center justify-between p-2.5 rounded-xl bg-muted/50 hover:bg-muted transition-colors",
+                          isLinkable && "cursor-pointer"
                         )}
                       >
                         <span className="text-sm font-medium">
@@ -194,7 +198,7 @@ export function PrivateShelves({
 
                     return (
                       <div key={shelf.id}>
-                        {isLinkable && shelfHref ? (
+                        {isLinkable ? (
                           <Link href={shelfHref}>{ShelfContent}</Link>
                         ) : (
                           ShelfContent

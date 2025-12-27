@@ -355,8 +355,8 @@ export interface Database {
         };
       };
     };
-    Views: {};
-    Functions: {};
+    Views: object;
+    Functions: object;
     Enums: {
       subscription_tier: SubscriptionTier;
       reading_status: ReadingStatus;
