@@ -36,7 +36,6 @@ import {
 import { ReadingStreak } from "@/components/ui/reading-streak";
 import { UpNextPreview } from "@/components/ui/up-next-preview";
 import { useAuth } from "@/hooks/use-auth";
-import type { ReadingStatus } from "@/types/database.types";
 
 export default function CurrentlyReadingDetailPage() {
   const params = useParams();
@@ -240,37 +239,20 @@ export default function CurrentlyReadingDetailPage() {
     setIsProgressEditorOpen(false);
   };
 
-  const handleStatusChange = async (status: BookStatus, dates?: BookStatusDates) => {
-    if (status === "remove") {
-      // Remove from currently reading
-      const result = await removeBookFromReadingList(
-        bookId,
-        "currently-reading"
-      );
-      if (result.success) {
-        router.push("/");
-      }
-      setIsProgressEditorOpen(false);
-      return;
+  const handleRemove = async () => {
+    const result = await removeBookFromReadingList(bookId, "currently-reading");
+    if (result.success) {
+      router.push("/");
     }
+    setIsProgressEditorOpen(false);
+  };
 
-    // Map BookStatus to ReadingStatus
-    const statusMap: Record<BookStatus, ReadingStatus | null> = {
-      finished: "finished",
-      paused: "paused",
-      "did-not-finish": "dnf",
-      reading: "currently_reading",
-      remove: null,
-    };
-
-    const readingStatus = statusMap[status];
-    if (!readingStatus) {
-      setIsProgressEditorOpen(false);
-      return;
-    }
-
+  const handleStatusChange = async (
+    status: BookStatus,
+    dates?: BookStatusDates
+  ) => {
     // Update the book status with optional dates
-    const result = await updateBookStatus(bookId, readingStatus, dates);
+    const result = await updateBookStatus(bookId, status, dates);
     if (!result.success) {
       setIsProgressEditorOpen(false);
       return;
@@ -280,7 +262,7 @@ export default function CurrentlyReadingDetailPage() {
     setIsProgressEditorOpen(false);
 
     // Redirect to dashboard after a delay for finished and paused statuses
-    if (status === "finished" || status === "paused") {
+    if (status === "finished" || status === "paused" || status === "dnf") {
       setTimeout(() => {
         router.push("/");
       }, 500); // 500ms delay to allow modal to close smoothly
@@ -407,6 +389,8 @@ export default function CurrentlyReadingDetailPage() {
               onClose={() => setIsProgressEditorOpen(false)}
               onSave={handleProgressUpdate}
               onStatusChange={handleStatusChange}
+              onRemove={handleRemove}
+              currentStatus="currently_reading"
             />
           </div>
         </div>

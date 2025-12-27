@@ -32,6 +32,7 @@ interface ShelfBookGridProps {
     | "shortest";
   onProgressUpdate?: (bookId: string, pages: number) => void;
   onStatusChange?: (bookId: string, status: BookStatus) => void;
+  onRemove?: (bookId: string, currentStatus: ReadingStatus) => void;
   onMoveToUpNext?: (bookId: string) => void;
 }
 
@@ -40,6 +41,7 @@ export function ShelfBookGrid({
   sortBy = "progress",
   onProgressUpdate,
   onStatusChange,
+  onRemove,
   onMoveToUpNext,
 }: ShelfBookGridProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -201,6 +203,8 @@ export function ShelfBookGrid({
                 isNeglected={isNeglected(book)}
                 onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
                 onStatusChange={(status) => onStatusChange?.(book.id, status)}
+                onRemove={() => onRemove?.(book.id, book.status!)}
+                currentStatus={book.status}
               />
               {isFinished && formattedDate && (
                 <div className=" flex items-center gap-1.5 text-xs text-muted-foreground px-1">

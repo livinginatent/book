@@ -17,13 +17,10 @@ import { createPortal } from "react-dom";
 import { ReadingDatePicker } from "@/components/ui/book/reading-date-picker";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { ReadingStatus } from "@/types/database.types";
 
-export type BookStatus =
-  | "reading"
-  | "finished"
-  | "paused"
-  | "did-not-finish"
-  | "remove";
+// BookStatus is just ReadingStatus - remove is handled separately
+export type BookStatus = ReadingStatus;
 
 export interface BookStatusDates {
   dateStarted?: string;
@@ -37,35 +34,81 @@ interface BookProgressEditorProps {
   onClose: () => void;
   onSave: (pages: number) => void;
   onStatusChange: (status: BookStatus, dates?: BookStatusDates) => void;
+  onRemove?: () => void;
+  currentStatus?: ReadingStatus;
   className?: string;
 }
 
-const statusActions = [
+// All possible status actions with their display info
+const allStatusActions = [
   {
     status: "finished" as BookStatus,
     label: "Finished",
     icon: Check,
-    color: "bg-accent text-accent-foreground hover:bg-accent/90",
+    color:
+      "bg-muted/50 text-foreground border border-border hover:bg-muted hover:border-muted-foreground/30",
+  },
+  {
+    status: "currently_reading" as BookStatus,
+    label: "Currently reading",
+    icon: BookOpen,
+    color:
+      "bg-muted/50 text-foreground border border-border hover:bg-muted hover:border-muted-foreground/30",
   },
   {
     status: "paused" as BookStatus,
     label: "Paused",
     icon: Pause,
-    color: "bg-chart-4 text-foreground hover:bg-chart-4/90",
+    color:
+      "bg-muted/50 text-foreground border border-border hover:bg-muted hover:border-muted-foreground/30",
   },
   {
-    status: "did-not-finish" as BookStatus,
+    status: "dnf" as BookStatus,
     label: "DNF",
     icon: XCircle,
-    color: "bg-chart-3 text-primary-foreground hover:bg-chart-3/90",
+    color:
+      "bg-muted/50 text-foreground border border-border hover:bg-muted hover:border-muted-foreground/30",
   },
   {
-    status: "remove" as BookStatus,
-    label: "Remove",
-    icon: Trash2,
-    color: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+    status: "want_to_read" as BookStatus,
+    label: "Want to Read",
+    icon: BookOpen,
+    color:
+      "bg-muted/50 text-foreground border border-border hover:bg-muted hover:border-muted-foreground/30",
+  },
+  {
+    status: "up_next" as BookStatus,
+    label: "Up Next",
+    icon: BookOpen,
+    color:
+      "bg-muted/50 text-foreground border border-border hover:bg-muted hover:border-muted-foreground/30",
   },
 ];
+
+// Get available status actions based on current status
+function getAvailableStatusActions(
+  currentStatus?: ReadingStatus
+): typeof allStatusActions {
+  if (!currentStatus) {
+    // If no current status, show all status actions
+    return allStatusActions;
+  }
+
+  // Define valid transitions from each status
+  const validTransitions: Record<ReadingStatus, BookStatus[]> = {
+    want_to_read: ["currently_reading", "up_next"],
+    currently_reading: ["finished", "paused", "dnf"],
+    finished: [], // Finished books have no status transitions
+    paused: ["currently_reading", "finished", "dnf"],
+    dnf: ["currently_reading"], // Can resume a DNF book
+    up_next: ["currently_reading", "want_to_read"],
+  };
+
+  const allowedStatuses = validTransitions[currentStatus] || [];
+  return allStatusActions.filter((action) =>
+    allowedStatuses.includes(action.status)
+  );
+}
 
 export function BookProgressEditor({
   currentPages,
@@ -74,6 +117,8 @@ export function BookProgressEditor({
   onClose,
   onSave,
   onStatusChange,
+  onRemove,
+  currentStatus,
   className,
 }: BookProgressEditorProps) {
   const [mounted, setMounted] = useState(false);
@@ -113,6 +158,15 @@ export function BookProgressEditor({
       onClose();
     }
   };
+
+  const handleRemove = () => {
+    onRemove?.();
+    onClose();
+  };
+
+  // Get available actions based on current status
+  const availableActions = getAvailableStatusActions(currentStatus);
+  const isFinished = currentStatus === "finished";
 
   const handleDateConfirm = () => {
     const dates: BookStatusDates = {};
@@ -217,48 +271,56 @@ export function BookProgressEditor({
             </div>
           </div>
 
-          {/* Page Counter */}
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={() => handleIncrement(-10)}
-              className="p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-            <div className="text-center min-w-[100px]">
-              <span className="text-2xl font-bold text-foreground">
-                {pages}
-              </span>
-              <span className="text-muted-foreground text-sm">
-                {" "}
-                / {totalPages}
-              </span>
-            </div>
-            <button
-              onClick={() => handleIncrement(10)}
-              className="p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
+          {/* Page Counter - Hide for finished books */}
+          {!isFinished && (
+            <>
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={() => handleIncrement(-10)}
+                  className="p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <div className="text-center min-w-[100px]">
+                  <span className="text-2xl font-bold text-foreground">
+                    {pages}
+                  </span>
+                  <span className="text-muted-foreground text-sm">
+                    {" "}
+                    / {totalPages}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleIncrement(10)}
+                  className="p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
 
-          {/* Quick Add Buttons */}
-          <div className="flex gap-2 flex-wrap justify-center">
-            {[1, 5, 25, 50].map((amount) => (
-              <button
-                key={amount}
-                onClick={() => handleIncrement(amount)}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              {/* Quick Add Buttons */}
+              <div className="flex gap-2 flex-wrap justify-center">
+                {[1, 5, 25, 50].map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => handleIncrement(amount)}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    +{amount}
+                  </button>
+                ))}
+              </div>
+
+              {/* Save Button */}
+              <Button
+                onClick={handleSave}
+                size="sm"
+                className="w-full rounded-xl"
               >
-                +{amount}
-              </button>
-            ))}
-          </div>
-
-          {/* Save Button */}
-          <Button onClick={handleSave} size="sm" className="w-full rounded-xl">
-            Save Progress
-          </Button>
+                Save Progress
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Date Picker for Finished Status */}
@@ -283,8 +345,21 @@ export function BookProgressEditor({
             <p className="text-xs text-muted-foreground mb-3 text-center">
               Or change status
             </p>
-            <div className="grid grid-cols-4 gap-2">
-              {statusActions.map(({ status, label, icon: Icon, color }) => (
+            <div
+              className={cn(
+                "grid gap-2",
+                availableActions.length === 0
+                  ? "grid-cols-1"
+                  : availableActions.length === 1
+                  ? "grid-cols-1"
+                  : availableActions.length === 2
+                  ? "grid-cols-2"
+                  : availableActions.length === 3
+                  ? "grid-cols-3"
+                  : "grid-cols-4"
+              )}
+            >
+              {availableActions.map(({ status, label, icon: Icon, color }) => (
                 <button
                   key={status}
                   onClick={() => handleStatusChange(status)}
@@ -300,6 +375,21 @@ export function BookProgressEditor({
                   </span>
                 </button>
               ))}
+              {onRemove && (
+                <button
+                  onClick={handleRemove}
+                  className={cn(
+                    "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+                    "hover:scale-105 active:scale-95",
+                    "bg-muted/50 text-muted-foreground border border-border hover:bg-muted hover:text-destructive hover:border-destructive/30"
+                  )}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="text-[10px] font-medium text-center">
+                    Remove
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         )}

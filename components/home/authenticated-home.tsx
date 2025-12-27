@@ -190,53 +190,43 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
     []
   );
 
+  // Handle remove - optimistic UI
+  const handleRemove = useCallback(
+    async (bookId: string) => {
+      // Remove from UI optimistically
+      setCurrentlyReadingBooks((prev) =>
+        prev.filter((book) => book.id !== bookId)
+      );
+
+      const result = await removeBookFromReadingList(bookId, "currently-reading");
+      if (!result.success) {
+        console.error("Failed to remove book:", result.error);
+        const refreshResult = await refreshCurrentlyReading();
+        if (refreshResult.success && refreshResult.books) {
+          setCurrentlyReadingBooks(transformBooks(refreshResult.books));
+        }
+      }
+    },
+    []
+  );
+
   // Handle status change - optimistic UI
   const handleStatusChange = useCallback(
     async (bookId: string, status: BookStatus, date?: string) => {
-      if (status === "remove") {
-        // Remove from UI optimistically
-        setCurrentlyReadingBooks((prev) =>
-          prev.filter((book) => book.id !== bookId)
-        );
-
-        const result = await removeBookFromReadingList(
-          bookId,
-          "currently-reading"
-        );
-        if (!result.success) {
-          console.error("Failed to remove book:", result.error);
-          const refreshResult = await refreshCurrentlyReading();
-          if (refreshResult.success && refreshResult.books) {
-            setCurrentlyReadingBooks(transformBooks(refreshResult.books));
-          }
+      const result = await updateBookStatus(bookId, status, date);
+      if (!result.success) {
+        console.error("Failed to update book status:", result.error);
+        const refreshResult = await refreshCurrentlyReading();
+        if (refreshResult.success && refreshResult.books) {
+          setCurrentlyReadingBooks(transformBooks(refreshResult.books));
         }
-      } else {
-        const statusMap: Record<BookStatus, ReadingStatus | null> = {
-          finished: "finished",
-          paused: "paused",
-          "did-not-finish": "dnf",
-          reading: "currently_reading",
-          remove: null,
-        };
-
-        const readingStatus = statusMap[status];
-        if (!readingStatus) return;
-
-        const result = await updateBookStatus(bookId, readingStatus, date);
-        if (!result.success) {
-          console.error("Failed to update book status:", result.error);
-          const refreshResult = await refreshCurrentlyReading();
-          if (refreshResult.success && refreshResult.books) {
-            setCurrentlyReadingBooks(transformBooks(refreshResult.books));
-          }
-          return;
-        }
-
-        // Remove from UI since it's no longer "currently reading"
-        setCurrentlyReadingBooks((prev) =>
-          prev.filter((book) => book.id !== bookId)
-        );
+        return;
       }
+
+      // Remove from UI since it's no longer "currently reading"
+      setCurrentlyReadingBooks((prev) =>
+        prev.filter((book) => book.id !== bookId)
+      );
     },
     []
   );
@@ -306,6 +296,7 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
               books={loadingBooks ? [] : currentlyReadingBooks}
               onProgressUpdate={handleProgressUpdate}
               onStatusChange={handleStatusChange}
+              onRemove={handleRemove}
             />
             <MemoizedReadingGoalsContainer 
               initialProfile={profile}

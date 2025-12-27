@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
+import type { ReadingStatus } from "@/types/database.types";
 
 import {
   BookProgressEditor,
@@ -23,8 +24,10 @@ interface BookCardProps {
   className?: string;
   onProgressUpdate?: (pages: number) => void;
   onStatusChange?: (status: BookStatus, dates?: BookStatusDates) => void;
+  onRemove?: () => void;
   editable?: boolean;
   isNeglected?: boolean;
+  currentStatus?: ReadingStatus;
 }
 
 export function BookCard({
@@ -38,8 +41,10 @@ export function BookCard({
   className,
   onProgressUpdate,
   onStatusChange,
+  onRemove,
   editable = false,
   isNeglected = false,
+  currentStatus,
 }: BookCardProps) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -125,6 +130,8 @@ export function BookCard({
             onClose={() => setIsEditing(false)}
             onSave={handleProgressSave}
             onStatusChange={handleStatusChange}
+            onRemove={onRemove}
+            currentStatus={currentStatus}
           />
         )}
       </div>

@@ -8,7 +8,6 @@ import { BookCard } from "@/components/ui/book/book-card";
 import { getCurrentlyReadingBooks } from "@/app/actions/currently-reading";
 import type { BookStatus } from "@/components/ui/book/book-progress-editor";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
-import type { ReadingStatus } from "@/types/database.types";
 import {
   removeBookFromReadingList,
   updateBookStatus,
@@ -87,81 +86,69 @@ export default function CurrentlyReadingListPage() {
     }
   };
 
-  const handleStatusChange = async (bookId: string, status: BookStatus, date?: string) => {
-    if (status === "remove") {
-      // Remove from UI optimistically
-      setBooks((prev) => prev.filter((book) => book.id !== bookId));
+  const handleRemove = async (bookId: string) => {
+    // Remove from UI optimistically
+    setBooks((prev) => prev.filter((book) => book.id !== bookId));
 
-      // Call server action to remove book from currently_reading list
-      const result = await removeBookFromReadingList(
-        bookId,
-        "currently-reading"
-      );
-      if (!result.success) {
-        console.error("Failed to remove book:", result.error);
-        // Revert on error - refetch books
-        const fetchResult = await getCurrentlyReadingBooks();
-        if (fetchResult.success) {
-          const transformedBooks: CurrentlyReadingBook[] =
-            fetchResult.books.map((book) => ({
-              id: book.id,
-              title: book.title,
-              author: book.authors?.join(", ") || "Unknown Author",
-              cover:
-                book.cover_url_medium ||
-                book.cover_url_large ||
-                book.cover_url_small ||
-                "",
-              pagesRead: book.progress?.pages_read || 0,
-              totalPages: book.page_count || 0,
-            }));
-          setBooks(transformedBooks);
-        }
+    // Call server action to remove book from currently_reading list
+    const result = await removeBookFromReadingList(bookId, "currently-reading");
+    if (!result.success) {
+      console.error("Failed to remove book:", result.error);
+      // Revert on error - refetch books
+      const fetchResult = await getCurrentlyReadingBooks();
+      if (fetchResult.success) {
+        const transformedBooks: CurrentlyReadingBook[] = fetchResult.books.map(
+          (book) => ({
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_medium ||
+              book.cover_url_large ||
+              book.cover_url_small ||
+              "",
+            pagesRead: book.progress?.pages_read || 0,
+            totalPages: book.page_count || 0,
+          })
+        );
+        setBooks(transformedBooks);
       }
-    } else {
-      // Map BookStatus to ReadingStatus
-      const statusMap: Record<BookStatus, ReadingStatus | null> = {
-        finished: "finished",
-        paused: "paused",
-        "did-not-finish": "dnf",
-        reading: "currently_reading",
-        remove: null,
-      };
-
-      const readingStatus = statusMap[status];
-      if (!readingStatus) {
-        return;
-      }
-
-      // Update the book status using updateBookStatus with optional date
-      const result = await updateBookStatus(bookId, readingStatus, date);
-      if (!result.success) {
-        console.error("Failed to update book status:", result.error);
-        // Revert on error - refetch books
-        const fetchResult = await getCurrentlyReadingBooks();
-        if (fetchResult.success) {
-          const transformedBooks: CurrentlyReadingBook[] = fetchResult.books.map(
-            (book) => ({
-              id: book.id,
-              title: book.title,
-              author: book.authors?.join(", ") || "Unknown Author",
-              cover:
-                book.cover_url_medium ||
-                book.cover_url_large ||
-                book.cover_url_small ||
-                "",
-              pagesRead: book.progress?.pages_read || 0,
-              totalPages: book.page_count || 0,
-            })
-          );
-          setBooks(transformedBooks);
-        }
-        return;
-      }
-
-      // Remove from UI since it's no longer "currently reading"
-      setBooks((prev) => prev.filter((book) => book.id !== bookId));
     }
+  };
+
+  const handleStatusChange = async (
+    bookId: string,
+    status: BookStatus,
+    date?: string
+  ) => {
+    // Update the book status using updateBookStatus with optional date
+    const result = await updateBookStatus(bookId, status, date);
+    if (!result.success) {
+      console.error("Failed to update book status:", result.error);
+      // Revert on error - refetch books
+      const fetchResult = await getCurrentlyReadingBooks();
+      if (fetchResult.success) {
+        const transformedBooks: CurrentlyReadingBook[] = fetchResult.books.map(
+          (book) => ({
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_medium ||
+              book.cover_url_large ||
+              book.cover_url_small ||
+              "",
+            pagesRead: book.progress?.pages_read || 0,
+            totalPages: book.page_count || 0,
+          })
+        );
+        setBooks(transformedBooks);
+      }
+      return;
+    }
+
+    // Remove from UI since it's no longer "currently reading"
+    setBooks((prev) => prev.filter((book) => book.id !== bookId));
   };
 
   return (
@@ -222,6 +209,8 @@ export default function CurrentlyReadingListPage() {
                     onStatusChange={(status) =>
                       handleStatusChange(book.id, status)
                     }
+                    onRemove={() => handleRemove(book.id)}
+                    currentStatus="currently_reading"
                   />
                   <Link href={`/currently-reading/${book.id}`} className="mt-2">
                     <button className="w-full text-xs px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors">

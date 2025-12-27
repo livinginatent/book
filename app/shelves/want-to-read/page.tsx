@@ -124,56 +124,44 @@ export default function WantToReadShelfPage() {
     };
   }, []);
 
+  const handleRemove = useCallback(
+    async (bookId: string, _currentStatus: ReadingStatus) => {
+      // Optimistically remove from UI
+      setBooks((prev) => prev.filter((book) => book.id !== bookId));
+
+      const result = await removeBookFromReadingList(bookId, "want-to-read");
+
+      if (!result.success) {
+        console.error("Failed to remove book:", result.error);
+        toast.error(result.error);
+        // Revert by refetching
+        const fetchResult = await getWantToReadBooks();
+        if (fetchResult.success) {
+          const transformed: ShelfBook[] = fetchResult.books.map((book) => ({
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_medium ||
+              book.cover_url_large ||
+              book.cover_url_small ||
+              "",
+            totalPages: book.page_count || 0,
+            date_added: book.date_added,
+            isPrioritized: book.isPrioritized,
+          }));
+          setBooks(transformed);
+        }
+      } else {
+        toast.success(result.message);
+      }
+    },
+    []
+  );
+
   const handleStatusChange = useCallback(
     async (bookId: string, status: BookStatus) => {
-      if (status === "remove") {
-        // Optimistically remove from UI
-        setBooks((prev) => prev.filter((book) => book.id !== bookId));
-
-        const result = await removeBookFromReadingList(bookId, "want-to-read");
-
-        if (!result.success) {
-          console.error("Failed to remove book:", result.error);
-          toast.error(result.error);
-          // Revert by refetching
-          const fetchResult = await getWantToReadBooks();
-          if (fetchResult.success) {
-            const transformed: ShelfBook[] = fetchResult.books.map((book) => ({
-              id: book.id,
-              title: book.title,
-              author: book.authors?.join(", ") || "Unknown Author",
-              cover:
-                book.cover_url_medium ||
-                book.cover_url_large ||
-                book.cover_url_small ||
-                "",
-              totalPages: book.page_count || 0,
-              date_added: book.date_added,
-              isPrioritized: book.isPrioritized,
-            }));
-            setBooks(transformed);
-          }
-        } else {
-          toast.success(result.message);
-        }
-        return;
-      }
-
-      // Map BookStatus to ReadingStatus
-      const statusMap: Record<BookStatus, ReadingStatus | null> = {
-        finished: "finished",
-        paused: "paused",
-        "did-not-finish": "dnf",
-        reading: "currently_reading",
-        remove: null,
-      };
-
-      const readingStatus = statusMap[status];
-      if (!readingStatus) {
-        return;
-      }
-
-      const result = await updateBookStatus(bookId, readingStatus);
+      const result = await updateBookStatus(bookId, status);
 
       if (!result.success) {
         console.error("Failed to update book status:", result.error);
@@ -200,7 +188,7 @@ export default function WantToReadShelfPage() {
       }
 
       // If status is "reading" (currently_reading), redirect to currently-reading page
-      if (status === "reading") {
+      if (status === "currently_reading") {
         toast.success("Book moved to Currently Reading!");
         router.push("/shelves/currently-reading");
         return;
@@ -355,9 +343,11 @@ export default function WantToReadShelfPage() {
                 books={books.map((b) => ({
                   ...b,
                   pagesRead: 0,
+                  status: "want_to_read" as ReadingStatus,
                 }))}
                 sortBy={sortBy}
                 onStatusChange={handleStatusChange}
+                onRemove={handleRemove}
               />
             </div>
           </div>

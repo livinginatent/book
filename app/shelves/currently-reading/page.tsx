@@ -174,56 +174,43 @@ export default function CurrentlyReadingShelfPage() {
       return { totalPagesLeft, forgottenBook, avgVelocity, daysToFinish };
     }, [books]);
 
+  const handleRemove = useCallback(
+    async (bookId: string, _currentStatus: ReadingStatus) => {
+      // Optimistically remove from UI
+      setBooks((prev) => prev.filter((book) => book.id !== bookId));
+
+      const result = await removeBookFromReadingList(
+        bookId,
+        "currently-reading"
+      );
+
+      if (!result.success) {
+        console.error("Failed to remove book:", result.error);
+        // Revert by refetching
+        const fetchResult = await getCurrentlyReadingBooks();
+        if (fetchResult.success) {
+          const transformed: ShelfBook[] = fetchResult.books.map((book) => ({
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_medium ||
+              book.cover_url_large ||
+              book.cover_url_small ||
+              "",
+            pagesRead: book.progress?.pages_read || 0,
+            totalPages: book.page_count || 0,
+          }));
+          setBooks(transformed);
+        }
+      }
+    },
+    []
+  );
+
   const handleStatusChange = useCallback(
     async (bookId: string, status: BookStatus) => {
-      if (status === "remove") {
-        // Optimistically remove from UI
-        setBooks((prev) => prev.filter((book) => book.id !== bookId));
-
-        const result = await removeBookFromReadingList(
-          bookId,
-          "currently-reading"
-        );
-
-        if (!result.success) {
-          console.error("Failed to remove book:", result.error);
-          // Revert by refetching
-          const fetchResult = await getCurrentlyReadingBooks();
-          if (fetchResult.success) {
-            const transformed: ShelfBook[] = fetchResult.books.map((book) => ({
-              id: book.id,
-              title: book.title,
-              author: book.authors?.join(", ") || "Unknown Author",
-              cover:
-                book.cover_url_medium ||
-                book.cover_url_large ||
-                book.cover_url_small ||
-                "",
-              pagesRead: book.progress?.pages_read || 0,
-              totalPages: book.page_count || 0,
-            }));
-            setBooks(transformed);
-          }
-        }
-        return;
-      }
-
-      // Map BookStatus to ReadingStatus
-      const statusMap: Record<BookStatus, ReadingStatus | null> = {
-        finished: "finished",
-        paused: "paused",
-        "did-not-finish": "dnf",
-        reading: "currently_reading",
-        remove: null,
-      };
-
-      const readingStatus = statusMap[status];
-      if (!readingStatus) {
-        // Nothing to update for this status (e.g., "remove" handled above)
-        return;
-      }
-
-      const result = await updateBookStatus(bookId, readingStatus);
+      const result = await updateBookStatus(bookId, status);
 
       if (!result.success) {
         console.error("Failed to update book status:", result.error);
@@ -387,10 +374,14 @@ export default function CurrentlyReadingShelfPage() {
                 Your Books ({books.length})
               </h2>
               <ShelfBookGrid
-                books={books}
+                books={books.map((b) => ({
+                  ...b,
+                  status: "currently_reading" as ReadingStatus,
+                }))}
                 sortBy={sortBy}
                 onProgressUpdate={handleProgressUpdate}
                 onStatusChange={handleStatusChange}
+                onRemove={handleRemove}
               />
             </div>
           </div>

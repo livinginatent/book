@@ -30,12 +30,14 @@ interface CurrentlyReadingProps {
   books: Book[];
   onProgressUpdate?: (bookId: string, pages: number) => void;
   onStatusChange?: (bookId: string, status: BookStatus, date?: string) => void;
+  onRemove?: (bookId: string) => void;
 }
 
 export function CurrentlyReading({
   books,
   onProgressUpdate,
   onStatusChange,
+  onRemove,
 }: CurrentlyReadingProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -118,12 +120,10 @@ export function CurrentlyReading({
                     onProgressUpdate?.(book.id, pages)
                   }
                   onStatusChange={(status, dates) =>
-                    onStatusChange?.(
-                      book.id,
-                      status,
-                      dates?.dateFinished || dates?.dateStarted
-                    )
+                    onStatusChange?.(book.id, status, dates?.dateFinished || dates?.dateStarted)
                   }
+                  onRemove={() => onRemove?.(book.id)}
+                  currentStatus="currently_reading"
                 />
 
                 {/* 4. 'mt-auto' ensures this stays at the very bottom of the flex column */}
