@@ -8,6 +8,7 @@ import {
   ChevronUp,
   Plus,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
 
@@ -41,6 +42,13 @@ export function CurrentlyReading({
 }: CurrentlyReadingProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showAllMobile, setShowAllMobile] = useState(false);
+
+  const INITIAL_MOBILE_COUNT = 12;
+  const visibleBooksMobile = showAllMobile
+    ? books
+    : books.slice(0, INITIAL_MOBILE_COUNT);
+  const hasMoreBooks = books.length > INITIAL_MOBILE_COUNT;
 
   const scrollByCards = (direction: "left" | "right") => {
     const container = scrollRef.current;
@@ -91,7 +99,61 @@ export function CurrentlyReading({
           isCollapsed ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
         )}
       >
-        <div className="relative">
+        {/* Mobile: Grid Layout */}
+        <div className="lg:hidden">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+            {visibleBooksMobile.map((book) => (
+              <Link
+                key={book.id}
+                href={`/currently-reading/${book.id}`}
+                className="flex flex-col"
+              >
+                <div className="relative aspect-[2/3] rounded-lg overflow-hidden shadow-md mb-2">
+                  <Image
+                    src={book.cover || "/placeholder.svg"}
+                    alt={`${book.title} by ${book.author}`}
+                    fill
+                    sizes="(max-width: 640px) 33vw, 25vw"
+                    className="object-cover"
+                  />
+                  {book.totalPages > 0 && (
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-background/50">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{
+                          width: `${Math.round(
+                            (book.pagesRead / book.totalPages) * 100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+                <h4 className="text-xs font-medium text-foreground line-clamp-2 leading-tight mb-0.5">
+                  {book.title}
+                </h4>
+                <p className="text-[10px] text-muted-foreground line-clamp-1">
+                  {book.author}
+                </p>
+              </Link>
+            ))}
+          </div>
+          {hasMoreBooks && !showAllMobile && (
+            <div className="mt-4 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllMobile(true)}
+                className="rounded-xl"
+              >
+                Load More ({books.length - INITIAL_MOBILE_COUNT} more)
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop: Horizontal Scroll Layout */}
+        <div className="hidden lg:block relative">
           <div
             ref={scrollRef}
             className="flex gap-4 overflow-x-auto pb-4 scroll-smooth scrollbar-hide items-stretch"
@@ -100,15 +162,9 @@ export function CurrentlyReading({
               <div
                 key={book.id}
                 data-book-card
-                /* 1. Changed: Added 'flex flex-col' to the wrapper 
-                 2. Added 'min-h-full' to ensure cards match height if parent allows 
-              */
-                className="flex flex-col min-w-[70%] sm:min-w-[45%] lg:min-w-[22%]"
+                className="flex flex-col min-w-[22%]"
               >
                 <BookCard
-                  /* 3. Added 'flex-1': This forces the BookCard to grow and 
-                      fill all available space, pushing the Link below it.
-                */
                   className="flex-1"
                   title={book.title}
                   author={book.author}
@@ -120,16 +176,19 @@ export function CurrentlyReading({
                     onProgressUpdate?.(book.id, pages)
                   }
                   onStatusChange={(status, dates) =>
-                    onStatusChange?.(book.id, status, dates?.dateFinished || dates?.dateStarted)
+                    onStatusChange?.(
+                      book.id,
+                      status,
+                      dates?.dateFinished || dates?.dateStarted
+                    )
                   }
                   onRemove={() => onRemove?.(book.id)}
                   currentStatus="currently_reading"
                 />
 
-                {/* 4. 'mt-auto' ensures this stays at the very bottom of the flex column */}
                 <Link
                   href={`/currently-reading/${book.id}`}
-                  className="mt-auto pt-3 "
+                  className="mt-auto pt-3"
                 >
                   <Button
                     variant="ghost"
@@ -148,7 +207,7 @@ export function CurrentlyReading({
               <button
                 type="button"
                 onClick={() => scrollByCards("left")}
-                className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors"
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors flex"
                 aria-label="Scroll left"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -156,7 +215,7 @@ export function CurrentlyReading({
               <button
                 type="button"
                 onClick={() => scrollByCards("right")}
-                className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors"
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors flex"
                 aria-label="Scroll right"
               >
                 <ChevronRight className="w-4 h-4" />

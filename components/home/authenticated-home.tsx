@@ -8,7 +8,10 @@ import {
   removeBookFromReadingList,
   updateBookStatus,
 } from "@/app/actions/book-actions";
-import type { DashboardData, BookWithProgress } from "@/app/actions/dashboard-data";
+import type {
+  DashboardData,
+  BookWithProgress,
+} from "@/app/actions/dashboard-data";
 import { refreshCurrentlyReading } from "@/app/actions/dashboard-data";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
 import { getReadingStats } from "@/app/actions/reading-stats";
@@ -76,20 +79,29 @@ function transformBooks(books: BookWithProgress[]): CurrentlyReadingBook[] {
 
 export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
   // Use pre-fetched data from server - NO client-side auth fetching!
-  const { user, profile, currentlyReading, stats: initialStats, shelves: initialShelves } = initialData;
+  const {
+    user,
+    profile,
+    currentlyReading,
+    stats: initialStats,
+    shelves: initialShelves,
+  } = initialData;
 
   // Derive auth info from pre-fetched data
   const isPremium = profile?.subscription_tier === "bibliophile";
-  const isFree = profile?.subscription_tier === "free" || !profile?.subscription_tier;
+  const isFree =
+    profile?.subscription_tier === "free" || !profile?.subscription_tier;
 
   // State initialized from server data
-  const [currentlyReadingBooks, setCurrentlyReadingBooks] = useState<CurrentlyReadingBook[]>(
-    () => transformBooks(currentlyReading)
-  );
+  const [currentlyReadingBooks, setCurrentlyReadingBooks] = useState<
+    CurrentlyReadingBook[]
+  >(() => transformBooks(currentlyReading));
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingBooks, setLoadingBooks] = useState(false); // Start as false since we have initial data!
   const [showImport, setShowImport] = useState(false);
-  const [readingStats, setReadingStats] = useState<ReadingStatsData | null>(initialStats);
+  const [readingStats, setReadingStats] = useState<ReadingStatsData | null>(
+    initialStats
+  );
 
   const hasInitializedImportRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -122,7 +134,7 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
 
     const refreshData = async () => {
       if (!isMountedRef.current) return;
-      
+
       // Use lightweight refresh instead of full dashboard refetch
       const [booksResult, statsResult] = await Promise.all([
         refreshCurrentlyReading(),
@@ -191,24 +203,21 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
   );
 
   // Handle remove - optimistic UI
-  const handleRemove = useCallback(
-    async (bookId: string) => {
-      // Remove from UI optimistically
-      setCurrentlyReadingBooks((prev) =>
-        prev.filter((book) => book.id !== bookId)
-      );
+  const handleRemove = useCallback(async (bookId: string) => {
+    // Remove from UI optimistically
+    setCurrentlyReadingBooks((prev) =>
+      prev.filter((book) => book.id !== bookId)
+    );
 
-      const result = await removeBookFromReadingList(bookId, "currently-reading");
-      if (!result.success) {
-        console.error("Failed to remove book:", result.error);
-        const refreshResult = await refreshCurrentlyReading();
-        if (refreshResult.success && refreshResult.books) {
-          setCurrentlyReadingBooks(transformBooks(refreshResult.books));
-        }
+    const result = await removeBookFromReadingList(bookId, "currently-reading");
+    if (!result.success) {
+      console.error("Failed to remove book:", result.error);
+      const refreshResult = await refreshCurrentlyReading();
+      if (refreshResult.success && refreshResult.books) {
+        setCurrentlyReadingBooks(transformBooks(refreshResult.books));
       }
-    },
-    []
-  );
+    }
+  }, []);
 
   // Handle status change - optimistic UI
   const handleStatusChange = useCallback(
@@ -298,9 +307,17 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
               onStatusChange={handleStatusChange}
               onRemove={handleRemove}
             />
-            <MemoizedReadingGoalsContainer 
-              initialProfile={profile}
-            />
+
+            {/* Private Shelves - Show on mobile here, hide on desktop (shown in sidebar) */}
+            <div className="lg:hidden">
+              <MemoizedPrivateShelves
+                locked={isFree}
+                initialShelves={initialShelves}
+              />
+            </div>
+
+            {/* Reading Goals */}
+            <MemoizedReadingGoalsContainer initialProfile={profile} />
 
             {/* Goodreads Import - Collapsible Section */}
             {!profile?.has_imported_from_goodreads && (
@@ -385,11 +402,13 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
             {/* Book Recommendations */}
             <MemoizedBookRecommendations isPriority={isPremium} />
 
-            {/* Private Shelves - Pass initial data */}
-            <MemoizedPrivateShelves 
-              locked={isFree} 
-              initialShelves={initialShelves}
-            />
+            {/* Private Shelves - Hidden on mobile (shown above reading goals in main column) */}
+            <div className="hidden lg:block">
+              <MemoizedPrivateShelves
+                locked={isFree}
+                initialShelves={initialShelves}
+              />
+            </div>
 
             {/* Mood Tracker - Premium only */}
             <MemoizedMoodTracker locked={isFree} />

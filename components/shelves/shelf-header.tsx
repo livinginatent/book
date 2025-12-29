@@ -95,7 +95,7 @@ export function ShelfHeader({
         <div className="flex items-center justify-between gap-4 mb-4">
           <div className="flex items-center gap-3">
             <Link
-              href="/authenticated-home"
+              href="/"
               className="p-2 rounded-xl hover:bg-muted transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />

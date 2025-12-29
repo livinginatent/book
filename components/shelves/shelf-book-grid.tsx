@@ -3,9 +3,10 @@
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { useRef } from "react";
 
+import { ReadingStatus } from "@/types";
+
 import { BookCard } from "../ui/book/book-card";
 import { BookStatus } from "../ui/book/book-progress-editor";
-import { ReadingStatus } from "@/types";
 
 interface Book {
   id: string;
@@ -167,85 +168,142 @@ export function ShelfBookGrid({
   }
 
   return (
-    <div className="relative">
-      {/* Mobile: Horizontal scroll, Desktop: Grid */}
-      <div
-        ref={scrollRef}
-        className="flex gap-4 overflow-x-auto pb-4 scroll-smooth scrollbar-hide items-stretch sm:grid sm:grid-cols-2 sm:overflow-x-visible sm:pb-0 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
-      >
-        {sortedBooks.map((book) => {
-          const isFinished = book.status === "finished";
-          const finishedDate = book.dateFinished
-            ? new Date(book.dateFinished)
-            : null;
-          const formattedDate = finishedDate
-            ? finishedDate.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })
-            : null;
+    <>
+      {/* Mobile: Grid Layout */}
+      <div className="lg:hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {sortedBooks.map((book) => {
+            const isFinished = book.status === "finished";
+            const finishedDate = book.dateFinished
+              ? new Date(book.dateFinished)
+              : null;
+            const formattedDate = finishedDate
+              ? finishedDate.toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : null;
 
-          return (
-            <div
-              key={book.id}
-              data-book-card
-              className="flex flex-col min-w-[70%] sm:min-w-0"
-            >
-              <BookCard
-                className="flex-1"
-                title={book.title}
-                author={book.author}
-                cover={book.cover}
-                pagesRead={book.pagesRead}
-                totalPages={book.totalPages}
-                editable
-                isNeglected={isNeglected(book)}
-                onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
-                onStatusChange={(status) => onStatusChange?.(book.id, status)}
-                onRemove={() => onRemove?.(book.id, book.status!)}
-                currentStatus={book.status}
-              />
-              {isFinished && formattedDate && (
-                <div className=" flex items-center gap-1.5 text-xs text-muted-foreground px-1">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>Finished {formattedDate}</span>
-                </div>
-              )}
-              {onMoveToUpNext && (
-                <button
-                  onClick={() => onMoveToUpNext(book.id)}
-                  className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors w-full"
-                >
-                  Move to Up Next
-                </button>
-              )}
-            </div>
-          );
-        })}
+            return (
+              <div key={book.id} className="flex flex-col">
+                <BookCard
+                  className="flex-1"
+                  title={book.title}
+                  author={book.author}
+                  cover={book.cover}
+                  pagesRead={book.pagesRead}
+                  totalPages={book.totalPages}
+                  editable
+                  isNeglected={isNeglected(book)}
+                  onProgressUpdate={(pages) =>
+                    onProgressUpdate?.(book.id, pages)
+                  }
+                  onStatusChange={(status) => onStatusChange?.(book.id, status)}
+                  onRemove={() => onRemove?.(book.id, book.status!)}
+                  currentStatus={book.status}
+                />
+                {isFinished && formattedDate && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-1 mt-2">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Finished {formattedDate}</span>
+                  </div>
+                )}
+                {onMoveToUpNext && (
+                  <button
+                    onClick={() => onMoveToUpNext(book.id)}
+                    className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors w-full"
+                  >
+                    Move to Up Next
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Scroll buttons - only show on mobile when there are more than 2 books */}
-      {books.length > 2 && (
-        <>
-          <button
-            type="button"
-            onClick={() => scrollByCards("left")}
-            className="sm:hidden absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors flex"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollByCards("right")}
-            className="sm:hidden absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors flex"
-            aria-label="Scroll right"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </>
-      )}
-    </div>
+      {/* Desktop: Horizontal Scroll Layout */}
+      <div className="hidden lg:block relative">
+        <div
+          ref={scrollRef}
+          className="flex gap-4 overflow-x-auto pb-4 scroll-smooth scrollbar-hide items-stretch"
+        >
+          {sortedBooks.map((book) => {
+            const isFinished = book.status === "finished";
+            const finishedDate = book.dateFinished
+              ? new Date(book.dateFinished)
+              : null;
+            const formattedDate = finishedDate
+              ? finishedDate.toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : null;
+
+            return (
+              <div
+                key={book.id}
+                data-book-card
+                className="flex flex-col min-w-[22%]"
+              >
+                <BookCard
+                  className="flex-1"
+                  title={book.title}
+                  author={book.author}
+                  cover={book.cover}
+                  pagesRead={book.pagesRead}
+                  totalPages={book.totalPages}
+                  editable
+                  isNeglected={isNeglected(book)}
+                  onProgressUpdate={(pages) =>
+                    onProgressUpdate?.(book.id, pages)
+                  }
+                  onStatusChange={(status) => onStatusChange?.(book.id, status)}
+                  onRemove={() => onRemove?.(book.id, book.status!)}
+                  currentStatus={book.status}
+                />
+                {isFinished && formattedDate && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-1 mt-2">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Finished {formattedDate}</span>
+                  </div>
+                )}
+                {onMoveToUpNext && (
+                  <button
+                    onClick={() => onMoveToUpNext(book.id)}
+                    className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors w-full"
+                  >
+                    Move to Up Next
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {books.length > 4 && (
+          <>
+            <button
+              type="button"
+              onClick={() => scrollByCards("left")}
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors flex"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollByCards("right")}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 h-8 w-8 items-center justify-center rounded-full bg-background/90 border border-border shadow-md hover:bg-muted transition-colors flex"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </>
+        )}
+      </div>
+    </>
   );
 }

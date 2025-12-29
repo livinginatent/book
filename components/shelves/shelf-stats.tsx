@@ -1,4 +1,12 @@
-import { Zap, TrendingUp, BarChart3, BookOpen, Target, Star, Tag } from "lucide-react";
+import {
+  Zap,
+  TrendingUp,
+  BarChart3,
+  BookOpen,
+  Target,
+  Star,
+  Tag,
+} from "lucide-react";
 
 import { DashboardCard } from "@/components/ui/dashboard-card";
 
@@ -27,11 +35,17 @@ export function ShelfStats({
 
   if (variant === "read") {
     // Calculate average rating
-    const booksWithRatings = books.filter((book) => book.rating && book.rating > 0);
-    const totalRating = booksWithRatings.reduce((sum, book) => sum + (book.rating || 0), 0);
-    const avgRating = booksWithRatings.length > 0 
-      ? (totalRating / booksWithRatings.length).toFixed(1)
-      : "N/A";
+    const booksWithRatings = books.filter(
+      (book) => book.rating && book.rating > 0
+    );
+    const totalRating = booksWithRatings.reduce(
+      (sum, book) => sum + (book.rating || 0),
+      0
+    );
+    const avgRating =
+      booksWithRatings.length > 0
+        ? (totalRating / booksWithRatings.length).toFixed(1)
+        : "N/A";
 
     // Calculate most read genre
     const genreCounts: Record<string, number> = {};
@@ -42,22 +56,23 @@ export function ShelfStats({
         });
       }
     });
-    const mostReadGenre = Object.keys(genreCounts).length > 0
-      ? Object.entries(genreCounts).sort((a, b) => b[1] - a[1])[0][0]
-      : "N/A";
+    const mostReadGenre =
+      Object.keys(genreCounts).length > 0
+        ? Object.entries(genreCounts).sort((a, b) => b[1] - a[1])[0][0]
+        : "N/A";
 
     return (
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <DashboardCard title="Total Books Read" className="p-4">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Total Books Read</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                Total Books Read
+              </p>
               <p className="text-2xl font-bold text-foreground">
                 {books.length}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Completed
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Completed</p>
             </div>
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
               <BookOpen className="w-4 h-4" />
@@ -68,12 +83,14 @@ export function ShelfStats({
         <DashboardCard title="Average Rating" className="p-4">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Average Rating</p>
-              <p className="text-2xl font-bold text-foreground">
-                {avgRating}
+              <p className="text-xs text-muted-foreground mb-1">
+                Average Rating
               </p>
+              <p className="text-2xl font-bold text-foreground">{avgRating}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {booksWithRatings.length > 0 ? `from ${booksWithRatings.length} rated` : "No ratings yet"}
+                {booksWithRatings.length > 0
+                  ? `from ${booksWithRatings.length} rated`
+                  : "No ratings yet"}
               </p>
             </div>
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
@@ -84,16 +101,20 @@ export function ShelfStats({
 
         <DashboardCard title="Most Read Genre" className="p-4">
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Most Read Genre</p>
+            <div className="min-w-0 flex-1 pr-2">
+              <p className="text-xs text-muted-foreground mb-1">
+                Most Read Genre
+              </p>
               <p className="text-2xl font-bold text-foreground truncate">
                 {mostReadGenre}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {mostReadGenre !== "N/A" ? `${genreCounts[mostReadGenre]} books` : "No genres"}
+                {mostReadGenre !== "N/A"
+                  ? `${genreCounts[mostReadGenre]} books`
+                  : "No genres"}
               </p>
             </div>
-            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
               <Tag className="w-4 h-4" />
             </div>
           </div>
@@ -104,7 +125,7 @@ export function ShelfStats({
 
   if (variant === "want-to-read") {
     return (
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DashboardCard title="Total Books" className="p-4">
           <div className="flex items-start justify-between">
             <div>
@@ -145,7 +166,7 @@ export function ShelfStats({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <DashboardCard title="Total progress" className="p-4">
         <div className="flex items-start justify-between">
           <div>
