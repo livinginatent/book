@@ -266,6 +266,7 @@ export default function CurrentlyReadingShelfPage() {
       <ShelfHeader
         shelfName="Currently Reading"
         bookCount={books.length}
+        shelfType="currently-reading"
         onSortChange={setSortBy}
         currentSort={sortBy}
       />

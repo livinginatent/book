@@ -17,7 +17,7 @@ import {
 import { getReadingAnalytics } from "@/app/actions/reading-analytics";
 import { updateReadingFormat } from "@/app/actions/reading-format";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
-import { getUpNextBooks } from "@/app/actions/up-next";
+import { getUpNextQueue } from "@/app/actions/up-next";
 import { BookDetailCard } from "@/components/currently-reading/book-details";
 import { PaceCalculator } from "@/components/currently-reading/pace-calculator";
 import { SessionAnalytics } from "@/components/currently-reading/session-analytics";
@@ -146,9 +146,20 @@ export default function CurrentlyReadingDetailPage() {
         }
 
         // Fetch up-next books
-        const upNextResult = await getUpNextBooks();
+        const upNextResult = await getUpNextQueue();
         if (upNextResult.success) {
-          setUpNextBooks(upNextResult.books);
+          // Transform to match expected format
+          const transformed = upNextResult.books.map((book) => ({
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_medium ||
+              book.cover_url_large ||
+              book.cover_url_small ||
+              "",
+          }));
+          setUpNextBooks(transformed);
         }
       } catch (err) {
         console.error("Error fetching data:", err);

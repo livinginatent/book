@@ -125,6 +125,7 @@ export function PrivateShelves({
     want_to_read: "/shelves/want-to-read",
     finished: "/shelves/finished",
     dnf: "/shelves/did-not-finish",
+    up_next: "/shelves/up-next",
   };
 
   const getShelfHref = (

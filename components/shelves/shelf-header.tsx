@@ -3,12 +3,22 @@
 import { ArrowLeft, ChevronDown, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
+
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+type ShelfType =
+  | "currently-reading"
+  | "want-to-read"
+  | "finished"
+  | "did-not-finish"
+  | "up-next"
+  | "paused";
 
 interface ShelfHeaderProps {
   shelfName: string;
   bookCount: number;
+  shelfType?: ShelfType;
   onSortChange?: (
     sort:
       | "progress"
@@ -35,25 +45,90 @@ interface ShelfHeaderProps {
   isPremium?: boolean;
 }
 
-const DEFAULT_SORT_OPTIONS = [
+// Default sort options for currently-reading
+const CURRENTLY_READING_SORT_OPTIONS = [
   { value: "progress", label: "Progress" },
   { value: "neglected", label: "Neglected" },
   { value: "added", label: "Recently Added" },
   { value: "title", label: "Title" },
 ] as const;
 
+// Sort options for want-to-read
+const WANT_TO_READ_SORT_OPTIONS = [
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "shortest", label: "Shortest" },
+  { value: "title", label: "Title" },
+] as const;
+
+// Sort options for finished books
+const FINISHED_SORT_OPTIONS = [
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "title", label: "Title" },
+  { value: "shortest", label: "Shortest" },
+] as const;
+
+// Sort options for DNF books
+const DNF_SORT_OPTIONS = [
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "title", label: "Title" },
+  { value: "shortest", label: "Shortest" },
+] as const;
+
+// Sort options for up-next (though it's primarily drag-and-drop ordered)
+const UP_NEXT_SORT_OPTIONS = [
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
+  { value: "shortest", label: "Shortest" },
+  { value: "title", label: "Title" },
+] as const;
+
+// Sort options for paused books
+const PAUSED_SORT_OPTIONS = [
+  { value: "progress", label: "Progress" },
+  { value: "neglected", label: "Neglected" },
+  { value: "added", label: "Recently Added" },
+  { value: "title", label: "Title" },
+] as const;
+
+function getSortOptionsForShelf(
+  shelfType?: ShelfType
+): readonly { value: string; label: string }[] {
+  switch (shelfType) {
+    case "currently-reading":
+      return CURRENTLY_READING_SORT_OPTIONS;
+    case "want-to-read":
+      return WANT_TO_READ_SORT_OPTIONS;
+    case "finished":
+      return FINISHED_SORT_OPTIONS;
+    case "did-not-finish":
+      return DNF_SORT_OPTIONS;
+    case "up-next":
+      return UP_NEXT_SORT_OPTIONS;
+    case "paused":
+      return PAUSED_SORT_OPTIONS;
+    default:
+      return CURRENTLY_READING_SORT_OPTIONS;
+  }
+}
+
 export function ShelfHeader({
   shelfName,
   bookCount,
+  shelfType,
   onSortChange,
   onViewChange: _onViewChange,
   currentSort = "progress",
-  sortOptions = DEFAULT_SORT_OPTIONS,
+  sortOptions,
   onYearChange,
   currentYear,
   onShareYear,
   isPremium = false,
 }: ShelfHeaderProps) {
+  // Use provided sortOptions or determine from shelfType
+  const effectiveSortOptions = sortOptions || getSortOptionsForShelf(shelfType);
   const [showYearDropdown, setShowYearDropdown] = useState(false);
   const yearDropdownRef = useRef<HTMLDivElement>(null);
   const currentYearValue = new Date().getFullYear();
@@ -85,7 +160,8 @@ export function ShelfHeader({
 
     if (showYearDropdown) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showYearDropdown]);
 
@@ -171,14 +247,14 @@ export function ShelfHeader({
             )}
 
             {/* Sort by label - on top for mobile */}
-            {sortOptions.length > 0 && (
+            {effectiveSortOptions.length > 0 && shelfType !== "up-next" && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
                   Sort by:
                 </span>
                 {/* Filters in 2x2 grid on mobile, horizontal on desktop */}
                 <div className="grid grid-cols-2 sm:flex gap-1 bg-muted rounded-lg p-1 w-full sm:w-auto">
-                  {sortOptions.map((option) => {
+                  {effectiveSortOptions.map((option) => {
                     const isActive = currentSort === option.value;
                     return (
                       <Button

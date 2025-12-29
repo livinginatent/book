@@ -99,7 +99,7 @@ function getAvailableStatusActions(
   // Define valid transitions from each status
   const validTransitions: Record<ReadingStatus, BookStatus[]> = {
     want_to_read: ["currently_reading", "up_next", "dnf"],
-    currently_reading: ["finished", "paused", "dnf"],
+    currently_reading: ["finished", "paused", "dnf", "up_next"],
     finished: [], // Finished books have no status transitions
     paused: ["currently_reading", "finished", "dnf"],
     dnf: ["currently_reading", "want_to_read"], // Can resume a DNF book

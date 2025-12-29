@@ -76,14 +76,6 @@ export default function WantToReadShelfPage() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Sort options for want-to-read shelf
-  const wantToReadSortOptions = [
-    { value: "newest", label: "Newest" },
-    { value: "oldest", label: "Oldest" },
-    { value: "shortest", label: "Shortest" },
-    { value: "title", label: "Title" },
-  ];
-
   // Fetch want-to-read books from the database
   useEffect(() => {
     let isMounted = true;
@@ -242,9 +234,9 @@ export default function WantToReadShelfPage() {
       <ShelfHeader
         shelfName="Want to Read"
         bookCount={books.length}
+        shelfType="want-to-read"
         onSortChange={setSortBy}
         currentSort={sortBy}
-        sortOptions={wantToReadSortOptions}
       />
 
       {/* Main Content */}

@@ -187,21 +187,15 @@ export default function ReadShelfPage() {
     );
   }
 
-  const sortOptions = [
-    { value: "newest", label: "Newest" },
-    { value: "oldest", label: "Oldest" },
-    { value: "title", label: "Title" },
-    { value: "shortest", label: "Shortest" },
-  ] as const;
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <ShelfHeader
         shelfName="Finished"
         bookCount={books.length}
+        shelfType="finished"
         onSortChange={setSortBy}
         currentSort={sortBy}
-        sortOptions={sortOptions}
         onYearChange={setSelectedYear}
         currentYear={selectedYear}
         onShareYear={handleShareYear}
