@@ -18,9 +18,16 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Calendar, Play, Trash2, X } from "lucide-react";
+import {
+  GripVertical,
+  Calendar,
+  Play,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import Image from "next/image";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -50,6 +57,11 @@ interface SortableBookRowProps {
   rank: number;
   estimatedStartDate: Date | null;
   onRemove?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  isMobile: boolean;
 }
 
 function SortableBookRow({
@@ -57,6 +69,11 @@ function SortableBookRow({
   rank,
   estimatedStartDate,
   onRemove,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+  isMobile,
 }: SortableBookRowProps) {
   const {
     attributes,
@@ -65,7 +82,7 @@ function SortableBookRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: book.id });
+  } = useSortable({ id: book.id, disabled: isMobile });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -111,13 +128,51 @@ function SortableBookRow({
         isDragging && "shadow-lg"
       )}
     >
+      {/* Desktop: Drag Handle */}
       <div
         {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
+        {...(!isMobile ? listeners : {})}
+        className={cn(
+          "hidden md:block cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors",
+          isMobile && "cursor-default"
+        )}
       >
         <GripVertical className="w-5 h-5" />
       </div>
+
+      {/* Mobile: Up/Down Buttons */}
+      {isMobile && (
+        <div className="flex flex-col gap-1 md:hidden">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveUp?.();
+            }}
+            disabled={!canMoveUp}
+            className={cn(
+              "p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
+              !canMoveUp && "opacity-30 cursor-not-allowed"
+            )}
+            aria-label="Move up"
+          >
+            <ChevronUp className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveDown?.();
+            }}
+            disabled={!canMoveDown}
+            className={cn(
+              "p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
+              !canMoveDown && "opacity-30 cursor-not-allowed"
+            )}
+            aria-label="Move down"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className="flex-shrink-0 w-12 h-12 rounded-md bg-muted flex items-center justify-center font-bold text-lg">
@@ -176,6 +231,9 @@ interface HeroCardProps {
   onStartReading: () => Promise<void>;
   onRemove?: () => void;
   isDragging?: boolean;
+  onMoveDown?: () => void;
+  canMoveDown: boolean;
+  isMobile: boolean;
 }
 
 function HeroCard({
@@ -184,6 +242,9 @@ function HeroCard({
   onStartReading,
   onRemove,
   isDragging = false,
+  onMoveDown,
+  canMoveDown,
+  isMobile,
 }: HeroCardProps) {
   const formatDate = (date: Date | null) => {
     if (!date) return "Today";
@@ -223,13 +284,13 @@ function HeroCard({
     >
       <div className="flex flex-col md:flex-row gap-6 p-6 md:p-8">
         {/* Cover Image */}
-        <div className="relative w-full md:w-48 h-72 md:h-80 rounded-xl overflow-hidden shadow-xl flex-shrink-0">
+        <div className="relative w-32 h-48 md:w-48 md:h-80 rounded-xl overflow-hidden shadow-xl flex-shrink-0 mx-auto md:mx-0 bg-muted">
           <Image
             src={book.cover || "/placeholder.svg"}
             alt={`Cover for ${book.title}`}
             fill
-            sizes="(max-width: 768px) 100vw, 192px"
-            className="object-cover"
+            sizes="(max-width: 768px) 128px, 192px"
+            className="object-contain"
             priority
           />
         </div>
@@ -255,7 +316,7 @@ function HeroCard({
             </div>
           </div>
 
-          <div className="mt-6 flex items-center gap-3">
+          <div className="mt-6 flex items-center gap-3 flex-wrap">
             <Button
               onClick={onStartReading}
               size="lg"
@@ -264,6 +325,22 @@ function HeroCard({
               <Play className="w-5 h-5" />
               Start Reading Now
             </Button>
+            {isMobile && onMoveDown && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveDown();
+                }}
+                disabled={!canMoveDown}
+                variant="outline"
+                size="lg"
+                className="gap-2"
+                aria-label="Move down in queue"
+              >
+                <ChevronDown className="w-4 h-4" />
+                <span className="hidden sm:inline">Move Down</span>
+              </Button>
+            )}
             {onRemove && (
               <Button
                 onClick={(e) => {
@@ -292,8 +369,24 @@ export function UpNextBookGrid({
   onReorder,
   onRemove,
 }: UpNextBookGridProps) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -330,6 +423,8 @@ export function UpNextBookGrid({
   }, [books, dailyReadingGoal]);
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (isMobile) return; // Disable drag on mobile
+
     const { active, over } = event;
 
     if (!over || active.id === over.id) {
@@ -348,6 +443,26 @@ export function UpNextBookGrid({
     const bookIds = reorderedBooks.map((b) => b.id);
 
     // Update order in database
+    await onReorder(bookIds);
+  };
+
+  const handleMoveUp = async (bookId: string) => {
+    const currentIndex = books.findIndex((b) => b.id === bookId);
+    if (currentIndex <= 0) return; // Can't move up if already at top
+
+    const newIndex = currentIndex - 1;
+    const reorderedBooks = arrayMove(books, currentIndex, newIndex);
+    const bookIds = reorderedBooks.map((b) => b.id);
+    await onReorder(bookIds);
+  };
+
+  const handleMoveDown = async (bookId: string) => {
+    const currentIndex = books.findIndex((b) => b.id === bookId);
+    if (currentIndex < 0 || currentIndex >= books.length - 1) return; // Can't move down if already at bottom
+
+    const newIndex = currentIndex + 1;
+    const reorderedBooks = arrayMove(books, currentIndex, newIndex);
+    const bookIds = reorderedBooks.map((b) => b.id);
     await onReorder(bookIds);
   };
 
@@ -384,7 +499,7 @@ export function UpNextBookGrid({
 
   return (
     <DndContext
-      sensors={sensors}
+      sensors={isMobile ? [] : sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
@@ -396,12 +511,19 @@ export function UpNextBookGrid({
           {/* Hero Card for #1 Book */}
           {heroBook && heroBookData && (
             <HeroDropZone>
-              <SortableHeroCardWrapper bookId={heroBook.id}>
+              <SortableHeroCardWrapper bookId={heroBook.id} isMobile={isMobile}>
                 <HeroCard
                   book={heroBook}
                   estimatedStartDate={heroBookData.estimatedStartDate}
                   onStartReading={() => onStartReading(heroBook.id)}
                   onRemove={onRemove ? () => onRemove(heroBook.id) : undefined}
+                  onMoveDown={
+                    remainingBooks.length > 0
+                      ? () => handleMoveDown(heroBook.id)
+                      : undefined
+                  }
+                  canMoveDown={remainingBooks.length > 0}
+                  isMobile={isMobile}
                 />
               </SortableHeroCardWrapper>
             </HeroDropZone>
@@ -414,11 +536,14 @@ export function UpNextBookGrid({
                 Upcoming Books
               </h3>
               <h4 className="text-sm text-muted-foreground">
-                Drag and drop to reorder your books.
+                {isMobile
+                  ? "Use the up/down buttons to reorder your books."
+                  : "Drag and drop to reorder your books."}
               </h4>
               <div className="space-y-2">
                 {remainingBooks.map((book, index) => {
                   const bookData = booksWithDates[index + 1];
+                  const actualIndex = index + 1; // +1 because hero is at index 0
                   return (
                     <SortableBookRow
                       key={book.id}
@@ -426,6 +551,11 @@ export function UpNextBookGrid({
                       rank={index + 2}
                       estimatedStartDate={bookData?.estimatedStartDate || null}
                       onRemove={onRemove ? () => onRemove(book.id) : undefined}
+                      onMoveUp={() => handleMoveUp(book.id)}
+                      onMoveDown={() => handleMoveDown(book.id)}
+                      canMoveUp={actualIndex > 0}
+                      canMoveDown={actualIndex < books.length - 1}
+                      isMobile={isMobile}
                     />
                   );
                 })}
@@ -442,12 +572,15 @@ export function UpNextBookGrid({
 function SortableHeroCardWrapper({
   bookId,
   children,
+  isMobile,
 }: {
   bookId: string;
   children: React.ReactNode;
+  isMobile: boolean;
 }) {
   const { setNodeRef, transform, transition } = useSortable({
     id: bookId,
+    disabled: isMobile,
   });
 
   const style = {
