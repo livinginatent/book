@@ -13,7 +13,10 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 
 import { BookCard } from "@/components/ui/book/book-card";
-import type { BookStatus } from "@/components/ui/book/book-progress-editor";
+import type {
+  BookStatus,
+  BookStatusDates,
+} from "@/components/ui/book/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import { cn } from "@/lib/utils";
@@ -30,7 +33,7 @@ interface Book {
 interface CurrentlyReadingProps {
   books: Book[];
   onProgressUpdate?: (bookId: string, pages: number) => void;
-  onStatusChange?: (bookId: string, status: BookStatus, date?: string) => void;
+  onStatusChange?: (bookId: string, status: BookStatus, dates?: BookStatusDates) => void;
   onRemove?: (bookId: string) => void;
 }
 
@@ -176,11 +179,7 @@ export function CurrentlyReading({
                     onProgressUpdate?.(book.id, pages)
                   }
                   onStatusChange={(status, dates) =>
-                    onStatusChange?.(
-                      book.id,
-                      status,
-                      dates?.dateFinished || dates?.dateStarted
-                    )
+                    onStatusChange?.(book.id, status, dates)
                   }
                   onRemove={() => onRemove?.(book.id)}
                   currentStatus="currently_reading"

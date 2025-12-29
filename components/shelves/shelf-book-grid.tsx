@@ -6,7 +6,50 @@ import { useRef } from "react";
 import { ReadingStatus } from "@/types";
 
 import { BookCard } from "../ui/book/book-card";
-import { BookStatus } from "../ui/book/book-progress-editor";
+import { BookStatus, BookStatusDates } from "../ui/book/book-progress-editor";
+
+// Helper function to extract DNF reason from notes
+function extractDNFReason(notes: string | null | undefined): string | null {
+  if (!notes || !notes.trim()) return null;
+
+  const note = notes.toLowerCase().trim();
+
+  // Categorize common reasons
+  if (
+    note.includes("boring") ||
+    note.includes("dull") ||
+    note.includes("slow")
+  ) {
+    return "Too Slow";
+  } else if (
+    note.includes("confusing") ||
+    note.includes("complex") ||
+    note.includes("hard to follow")
+  ) {
+    return "Too Complex";
+  } else if (
+    note.includes("not interested") ||
+    note.includes("lost interest") ||
+    note.includes("not my thing")
+  ) {
+    return "Lost Interest";
+  } else if (
+    note.includes("writing") ||
+    note.includes("prose") ||
+    note.includes("style")
+  ) {
+    return "Writing Style";
+  } else if (note.includes("character") || note.includes("characters")) {
+    return "Characters";
+  } else if (note.includes("plot") || note.includes("story")) {
+    return "Plot Issues";
+  } else if (note.length < 50) {
+    // Short notes - use as-is (capitalize first letter)
+    return note.charAt(0).toUpperCase() + note.slice(1);
+  }
+
+  return "Other";
+}
 
 interface Book {
   id: string;
@@ -19,6 +62,7 @@ interface Book {
   date_added?: string;
   dateFinished?: string | null;
   status?: ReadingStatus;
+  notes?: string | null;
 }
 
 interface ShelfBookGridProps {
@@ -32,9 +76,15 @@ interface ShelfBookGridProps {
     | "newest"
     | "shortest";
   onProgressUpdate?: (bookId: string, pages: number) => void;
-  onStatusChange?: (bookId: string, status: BookStatus) => void;
+  onStatusChange?: (
+    bookId: string,
+    status: BookStatus,
+    dates?: BookStatusDates
+  ) => void;
   onRemove?: (bookId: string, currentStatus: ReadingStatus) => void;
   onMoveToUpNext?: (bookId: string) => void;
+  onRedemption?: (bookId: string) => void;
+  isDNFShelf?: boolean;
 }
 
 export function ShelfBookGrid({
@@ -44,6 +94,8 @@ export function ShelfBookGrid({
   onStatusChange,
   onRemove,
   onMoveToUpNext,
+  onRedemption,
+  isDNFShelf = false,
 }: ShelfBookGridProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -185,6 +237,8 @@ export function ShelfBookGrid({
                 })
               : null;
 
+            const dnfReason = isDNFShelf ? extractDNFReason(book.notes) : null;
+
             return (
               <div key={book.id} className="flex flex-col">
                 <BookCard
@@ -196,13 +250,26 @@ export function ShelfBookGrid({
                   totalPages={book.totalPages}
                   editable
                   isNeglected={isNeglected(book)}
+                  isDNF={isDNFShelf}
+                  dnfReason={dnfReason}
                   onProgressUpdate={(pages) =>
                     onProgressUpdate?.(book.id, pages)
                   }
-                  onStatusChange={(status) => onStatusChange?.(book.id, status)}
+                  onStatusChange={(status, dates) =>
+                    onStatusChange?.(book.id, status, dates)
+                  }
                   onRemove={() => onRemove?.(book.id, book.status!)}
+                  onRedemption={
+                    onRedemption ? () => onRedemption(book.id) : undefined
+                  }
                   currentStatus={book.status}
                 />
+                {/* DNF Reason Display */}
+                {isDNFShelf && dnfReason && (
+                  <div className="mt-2 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800/50">
+                    {dnfReason}
+                  </div>
+                )}
                 {isFinished && formattedDate && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-1 mt-2">
                     <Calendar className="w-3.5 h-3.5" />
@@ -242,6 +309,8 @@ export function ShelfBookGrid({
                 })
               : null;
 
+            const dnfReason = isDNFShelf ? extractDNFReason(book.notes) : null;
+
             return (
               <div
                 key={book.id}
@@ -257,13 +326,26 @@ export function ShelfBookGrid({
                   totalPages={book.totalPages}
                   editable
                   isNeglected={isNeglected(book)}
+                  isDNF={isDNFShelf}
+                  dnfReason={dnfReason}
                   onProgressUpdate={(pages) =>
                     onProgressUpdate?.(book.id, pages)
                   }
-                  onStatusChange={(status) => onStatusChange?.(book.id, status)}
+                  onStatusChange={(status, dates) =>
+                    onStatusChange?.(book.id, status, dates)
+                  }
                   onRemove={() => onRemove?.(book.id, book.status!)}
+                  onRedemption={
+                    onRedemption ? () => onRedemption(book.id) : undefined
+                  }
                   currentStatus={book.status}
                 />
+                {/* DNF Reason Display */}
+                {isDNFShelf && dnfReason && (
+                  <div className="mt-2 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-950/30 text-center rounded-lg border border-red-200 dark:border-red-800/50 w-2/3">
+                    {dnfReason}
+                  </div>
+                )}
                 {isFinished && formattedDate && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground px-1 mt-2">
                     <Calendar className="w-3.5 h-3.5" />

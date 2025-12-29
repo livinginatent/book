@@ -13,7 +13,10 @@ import { getWantToReadBooks } from "@/app/actions/want-to-read";
 import { ShelfBookGrid } from "@/components/shelves/shelf-book-grid";
 import { ShelfHeader } from "@/components/shelves/shelf-header";
 import { ShelfStats } from "@/components/shelves/shelf-stats";
-import type { BookStatus } from "@/components/ui/book/book-progress-editor";
+import type {
+  BookStatus,
+  BookStatusDates,
+} from "@/components/ui/book/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import type { ReadingStatus } from "@/types/database.types";
@@ -152,20 +155,17 @@ export default function WantToReadShelfPage() {
           }));
           setBooks(transformed);
         }
-      } else {
-        toast.success(result.message);
       }
     },
     []
   );
 
   const handleStatusChange = useCallback(
-    async (bookId: string, status: BookStatus) => {
-      const result = await updateBookStatus(bookId, status);
+    async (bookId: string, status: BookStatus, dates?: BookStatusDates) => {
+      const result = await updateBookStatus(bookId, status, dates);
 
       if (!result.success) {
         console.error("Failed to update book status:", result.error);
-        toast.error(result.error);
         // Revert by refetching
         const fetchResult = await getWantToReadBooks();
         if (fetchResult.success) {
@@ -196,7 +196,6 @@ export default function WantToReadShelfPage() {
 
       // Remove from UI when status changes away from want-to-read
       setBooks((prev) => prev.filter((book) => book.id !== bookId));
-      toast.success(result.message);
     },
     [router]
   );

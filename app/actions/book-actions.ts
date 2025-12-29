@@ -192,6 +192,7 @@ export async function removeBookFromReadingList(
 export interface UpdateBookStatusOptions {
   dateStarted?: string | null;
   dateFinished?: string | null;
+  notes?: string | null;
 }
 
 /**
@@ -219,6 +220,7 @@ export async function updateBookStatus(
     // Parse options - support both old signature and new options object
     let dateStarted: string | null | undefined;
     let dateFinished: string | null | undefined;
+    let notes: string | null | undefined;
 
     if (
       typeof dateFinishedOrOptions === "object" &&
@@ -226,6 +228,7 @@ export async function updateBookStatus(
     ) {
       dateStarted = dateFinishedOrOptions.dateStarted;
       dateFinished = dateFinishedOrOptions.dateFinished;
+      notes = dateFinishedOrOptions.notes;
     } else {
       dateFinished = dateFinishedOrOptions;
     }
@@ -251,6 +254,15 @@ export async function updateBookStatus(
     } else if (status === "dnf") {
       // Did not finish - ensure there is no finished date
       updateData.date_finished = null;
+      // Always set notes for DNF status (even if null/undefined)
+      if (notes !== undefined && notes !== null && typeof notes === "string") {
+        // notes is a non-empty string, trim it
+        const trimmed = notes.trim();
+        updateData.notes = trimmed || null;
+      } else {
+        // notes is undefined, null, or empty - set to null
+        updateData.notes = null;
+      }
     }
 
     const { error: updateError } = await supabase

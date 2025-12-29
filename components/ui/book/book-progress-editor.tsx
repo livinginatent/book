@@ -25,6 +25,7 @@ export type BookStatus = ReadingStatus;
 export interface BookStatusDates {
   dateStarted?: string;
   dateFinished?: string;
+  notes?: string | null;
 }
 
 interface BookProgressEditorProps {
@@ -96,11 +97,11 @@ function getAvailableStatusActions(
 
   // Define valid transitions from each status
   const validTransitions: Record<ReadingStatus, BookStatus[]> = {
-    want_to_read: ["currently_reading", "up_next"],
+    want_to_read: ["currently_reading", "up_next", "dnf"],
     currently_reading: ["finished", "paused", "dnf"],
     finished: [], // Finished books have no status transitions
     paused: ["currently_reading", "finished", "dnf"],
-    dnf: ["currently_reading"], // Can resume a DNF book
+    dnf: ["currently_reading", "want_to_read"], // Can resume a DNF book
     up_next: ["currently_reading", "want_to_read"],
   };
 
@@ -124,6 +125,8 @@ export function BookProgressEditor({
   const [mounted, setMounted] = useState(false);
   const [pages, setPages] = useState(currentPages);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showDNFReason, setShowDNFReason] = useState(false);
+  const [dnfReason, setDnfReason] = useState("");
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState("");
   const [finishDate, setFinishDate] = useState(today);
@@ -136,6 +139,8 @@ export function BookProgressEditor({
   useEffect(() => {
     if (!isOpen) {
       setShowDatePicker(false);
+      setShowDNFReason(false);
+      setDnfReason("");
       setStartDate("");
       setFinishDate(new Date().toISOString().split("T")[0]);
     }
@@ -153,6 +158,8 @@ export function BookProgressEditor({
   const handleStatusChange = (status: BookStatus) => {
     if (status === "finished") {
       setShowDatePicker(true);
+    } else if (status === "dnf") {
+      setShowDNFReason(true);
     } else {
       onStatusChange(status);
       onClose();
@@ -191,6 +198,21 @@ export function BookProgressEditor({
     setShowDatePicker(false);
     setStartDate("");
     setFinishDate(today);
+  };
+
+  const handleDNFConfirm = () => {
+    const trimmedReason = dnfReason.trim();
+    const notes = trimmedReason || null;
+    const dates: BookStatusDates = {
+      notes,
+    };
+    onStatusChange("dnf", dates);
+    onClose();
+  };
+
+  const handleDNFCancel = () => {
+    setShowDNFReason(false);
+    setDnfReason("");
   };
 
   if (!isOpen || !mounted) return null;
@@ -339,8 +361,84 @@ export function BookProgressEditor({
           </div>
         )}
 
+        {/* DNF Reason Input */}
+        {showDNFReason && (
+          <div className="p-4 border-t border-border bg-muted/30">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  Why did you stop reading?{" "}
+                  <span className="text-muted-foreground font-normal">
+                    (Optional)
+                  </span>
+                </label>
+
+                {/* Quick Select Reasons */}
+                <div className="mb-3">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Quick select:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "Too Slow",
+                      "Writing Style",
+                      "Lost Interest",
+                      "Too Complex",
+                      "Characters",
+                      "Plot Issues",
+                    ].map((reason) => (
+                      <button
+                        key={reason}
+                        onClick={() => setDnfReason(reason)}
+                        className={cn(
+                          "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
+                          dnfReason === reason
+                            ? "bg-primary/20 text-primary border-primary"
+                            : "bg-background text-foreground border-border hover:bg-muted"
+                        )}
+                      >
+                        {reason}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Textarea */}
+                <textarea
+                  value={dnfReason}
+                  onChange={(e) => setDnfReason(e.target.value)}
+                  placeholder="Or write your own reason..."
+                  className="w-full min-h-[80px] px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  This will help you remember why you stopped if you decide to
+                  try again later.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleDNFConfirm}
+                  size="sm"
+                  className="flex-1 rounded-xl"
+                >
+                  Mark as DNF
+                </Button>
+                <Button
+                  onClick={handleDNFCancel}
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 rounded-xl"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Status Actions */}
-        {!showDatePicker && (
+        {!showDatePicker && !showDNFReason && (
           <div className="p-4 border-t border-border bg-muted/30">
             <p className="text-xs text-muted-foreground mb-3 text-center">
               Or change status

@@ -14,7 +14,10 @@ import { updateReadingProgress } from "@/app/actions/reading-progress";
 import { ShelfBookGrid } from "@/components/shelves/shelf-book-grid";
 import { ShelfHeader } from "@/components/shelves/shelf-header";
 import { ShelfStats } from "@/components/shelves/shelf-stats";
-import type { BookStatus } from "@/components/ui/book/book-progress-editor";
+import type {
+  BookStatus,
+  BookStatusDates,
+} from "@/components/ui/book/book-progress-editor";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import type { ReadingStatus } from "@/types/database.types";
 
@@ -209,8 +212,8 @@ export default function CurrentlyReadingShelfPage() {
   );
 
   const handleStatusChange = useCallback(
-    async (bookId: string, status: BookStatus) => {
-      const result = await updateBookStatus(bookId, status);
+    async (bookId: string, status: BookStatus, dates?: BookStatusDates) => {
+      const result = await updateBookStatus(bookId, status, dates);
 
       if (!result.success) {
         console.error("Failed to update book status:", result.error);

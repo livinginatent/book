@@ -22,7 +22,10 @@ import { MoodTracker } from "@/components/dashboard/mood-tracker";
 import { PrivateShelves } from "@/components/dashboard/private-shelves";
 import { ReadingStats } from "@/components/dashboard/reading-stats";
 import { BookSearch } from "@/components/search/book-search";
-import type { BookStatus } from "@/components/ui/book/book-progress-editor";
+import type {
+  BookStatus,
+  BookStatusDates,
+} from "@/components/ui/book/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ReadingStatus } from "@/types/database.types";
@@ -221,8 +224,8 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
 
   // Handle status change - optimistic UI
   const handleStatusChange = useCallback(
-    async (bookId: string, status: BookStatus, date?: string) => {
-      const result = await updateBookStatus(bookId, status, date);
+    async (bookId: string, status: BookStatus, dates?: BookStatusDates) => {
+      const result = await updateBookStatus(bookId, status, dates);
       if (!result.success) {
         console.error("Failed to update book status:", result.error);
         const refreshResult = await refreshCurrentlyReading();

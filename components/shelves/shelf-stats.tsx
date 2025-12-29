@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Zap,
   TrendingUp,
@@ -6,8 +8,16 @@ import {
   Target,
   Star,
   Tag,
+  Clock,
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 
 interface Book {
@@ -15,23 +25,166 @@ interface Book {
   totalPages: number;
   rating?: number | null;
   subjects?: string[] | null;
+  notes?: string | null;
 }
 
 interface ShelfStatsProps {
   books: Book[];
   totalPagesLeft?: number;
-  variant?: "currently-reading" | "want-to-read" | "read";
+  variant?: "currently-reading" | "want-to-read" | "read" | "dnf";
+  totalPagesSaved?: number;
+  reasonDistribution?: [string, number][];
 }
 
 export function ShelfStats({
   books,
   totalPagesLeft = 0,
   variant = "currently-reading",
+  totalPagesSaved = 0,
+  reasonDistribution = [],
 }: ShelfStatsProps) {
   const totalPages = books.reduce((sum, book) => sum + book.totalPages, 0);
   const totalPagesRead = books.reduce((sum, book) => sum + book.pagesRead, 0);
   const avgProgress =
     books.length > 0 ? Math.round((totalPagesRead / totalPages) * 100) : 0;
+
+  if (variant === "dnf") {
+    // Default reasons we offer
+    const defaultReasons = [
+      "Too Slow",
+      "Writing Style",
+      "Lost Interest",
+      "Too Complex",
+      "Characters",
+      "Plot Issues",
+    ];
+
+    // Group reasons: default reasons vs personal reasons
+    const chartData: { reason: string; count: number }[] = [];
+    const defaultReasonMap = new Map<string, number>();
+    let personalReasonCount = 0;
+
+    reasonDistribution.forEach(([reason, count]) => {
+      if (defaultReasons.includes(reason)) {
+        defaultReasonMap.set(reason, count);
+      } else {
+        personalReasonCount += count;
+      }
+    });
+
+    // Add default reasons in order
+    defaultReasons.forEach((reason) => {
+      const count = defaultReasonMap.get(reason) || 0;
+      if (count > 0) {
+        chartData.push({ reason, count });
+      }
+    });
+
+    // Add personal reasons if any
+    if (personalReasonCount > 0) {
+      chartData.push({ reason: "Personal Reason", count: personalReasonCount });
+    }
+
+    const chartConfig: ChartConfig = {
+      count: {
+        label: "Books",
+        color: "hsl(var(--chart-1))",
+      },
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <DashboardCard title="Total Pages Saved" className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">
+                  Total Pages Saved
+                </p>
+                <p className="text-2xl font-bold text-foreground">
+                  {totalPagesSaved.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pages reclaimed
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <Clock className="w-4 h-4" />
+              </div>
+            </div>
+          </DashboardCard>
+
+          <DashboardCard title="Total Books" className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">
+                  Total Books
+                </p>
+                <p className="text-2xl font-bold text-foreground">
+                  {books.length}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Did not finish
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <BookOpen className="w-4 h-4" />
+              </div>
+            </div>
+          </DashboardCard>
+        </div>
+
+        {chartData.length > 0 && (
+          <DashboardCard title="Reason Distribution" className="p-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                <p className="text-xs font-medium text-muted-foreground">
+                  Most Common Reasons
+                </p>
+              </div>
+              <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 5, right: 10, left: 5, bottom: 5 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    className="stroke-muted"
+                  />
+                  <XAxis
+                    dataKey="reason"
+                    tick={{ fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
+                    className="text-xs"
+                  />
+                  <YAxis
+                    dataKey="count"
+                    tick={{ fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
+                    className="text-xs"
+                  />
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent />}
+                  />
+                  <Bar
+                    dataKey="count"
+                    fill="hsl(var(--primary))"
+                    radius={[4, 4, 0, 0]}
+                    barSize={40}
+                  />
+                </BarChart>
+              </ChartContainer>
+            </div>
+          </DashboardCard>
+        )}
+      </div>
+    );
+  }
 
   if (variant === "read") {
     // Calculate average rating
