@@ -27,8 +27,8 @@ import {
   deleteReadingGoal,
 } from "@/app/actions/reading-goals";
 import { Button } from "@/components/ui/button";
-import { useProfile } from "@/hooks/use-profile";
 import { Card, CardContent } from "@/components/ui/card";
+import { useProfile } from "@/hooks/use-profile";
 import { componentGoalToDbGoal } from "@/lib/goal-wizard/goal-converters";
 import { cn } from "@/lib/utils";
 import type { ReadingGoal, UserPlan } from "@/types/user.type";
@@ -38,11 +38,19 @@ import { ReadingGoalWidget } from "./reading-goal-widget";
 
 // Toast notifications - can be replaced with your preferred toast library
 const toast = {
-  success: (message: string) => {
-    console.log("Success:", message);
+  success: (_message: string) => {
+    // Success toast placeholder - integrate with toast library
   },
   error: (message: string) => console.error("Error:", message),
 };
+
+interface InitialGoalsData {
+  activeGoals: ReadingGoal[];
+  achievedGoals: ReadingGoal[];
+  canCreate: boolean;
+  currentCount: number;
+  limit: number;
+}
 
 interface ReadingGoalsContainerProps {
   className?: string;
@@ -52,6 +60,7 @@ interface ReadingGoalsContainerProps {
     username?: string | null;
     email?: string | null;
   } | null;
+  initialGoals?: InitialGoalsData;
 }
 
 // Memoized components
@@ -98,6 +107,7 @@ const CreateGoalCard = memo(CreateGoalCardComponent);
 function ReadingGoalsContainerComponent({
   className,
   initialProfile,
+  initialGoals,
 }: ReadingGoalsContainerProps) {
   // Use the profile hook as fallback, but prefer initialProfile for immediate data
   const {
@@ -114,11 +124,22 @@ function ReadingGoalsContainerComponent({
     : contextIsPremium;
 
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [goals, setGoals] = useState<ReadingGoal[]>([]);
-  const [achievedGoals, setAchievedGoals] = useState<ReadingGoal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [canCreate, setCanCreate] = useState(false);
-  const [goalLimit, setGoalLimit] = useState({ current: 0, limit: 3 });
+  // Initialize with server-fetched data if available
+  const [goals, setGoals] = useState<ReadingGoal[]>(
+    () => initialGoals?.activeGoals || []
+  );
+  const [achievedGoals, setAchievedGoals] = useState<ReadingGoal[]>(
+    () => initialGoals?.achievedGoals || []
+  );
+  // If we have initialGoals, we're not loading
+  const [loading, setLoading] = useState(!initialGoals);
+  const [canCreate, setCanCreate] = useState(
+    () => initialGoals?.canCreate ?? false
+  );
+  const [goalLimit, setGoalLimit] = useState(() => ({
+    current: initialGoals?.currentCount ?? 0,
+    limit: initialGoals?.limit ?? 3,
+  }));
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isAchievedCollapsed, setIsAchievedCollapsed] = useState(true);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -173,12 +194,22 @@ function ReadingGoalsContainerComponent({
 
   // Track if we've done initial fetch for current user
   const lastFetchedUserRef = useRef<string | null>(null);
+  // Track if we already have initial data from server
+  const hasInitialDataRef = useRef(!!initialGoals);
 
   // Fetch all active goals when profile becomes available
+  // Skip if we already have initial data from server
   useEffect(() => {
     isMountedRef.current = true;
 
     async function fetchData() {
+      // Skip fetch if we have server-provided initial data
+      if (hasInitialDataRef.current) {
+        hasInitialDataRef.current = false; // Only skip once
+        lastFetchedUserRef.current = profileId || null;
+        return;
+      }
+
       // Only fetch if we have a profile ID
       if (profileId) {
         // Only fetch if this is a new user (different from last fetched)

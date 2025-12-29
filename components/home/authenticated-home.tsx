@@ -11,6 +11,7 @@ import {
 import type {
   DashboardData,
   BookWithProgress,
+  GoalsData,
 } from "@/app/actions/dashboard-data";
 import { refreshCurrentlyReading } from "@/app/actions/dashboard-data";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
@@ -88,6 +89,7 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
     currentlyReading,
     stats: initialStats,
     shelves: initialShelves,
+    goals: initialGoals,
   } = initialData;
 
   // Derive auth info from pre-fetched data
@@ -320,7 +322,10 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
             </div>
 
             {/* Reading Goals */}
-            <MemoizedReadingGoalsContainer initialProfile={profile} />
+            <MemoizedReadingGoalsContainer 
+              initialProfile={profile} 
+              initialGoals={initialGoals}
+            />
 
             {/* Goodreads Import - Collapsible Section */}
             {!profile?.has_imported_from_goodreads && (

@@ -5,7 +5,9 @@ import { cache } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 import { createTimer } from "@/lib/utils/perf";
-import type { ReadingStatus, Profile, ReadingProgress, Book, UserBook } from "@/types/database.types";
+import { dbGoalToComponentGoal } from "@/lib/goal-wizard/goal-converters";
+import type { ReadingStatus, Profile, ReadingProgress, Book, UserBook, ReadingGoal as DBReadingGoal, GoalType } from "@/types/database.types";
+import type { ReadingGoal } from "@/types/user.type";
 
 // ============================================================================
 // Types
@@ -31,6 +33,14 @@ export interface ReadingStatsData {
   avgPagesPerDay: number;
 }
 
+export interface GoalsData {
+  activeGoals: ReadingGoal[];
+  achievedGoals: ReadingGoal[];
+  canCreate: boolean;
+  currentCount: number;
+  limit: number;
+}
+
 export interface DashboardData {
   success: true;
   user: {
@@ -44,6 +54,7 @@ export interface DashboardData {
     default: ShelfData[];
     custom: ShelfData[];
   };
+  goals: GoalsData;
   timing: {
     total: number;
     auth: number;
@@ -98,6 +109,7 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
       shelvesResult,
       finishedBooksResult,
       sessionsResult,
+      goalsResult,
     ] = await Promise.all([
       // 1. Profile
       supabase
@@ -123,7 +135,7 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
       // 4. Finished books this year (for stats)
       supabase
         .from("user_books")
-        .select("id")
+        .select("id, book_id, date_finished")
         .eq("user_id", user.id)
         .eq("status", "finished")
         .gte("date_finished", `${new Date().getFullYear()}-01-01`),
@@ -135,6 +147,13 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
         .eq("user_id", user.id)
         .order("session_date", { ascending: false })
         .limit(365), // Last year max
+      
+      // 6. Reading goals (all of them - we'll filter by status in memory)
+      supabase
+        .from("reading_goals")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
     ]);
     
     const queryTime = queryTimer.end();
@@ -145,6 +164,7 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
     const shelves = shelvesResult.data || [];
     const finishedBooks = finishedBooksResult.data || [];
     const sessions = sessionsResult.data || [];
+    const allGoals = (goalsResult.data || []) as DBReadingGoal[];
 
     // ========================================================================
     // Step 3: Get books and progress for currently reading
@@ -276,6 +296,149 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
       }
     }
 
+    // ========================================================================
+    // Step 6: Process reading goals with progress calculation
+    // ========================================================================
+    const FREE_TIER_GOAL_LIMIT = 3;
+    const PREMIUM_TIER_GOAL_LIMIT = 12;
+    const subscriptionTier = profile?.subscription_tier as "free" | "bibliophile" | undefined;
+    const goalLimit = subscriptionTier === "bibliophile" ? PREMIUM_TIER_GOAL_LIMIT : FREE_TIER_GOAL_LIMIT;
+    
+    // Filter active and achieved goals
+    const activeDbGoals = allGoals.filter((g) => {
+      const status = (g as { status?: string }).status;
+      return g.is_active && (!status || status === "active");
+    });
+    
+    const achievedDbGoals = allGoals.filter((g) => {
+      const status = (g as { status?: string }).status;
+      return status === "completed";
+    });
+
+    // Calculate progress for goals using finished books we already fetched
+    const currentYear = new Date().getFullYear();
+    const finishedBooksThisYear = finishedBooks.filter((fb) => {
+      if (!fb.date_finished) return false;
+      const year = new Date(fb.date_finished).getFullYear();
+      return year === currentYear;
+    });
+
+    // We need book details for pages/diversity goals
+    let bookDetailsMap: Map<string, { page_count: number | null; subjects: string[] | null }> = new Map();
+    const needsBookDetails = allGoals.some((g) => g.type === "pages" || g.type === "diversity");
+    
+    if (needsBookDetails && finishedBooksThisYear.length > 0) {
+      const bookIds = finishedBooksThisYear.map((fb) => fb.book_id);
+      const { data: booksData } = await supabase
+        .from("books")
+        .select("id, page_count, subjects")
+        .in("id", bookIds);
+      
+      if (booksData) {
+        bookDetailsMap = new Map(booksData.map((b) => [b.id, { page_count: b.page_count, subjects: b.subjects }]));
+      }
+    }
+
+    // Helper to calculate goal progress
+    function calculateGoalProgress(goal: DBReadingGoal): number {
+      const config = (goal.config as Record<string, unknown>) || {};
+      const goalYear = (config.year as number) || currentYear;
+      
+      // Get date range for this goal
+      let dateStart: string;
+      let dateEnd: string;
+      
+      if (goal.type === "books") {
+        const periodMonths = config.period_months as number | undefined;
+        const startDateStr = config.start_date as string | undefined;
+        const endDateStr = config.end_date as string | undefined;
+
+        if (startDateStr && endDateStr) {
+          dateStart = new Date(startDateStr).toISOString().split("T")[0];
+          dateEnd = new Date(endDateStr).toISOString().split("T")[0];
+        } else if (periodMonths && startDateStr) {
+          dateStart = new Date(startDateStr).toISOString().split("T")[0];
+          const startDate = new Date(startDateStr);
+          const endDate = new Date(startDate);
+          endDate.setMonth(endDate.getMonth() + periodMonths);
+          dateEnd = endDate.toISOString().split("T")[0];
+        } else if (periodMonths) {
+          const now = new Date();
+          dateStart = now.toISOString().split("T")[0];
+          const endDate = new Date(now);
+          endDate.setMonth(endDate.getMonth() + periodMonths);
+          dateEnd = endDate.toISOString().split("T")[0];
+        } else {
+          dateStart = new Date(goalYear, 0, 1).toISOString().split("T")[0];
+          dateEnd = new Date(goalYear, 11, 31).toISOString().split("T")[0];
+        }
+      } else {
+        dateStart = new Date(goalYear, 0, 1).toISOString().split("T")[0];
+        dateEnd = new Date(goalYear, 11, 31).toISOString().split("T")[0];
+      }
+
+      // Filter books to this goal's date range
+      const booksInRange = finishedBooksThisYear.filter((fb) => {
+        if (!fb.date_finished) return false;
+        const dateOnly = fb.date_finished.split("T")[0];
+        return dateOnly >= dateStart && dateOnly <= dateEnd;
+      });
+
+      switch (goal.type) {
+        case "books":
+          return booksInRange.length;
+
+        case "pages":
+          return booksInRange.reduce((sum, fb) => {
+            const bookInfo = bookDetailsMap.get(fb.book_id);
+            return sum + (bookInfo?.page_count || 0);
+          }, 0);
+
+        case "diversity": {
+          const selectedGenres = (config.genres as string[]) || [];
+          const allGenres = new Set<string>();
+          booksInRange.forEach((fb) => {
+            const bookInfo = bookDetailsMap.get(fb.book_id);
+            (bookInfo?.subjects || []).forEach((genre: string) => {
+              if (selectedGenres.length === 0 || selectedGenres.includes(genre)) {
+                allGenres.add(genre);
+              }
+            });
+          });
+          return allGenres.size;
+        }
+
+        case "consistency": {
+          const uniqueDays = new Set<string>();
+          booksInRange.forEach((fb) => {
+            if (fb.date_finished) {
+              uniqueDays.add(fb.date_finished.split("T")[0]);
+            }
+          });
+          return uniqueDays.size;
+        }
+
+        default:
+          return 0;
+      }
+    }
+
+    // Convert goals to component format with calculated progress
+    const activeGoals: ReadingGoal[] = activeDbGoals.map((goal) => {
+      const componentGoal = dbGoalToComponentGoal(goal);
+      componentGoal.current = calculateGoalProgress(goal);
+      return componentGoal;
+    });
+
+    const achievedGoals: ReadingGoal[] = achievedDbGoals.map((goal) => {
+      const componentGoal = dbGoalToComponentGoal(goal);
+      componentGoal.current = calculateGoalProgress(goal);
+      return componentGoal;
+    });
+
+    const activeGoalCount = activeDbGoals.length;
+    const canCreateGoal = activeGoalCount < goalLimit;
+
     const totalTime = totalTimer.end();
 
     return {
@@ -295,6 +458,13 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
       shelves: {
         default: defaultShelves,
         custom: customShelves,
+      },
+      goals: {
+        activeGoals,
+        achievedGoals,
+        canCreate: canCreateGoal,
+        currentCount: activeGoalCount,
+        limit: goalLimit,
       },
       timing: {
         total: totalTime,
