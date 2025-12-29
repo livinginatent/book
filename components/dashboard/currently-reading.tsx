@@ -8,7 +8,6 @@ import {
   ChevronUp,
   Plus,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
 
@@ -33,7 +32,11 @@ interface Book {
 interface CurrentlyReadingProps {
   books: Book[];
   onProgressUpdate?: (bookId: string, pages: number) => void;
-  onStatusChange?: (bookId: string, status: BookStatus, dates?: BookStatusDates) => void;
+  onStatusChange?: (
+    bookId: string,
+    status: BookStatus,
+    dates?: BookStatusDates
+  ) => void;
   onRemove?: (bookId: string) => void;
 }
 
@@ -106,39 +109,22 @@ export function CurrentlyReading({
         <div className="lg:hidden">
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
             {visibleBooksMobile.map((book) => (
-              <Link
+              <BookCard
                 key={book.id}
-                href={`/currently-reading/${book.id}`}
-                className="flex flex-col"
-              >
-                <div className="relative aspect-[2/3] rounded-lg overflow-hidden shadow-md mb-2">
-                  <Image
-                    src={book.cover || "/placeholder.svg"}
-                    alt={`${book.title} by ${book.author}`}
-                    fill
-                    sizes="(max-width: 640px) 33vw, 25vw"
-                    className="object-cover"
-                  />
-                  {book.totalPages > 0 && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-background/50">
-                      <div
-                        className="h-full bg-primary transition-all"
-                        style={{
-                          width: `${Math.round(
-                            (book.pagesRead / book.totalPages) * 100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-                <h4 className="text-xs font-medium text-foreground line-clamp-2 leading-tight mb-0.5">
-                  {book.title}
-                </h4>
-                <p className="text-[10px] text-muted-foreground line-clamp-1">
-                  {book.author}
-                </p>
-              </Link>
+                title={book.title}
+                author={book.author}
+                cover={book.cover}
+                pagesRead={book.pagesRead}
+                totalPages={book.totalPages}
+                editable
+                onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
+                onStatusChange={(status, dates) =>
+                  onStatusChange?.(book.id, status, dates)
+                }
+                onRemove={() => onRemove?.(book.id)}
+                currentStatus="currently_reading"
+                className="w-full"
+              />
             ))}
           </div>
           {hasMoreBooks && !showAllMobile && (

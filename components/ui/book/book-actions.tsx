@@ -13,6 +13,7 @@ import {
 import { useState, useRef, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
+import { DNFReasonInput } from "@/components/ui/book/dnf-reason-input";
 import { cn } from "@/lib/utils";
 
 // Hook to check if we're on the client (for portal rendering)
@@ -33,7 +34,7 @@ export type BookAction =
   | "finished";
 
 interface BookActionMenuProps {
-  onAction: (action: BookAction) => void;
+  onAction: (action: BookAction, reason?: string | null) => void;
   className?: string;
 }
 
@@ -88,6 +89,7 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeAction, setActiveAction] = useState<BookAction | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [showDNFDialog, setShowDNFDialog] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isClient = useIsClient();
 
@@ -130,8 +132,22 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
   }, [isOpen]);
 
   const handleAction = (action: BookAction) => {
-    onAction(action);
-    setIsOpen(false);
+    if (action === "did-not-finish") {
+      setIsOpen(false);
+      setShowDNFDialog(true);
+    } else {
+      onAction(action);
+      setIsOpen(false);
+    }
+  };
+
+  const handleDNFConfirm = (reason: string | null) => {
+    onAction("did-not-finish", reason);
+    setShowDNFDialog(false);
+  };
+
+  const handleDNFCancel = () => {
+    setShowDNFDialog(false);
   };
 
   return (
@@ -222,6 +238,48 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
               })}
             </div>
           </>,
+          document.body
+        )}
+
+      {/* DNF Reason Dialog */}
+      {showDNFDialog &&
+        isClient &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleDNFCancel();
+              }
+            }}
+          >
+            <div
+              className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl animate-in fade-in-50 zoom-in-95 duration-200 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <BookX className="w-4 h-4 text-primary" />
+                  <span>Mark as Did Not Finish</span>
+                </div>
+                <button
+                  onClick={handleDNFCancel}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+
+              {/* DNF Reason Input */}
+              <DNFReasonInput
+                onConfirm={handleDNFConfirm}
+                onCancel={handleDNFCancel}
+                className="border-t-0"
+              />
+            </div>
+          </div>,
           document.body
         )}
 

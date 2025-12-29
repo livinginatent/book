@@ -84,7 +84,7 @@ export function BookCard({
       onClick={handleCardClick}
     >
       {/* Book Cover Container */}
-      <div className="relative w-48 h-72 rounded-xl overflow-hidden shadow-lg shadow-foreground/10 mb-3">
+      <div className="relative w-full h-auto aspect-[2/3] md:w-48 md:h-72 rounded-xl overflow-hidden shadow-lg shadow-foreground/10 mb-3">
         {/* Fixed dimensions: 192px × 288px (maintains 2:3 aspect ratio) */}
         <Image
           src={cover || "/placeholder.svg"}
@@ -150,8 +150,8 @@ export function BookCard({
         )}
 
         {editable && !isEditing && (
-          <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center z-10">
-            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-xs font-medium text-background bg-foreground/70 px-2 py-1 rounded-lg">
+          <div className="absolute inset-0 bg-foreground/10 md:bg-foreground/0 md:group-hover:bg-foreground/10 transition-colors flex items-center justify-center z-10">
+            <span className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-xs font-medium text-background bg-foreground/70 px-2 py-1 rounded-lg">
               Tap to edit
             </span>
           </div>
@@ -172,11 +172,13 @@ export function BookCard({
       </div>
 
       {/* Book Info */}
-      <h4 className="font-semibold text-foreground line-clamp-2 leading-tight mb-1">
+      <h4 className="text-xs md:text-base font-semibold text-foreground line-clamp-2 leading-tight mb-1">
         {" "}
         {title}
       </h4>
-      <p className="text-sm text-muted-foreground mb-1">{author}</p>
+      <p className="text-[10px] md:text-sm text-muted-foreground mb-1">
+        {author}
+      </p>
 
       {/* Rating */}
       <div className="mt-1 min-h-[18px] flex items-center gap-1">

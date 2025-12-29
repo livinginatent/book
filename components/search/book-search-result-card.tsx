@@ -78,7 +78,7 @@ const mobileActions: Array<{
 interface BookSearchResultCardProps {
   book: Book;
   userBookStatus?: ReadingStatus;
-  onAction?: (action: BookAction, book: Book) => void;
+  onAction?: (action: BookAction, book: Book, reason?: string | null) => void;
   onStatusChange?: (bookId: string, newStatus: ReadingStatus) => void;
 }
 
@@ -191,7 +191,10 @@ export function BookSearchResultCard({
       finished: "finished",
     };
 
-  const handleAction = async (action: MobileActionId | BookAction) => {
+  const handleAction = async (
+    action: MobileActionId | BookAction,
+    reason?: string | null
+  ) => {
     const targetStatus = actionToStatusMap[action];
 
     // Optimistically update status immediately for instant feedback
@@ -244,9 +247,42 @@ export function BookSearchResultCard({
       return;
     }
 
+    // Handle DNF with reason
+    if (action === "did-not-finish") {
+      const addResult = await addBookToReadingList(book.id, "did-not-finish");
+
+      if (addResult.success) {
+        // If there's a reason, update the status with notes
+        if (reason !== undefined && reason !== null) {
+          const updateResult = await updateBookStatus(book.id, "dnf", {
+            notes: reason,
+          });
+
+          if (!updateResult.success) {
+            // Revert on error
+            setOptimisticStatus(undefined);
+            return;
+          }
+        }
+
+        // Notify parent component
+        onStatusChange?.(book.id, "dnf");
+        // Dispatch events
+        window.dispatchEvent(
+          new CustomEvent("book-status-changed", {
+            detail: { bookId: book.id, newStatus: "dnf" },
+          })
+        );
+      } else {
+        // Revert on error
+        setOptimisticStatus(undefined);
+      }
+      return;
+    }
+
     // Handle other actions through the onAction callback
     // The optimistic update is already done above
-    onAction?.(action as BookAction, book);
+    onAction?.(action as BookAction, book, reason);
 
     // Notify about status change
     onStatusChange?.(book.id, targetStatus);

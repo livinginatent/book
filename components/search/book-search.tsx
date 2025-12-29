@@ -202,33 +202,44 @@ function BookSearchComponent({ className }: BookSearchProps) {
     "finished": "finished",
   };
 
-  const handleBookAction = useCallback(async (action: BookAction, book: Book) => {
-    // Optimistically update status immediately for instant UI feedback
-    const newStatus = actionToStatus[action];
-    if (newStatus) {
-      setUserBookStatuses((prev) => ({
-        ...prev,
-        [book.id]: newStatus,
-      }));
-    }
+  const handleBookAction = useCallback(
+    async (action: BookAction, book: Book, reason?: string | null) => {
+      // Optimistically update status immediately for instant UI feedback
+      const newStatus = actionToStatus[action];
+      if (newStatus) {
+        setUserBookStatuses((prev) => ({
+          ...prev,
+          [book.id]: newStatus,
+        }));
+      }
 
-    const result = await addBookToReadingList(book.id, action);
-    
-    if (result.success) {
-      // Dispatch event to refresh currently reading component
-      window.dispatchEvent(new CustomEvent("book-added", { 
-        detail: { action, bookId: book.id } 
-      }));
-    } else {
-      // Revert optimistic update on error
-      setUserBookStatuses((prev) => {
-        const updated = { ...prev };
-        delete updated[book.id];
-        return updated;
-      });
-      console.error(result.error);
-    }
-  }, []);
+      const result = await addBookToReadingList(book.id, action);
+
+      if (result.success) {
+        // If DNF with reason, update status with notes
+        if (action === "did-not-finish" && reason !== undefined && reason !== null) {
+          const { updateBookStatus } = await import("@/app/actions/book-actions");
+          await updateBookStatus(book.id, "dnf", { notes: reason });
+        }
+
+        // Dispatch event to refresh currently reading component
+        window.dispatchEvent(
+          new CustomEvent("book-added", {
+            detail: { action, bookId: book.id },
+          })
+        );
+      } else {
+        // Revert optimistic update on error
+        setUserBookStatuses((prev) => {
+          const updated = { ...prev };
+          delete updated[book.id];
+          return updated;
+        });
+        console.error(result.error);
+      }
+    },
+    []
+  );
 
   const handleStatusChange = useCallback((bookId: string, newStatus: ReadingStatus) => {
     setUserBookStatuses((prev) => ({
