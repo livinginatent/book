@@ -63,6 +63,9 @@ interface Book {
   dateFinished?: string | null;
   status?: ReadingStatus;
   notes?: string | null;
+  // Paused shelf specific
+  days_since_last_read?: number | null;
+  latest_journal_entry?: string | null;
 }
 
 interface ShelfBookGridProps {
@@ -85,6 +88,7 @@ interface ShelfBookGridProps {
   onMoveToUpNext?: (bookId: string) => void;
   onRedemption?: (bookId: string) => void;
   isDNFShelf?: boolean;
+  isPausedShelf?: boolean;
 }
 
 export function ShelfBookGrid({
@@ -96,6 +100,7 @@ export function ShelfBookGrid({
   onMoveToUpNext,
   onRedemption,
   isDNFShelf = false,
+  isPausedShelf = false,
 }: ShelfBookGridProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -252,6 +257,9 @@ export function ShelfBookGrid({
                   isNeglected={isNeglected(book)}
                   isDNF={isDNFShelf}
                   dnfReason={dnfReason}
+                  isPaused={isPausedShelf}
+                  daysSinceLastRead={book.days_since_last_read}
+                  latestJournalEntry={book.latest_journal_entry}
                   onProgressUpdate={(pages) =>
                     onProgressUpdate?.(book.id, pages)
                   }
@@ -328,6 +336,9 @@ export function ShelfBookGrid({
                   isNeglected={isNeglected(book)}
                   isDNF={isDNFShelf}
                   dnfReason={dnfReason}
+                  isPaused={isPausedShelf}
+                  daysSinceLastRead={book.days_since_last_read}
+                  latestJournalEntry={book.latest_journal_entry}
                   onProgressUpdate={(pages) =>
                     onProgressUpdate?.(book.id, pages)
                   }

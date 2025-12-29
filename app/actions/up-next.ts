@@ -334,3 +334,103 @@ export async function startReadingNow(
     };
   }
 }
+
+export interface MoveToUpNextResult {
+  success: true;
+  message: string;
+}
+
+export interface MoveToUpNextError {
+  success: false;
+  error: string;
+}
+
+/**
+ * Move a book from paused (or other status) to up-next queue
+ * Sets sort_order to max(sort_order) + 1 to add it at the end
+ */
+export async function moveToUpNext(
+  bookId: string
+): Promise<MoveToUpNextResult | MoveToUpNextError> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Get the max sort_order from existing up_next books
+    const { data: existingUpNext, error: maxError } = await supabase
+      .from("user_books")
+      .select("sort_order")
+      .eq("user_id", user.id)
+      .eq("status", "up_next")
+      .order("sort_order", { ascending: false })
+      .limit(1);
+
+    if (maxError) {
+      console.error("Error fetching max sort_order:", maxError);
+      return { success: false, error: "Failed to fetch queue order" };
+    }
+
+    // Calculate new sort_order (max + 1, or 0 if no books exist)
+    const newSortOrder =
+      existingUpNext && existingUpNext.length > 0
+        ? (existingUpNext[0].sort_order ?? 0) + 1
+        : 0;
+
+    // Find the user_books record for this book
+    const { data: userBook, error: findError } = await supabase
+      .from("user_books")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("book_id", bookId)
+      .single();
+
+    if (findError || !userBook) {
+      return {
+        success: false,
+        error: "Book not found in your reading list",
+      };
+    }
+
+    // Update the book status to up_next with new sort_order
+    const now = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from("user_books")
+      .update({
+        status: "up_next",
+        sort_order: newSortOrder,
+        updated_at: now,
+      })
+      .eq("id", userBook.id)
+      .eq("user_id", user.id);
+
+    if (updateError) {
+      console.error("Error moving book to up-next:", updateError);
+      return {
+        success: false,
+        error: "Failed to move book to up-next queue",
+      };
+    }
+
+    return {
+      success: true,
+      message: "Book moved to up-next queue",
+    };
+  } catch (error) {
+    console.error("Move to up-next error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}

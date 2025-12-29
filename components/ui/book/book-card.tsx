@@ -31,6 +31,10 @@ interface BookCardProps {
   isDNF?: boolean;
   dnfReason?: string | null;
   onRedemption?: () => void;
+  // Paused shelf specific props
+  isPaused?: boolean;
+  daysSinceLastRead?: number | null;
+  latestJournalEntry?: string | null;
 }
 
 export function BookCard({
@@ -51,6 +55,9 @@ export function BookCard({
   isDNF = false,
   dnfReason,
   onRedemption,
+  isPaused = false,
+  daysSinceLastRead,
+  latestJournalEntry,
 }: BookCardProps) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -107,7 +114,16 @@ export function BookCard({
           </div>
         )}
 
-        {isNeglected && !isDNF && (
+        {/* Paused shelf: Last read badge */}
+        {isPaused && daysSinceLastRead !== null && daysSinceLastRead !== undefined && (
+          <div className="absolute top-2 right-2 z-20">
+            <span className="bg-muted/90 text-muted-foreground text-xs font-medium px-2 py-1 rounded-md shadow-md border border-border/50">
+              Last read {daysSinceLastRead} day{daysSinceLastRead !== 1 ? "s" : ""} ago
+            </span>
+          </div>
+        )}
+
+        {isNeglected && !isDNF && !isPaused && (
           <div className="absolute top-2 right-2 z-20">
             <span className="bg-amber-500/90 text-amber-950 text-xs font-medium px-2 py-1 rounded-md shadow-md">
               Paused?
@@ -210,6 +226,20 @@ export function BookCard({
         >
           Give it another shot
         </button>
+      )}
+
+      {/* Paused shelf: Journal Preview */}
+      {isPaused && latestJournalEntry && (
+        <div className="mt-2 p-2 bg-muted/50 rounded-lg border border-border">
+          <p className="text-xs font-medium text-foreground mb-1">
+            Last Note
+          </p>
+          <p className="text-xs text-muted-foreground line-clamp-2">
+            {latestJournalEntry.length > 60
+              ? `${latestJournalEntry.substring(0, 60)}...`
+              : latestJournalEntry}
+          </p>
+        </div>
       )}
     </div>
   );

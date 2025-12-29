@@ -9,6 +9,8 @@ import {
   Star,
   Tag,
   Clock,
+  Pause,
+  BookMarked,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
@@ -31,9 +33,11 @@ interface Book {
 interface ShelfStatsProps {
   books: Book[];
   totalPagesLeft?: number;
-  variant?: "currently-reading" | "want-to-read" | "read" | "dnf";
+  variant?: "currently-reading" | "want-to-read" | "read" | "dnf" | "paused";
   totalPagesSaved?: number;
   reasonDistribution?: [string, number][];
+  averagePauseDuration?: number;
+  totalPagesInLimbo?: number;
 }
 
 export function ShelfStats({
@@ -42,6 +46,8 @@ export function ShelfStats({
   variant = "currently-reading",
   totalPagesSaved = 0,
   reasonDistribution = [],
+  averagePauseDuration = 0,
+  totalPagesInLimbo = 0,
 }: ShelfStatsProps) {
   const totalPages = books.reduce((sum, book) => sum + book.totalPages, 0);
   const totalPagesRead = books.reduce((sum, book) => sum + book.pagesRead, 0);
@@ -269,6 +275,50 @@ export function ShelfStats({
             </div>
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
               <Tag className="w-4 h-4" />
+            </div>
+          </div>
+        </DashboardCard>
+      </div>
+    );
+  }
+
+  if (variant === "paused") {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DashboardCard title="Average Pause Duration" className="p-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">
+                Average Pause Duration
+              </p>
+              <p className="text-2xl font-bold text-foreground">
+                {averagePauseDuration > 0 ? `${averagePauseDuration} days` : "N/A"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Time on hold
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+              <Pause className="w-4 h-4" />
+            </div>
+          </div>
+        </DashboardCard>
+
+        <DashboardCard title="Total Pages in Limbo" className="p-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">
+                Total Pages in Limbo
+              </p>
+              <p className="text-2xl font-bold text-foreground">
+                {totalPagesInLimbo.toLocaleString()}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Unread pages
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+              <BookMarked className="w-4 h-4" />
             </div>
           </div>
         </DashboardCard>
