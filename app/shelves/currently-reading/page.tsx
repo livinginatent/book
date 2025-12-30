@@ -142,9 +142,7 @@ export default function CurrentlyReadingShelfPage() {
     async (bookId: string, rating: number) => {
       // Optimistically update UI
       setBooks((prev) =>
-        prev.map((book) =>
-          book.id === bookId ? { ...book, rating } : book
-        )
+        prev.map((book) => (book.id === bookId ? { ...book, rating } : book))
       );
 
       // Update in database (attributes are preserved from existing review_attributes)
