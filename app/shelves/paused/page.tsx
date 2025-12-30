@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { updateBookStatus } from "@/app/actions/book-actions";
 import { getPausedBooks } from "@/app/actions/paused-shelf";
+import { updateBookReview } from "@/app/actions/reviews";
 import { ShelfBookGrid } from "@/components/shelves/shelf-book-grid";
 import { ShelfHeader } from "@/components/shelves/shelf-header";
 import { ShelfStats } from "@/components/shelves/shelf-stats";
@@ -24,6 +25,19 @@ interface ShelfBook {
   cover: string;
   pagesRead: number;
   totalPages: number;
+  rating?: number | null;
+  reviewAttributes?: {
+    moods?: string[];
+    pacing?: string | null;
+    difficulty?: string | null;
+    diverse_cast?: boolean;
+    character_development?: boolean;
+    plot_driven?: boolean;
+    strong_prose?: boolean;
+    world_building?: boolean;
+    twist_ending?: boolean;
+    multiple_pov?: boolean;
+  };
   days_since_last_read: number | null;
   latest_journal_entry: string | null;
   status?: ReadingStatus;
@@ -35,7 +49,7 @@ const SHELVES = [
   { status: "want-to-read", label: "Want to Read", icon: BookOpen },
   { status: "finished", label: "Finished", icon: BookOpen },
   { status: "paused", label: "Paused", icon: Pause },
-  { status: "dnf", label: "Did Not Finish", icon: BookOpen },
+  { status: "did-not-finish", label: "Did Not Finish", icon: BookOpen },
   { status: "up-next", label: "Up Next", icon: BookOpen },
 ] as const;
 
@@ -64,21 +78,39 @@ export default function PausedShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => ({
-          id: book.id,
-          title: book.title,
-          author: book.authors?.join(", ") || "Unknown Author",
-          cover:
-            book.cover_url_medium ||
-            book.cover_url_large ||
-            book.cover_url_small ||
-            "",
-          pagesRead: book.pages_read,
-          totalPages: book.page_count || 0,
-          days_since_last_read: book.days_since_last_read,
-          latest_journal_entry: book.latest_journal_entry,
-          status: book.userBook.status,
-        }));
+        const transformed: ShelfBook[] = result.books.map((book) => {
+          const reviewAttrs = book.userBook.review_attributes as
+            | {
+                moods?: string[];
+                pacing?: string | null;
+                difficulty?: string | null;
+                diverse_cast?: boolean;
+                character_development?: boolean;
+                plot_driven?: boolean;
+                strong_prose?: boolean;
+                world_building?: boolean;
+                twist_ending?: boolean;
+                multiple_pov?: boolean;
+              }
+            | null;
+          return {
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_medium ||
+              book.cover_url_large ||
+              book.cover_url_small ||
+              "",
+            pagesRead: book.pages_read,
+            totalPages: book.page_count || 0,
+            rating: book.userBook.rating,
+            reviewAttributes: reviewAttrs || {},
+            days_since_last_read: book.days_since_last_read,
+            latest_journal_entry: book.latest_journal_entry,
+            status: book.userBook.status,
+          };
+        });
 
         setBooks(transformed);
       } else {
@@ -132,6 +164,66 @@ export default function PausedShelfPage() {
       setBooks((prev) => prev.filter((book) => book.id !== bookId));
     },
     []
+  );
+
+  // Handle rating update
+  const handleRatingUpdate = useCallback(
+    async (bookId: string, rating: number) => {
+      // Optimistically update UI
+      setBooks((prev) =>
+        prev.map((book) =>
+          book.id === bookId ? { ...book, rating } : book
+        )
+      );
+
+      // Update in database (attributes are preserved from existing review_attributes)
+      const book = books.find((b) => b.id === bookId);
+      const existingAttributes = book?.reviewAttributes || {};
+      const result = await updateBookReview(bookId, rating, existingAttributes);
+
+      if (!result.success) {
+        console.error("Failed to update rating:", result.error);
+        // Revert by refetching
+        const fetchResult = await getPausedBooks();
+        if (fetchResult.success) {
+          const transformed: ShelfBook[] = fetchResult.books.map((book) => {
+            const reviewAttrs = book.userBook.review_attributes as
+              | {
+                  moods?: string[];
+                  pacing?: string | null;
+                  difficulty?: string | null;
+                  diverse_cast?: boolean;
+                  character_development?: boolean;
+                  plot_driven?: boolean;
+                  strong_prose?: boolean;
+                  world_building?: boolean;
+                  twist_ending?: boolean;
+                  multiple_pov?: boolean;
+                }
+              | null;
+            return {
+              id: book.id,
+              title: book.title,
+              author: book.authors?.join(", ") || "Unknown Author",
+              cover:
+                book.cover_url_medium ||
+                book.cover_url_large ||
+                book.cover_url_small ||
+                "",
+              pagesRead: book.pages_read,
+              totalPages: book.page_count || 0,
+              rating: book.userBook.rating,
+              reviewAttributes: reviewAttrs || {},
+              days_since_last_read: book.days_since_last_read,
+              latest_journal_entry: book.latest_journal_entry,
+              status: book.userBook.status,
+            };
+          });
+          setBooks(transformed);
+        }
+      }
+    },
+    [books]
   );
 
   // Sort books based on sortBy
@@ -291,12 +383,15 @@ export default function PausedShelfPage() {
                     cover: b.cover,
                     pagesRead: b.pagesRead,
                     totalPages: b.totalPages,
+                    rating: b.rating,
+                    reviewAttributes: b.reviewAttributes,
                     status: b.status,
                     days_since_last_read: b.days_since_last_read,
                     latest_journal_entry: b.latest_journal_entry,
                   }))}
                   sortBy={sortBy}
                   onStatusChange={handleStatusChange}
+                  onRatingUpdate={handleRatingUpdate}
                   isPausedShelf={true}
                 />
               ) : (

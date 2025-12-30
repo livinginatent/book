@@ -27,6 +27,14 @@ interface Book {
   cover: string;
   pagesRead: number;
   totalPages: number;
+  rating?: number | null;
+  reviewAttributes?: {
+    moods?: string[];
+    pacing?: string | null;
+    diverse_cast?: boolean;
+    character_development?: boolean;
+    plot_driven?: boolean;
+  };
 }
 
 interface CurrentlyReadingProps {
@@ -38,6 +46,7 @@ interface CurrentlyReadingProps {
     dates?: BookStatusDates
   ) => void;
   onRemove?: (bookId: string) => void;
+  onRatingUpdate?: (bookId: string, rating: number) => void;
 }
 
 export function CurrentlyReading({
@@ -45,6 +54,7 @@ export function CurrentlyReading({
   onProgressUpdate,
   onStatusChange,
   onRemove,
+  onRatingUpdate,
 }: CurrentlyReadingProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -111,17 +121,21 @@ export function CurrentlyReading({
             {visibleBooksMobile.map((book) => (
               <BookCard
                 key={book.id}
+                bookId={book.id}
                 title={book.title}
                 author={book.author}
                 cover={book.cover}
                 pagesRead={book.pagesRead}
                 totalPages={book.totalPages}
+                rating={book.rating ?? undefined}
+                reviewAttributes={book.reviewAttributes}
                 editable
                 onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
                 onStatusChange={(status, dates) =>
                   onStatusChange?.(book.id, status, dates)
                 }
                 onRemove={() => onRemove?.(book.id)}
+                onRatingUpdate={(rating) => onRatingUpdate?.(book.id, rating)}
                 currentStatus="currently_reading"
                 className="w-full"
               />
@@ -155,11 +169,14 @@ export function CurrentlyReading({
               >
                 <BookCard
                   className="flex-1"
+                  bookId={book.id}
                   title={book.title}
                   author={book.author}
                   cover={book.cover}
                   pagesRead={book.pagesRead}
                   totalPages={book.totalPages}
+                  rating={book.rating ?? undefined}
+                  reviewAttributes={book.reviewAttributes}
                   editable
                   onProgressUpdate={(pages) =>
                     onProgressUpdate?.(book.id, pages)
@@ -168,6 +185,7 @@ export function CurrentlyReading({
                     onStatusChange?.(book.id, status, dates)
                   }
                   onRemove={() => onRemove?.(book.id)}
+                  onRatingUpdate={(rating) => onRatingUpdate?.(book.id, rating)}
                   currentStatus="currently_reading"
                 />
 

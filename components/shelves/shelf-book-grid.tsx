@@ -63,6 +63,19 @@ interface Book {
   dateFinished?: string | null;
   status?: ReadingStatus;
   notes?: string | null;
+  rating?: number | null;
+  reviewAttributes?: {
+    moods?: string[];
+    pacing?: string | null;
+    difficulty?: string | null;
+    diverse_cast?: boolean;
+    character_development?: boolean;
+    plot_driven?: boolean;
+    strong_prose?: boolean;
+    world_building?: boolean;
+    twist_ending?: boolean;
+    multiple_pov?: boolean;
+  };
   // Paused shelf specific
   days_since_last_read?: number | null;
   latest_journal_entry?: string | null;
@@ -87,6 +100,7 @@ interface ShelfBookGridProps {
   onRemove?: (bookId: string, currentStatus: ReadingStatus) => void;
   onMoveToUpNext?: (bookId: string) => void;
   onRedemption?: (bookId: string) => void;
+  onRatingUpdate?: (bookId: string, rating: number) => void;
   isDNFShelf?: boolean;
   isPausedShelf?: boolean;
 }
@@ -99,6 +113,7 @@ export function ShelfBookGrid({
   onRemove,
   onMoveToUpNext,
   onRedemption,
+  onRatingUpdate,
   isDNFShelf = false,
   isPausedShelf = false,
 }: ShelfBookGridProps) {
@@ -248,11 +263,14 @@ export function ShelfBookGrid({
               <div key={book.id} className="flex flex-col">
                 <BookCard
                   className="flex-1"
+                  bookId={book.id}
                   title={book.title}
                   author={book.author}
                   cover={book.cover}
                   pagesRead={book.pagesRead}
                   totalPages={book.totalPages}
+                  rating={book.rating ?? undefined}
+                  reviewAttributes={book.reviewAttributes}
                   editable
                   isNeglected={isNeglected(book)}
                   isDNF={isDNFShelf}
@@ -270,6 +288,7 @@ export function ShelfBookGrid({
                   onRedemption={
                     onRedemption ? () => onRedemption(book.id) : undefined
                   }
+                  onRatingUpdate={(rating) => onRatingUpdate?.(book.id, rating)}
                   currentStatus={book.status}
                 />
                 {/* DNF Reason Display */}
@@ -327,11 +346,14 @@ export function ShelfBookGrid({
               >
                 <BookCard
                   className="flex-1"
+                  bookId={book.id}
                   title={book.title}
                   author={book.author}
                   cover={book.cover}
                   pagesRead={book.pagesRead}
                   totalPages={book.totalPages}
+                  rating={book.rating ?? undefined}
+                  reviewAttributes={book.reviewAttributes}
                   editable
                   isNeglected={isNeglected(book)}
                   isDNF={isDNFShelf}
@@ -349,6 +371,7 @@ export function ShelfBookGrid({
                   onRedemption={
                     onRedemption ? () => onRedemption(book.id) : undefined
                   }
+                  onRatingUpdate={(rating) => onRatingUpdate?.(book.id, rating)}
                   currentStatus={book.status}
                 />
                 {/* DNF Reason Display */}

@@ -9,6 +9,7 @@ import { updateBookStatus } from "@/app/actions/book-actions";
 import { redeemDNFBook } from "@/app/actions/dnf-redemption";
 import { getDNFBooks } from "@/app/actions/dnf-shelf";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
+import { updateBookReview } from "@/app/actions/reviews";
 import { ShelfBookGrid } from "@/components/shelves/shelf-book-grid";
 import { ShelfHeader } from "@/components/shelves/shelf-header";
 import { ShelfStats } from "@/components/shelves/shelf-stats";
@@ -26,6 +27,19 @@ interface ShelfBook {
   cover: string;
   pagesSaved: number;
   totalPages: number;
+  rating?: number | null;
+  reviewAttributes?: {
+    moods?: string[];
+    pacing?: string | null;
+    difficulty?: string | null;
+    diverse_cast?: boolean;
+    character_development?: boolean;
+    plot_driven?: boolean;
+    strong_prose?: boolean;
+    world_building?: boolean;
+    twist_ending?: boolean;
+    multiple_pov?: boolean;
+  };
   notes: string | null;
   date_added: string;
   updated_at: string;
@@ -68,23 +82,41 @@ export default function DNFShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => ({
-          id: book.id,
-          title: book.title,
-          author: book.authors?.join(", ") || "Unknown Author",
-          cover:
-            book.cover_url_medium ||
-            book.cover_url_large ||
-            book.cover_url_small ||
-            "",
-          pagesSaved: book.pages_saved,
-          totalPages: book.page_count || 0,
-          notes: book.notes,
-          date_added: book.date_added,
-          updated_at: book.updated_at,
-          days_before_quitting: book.days_before_quitting,
-          status: book.userBook.status,
-        }));
+        const transformed: ShelfBook[] = result.books.map((book) => {
+          const reviewAttrs = book.userBook.review_attributes as
+            | {
+                moods?: string[];
+                pacing?: string | null;
+                difficulty?: string | null;
+                diverse_cast?: boolean;
+                character_development?: boolean;
+                plot_driven?: boolean;
+                strong_prose?: boolean;
+                world_building?: boolean;
+                twist_ending?: boolean;
+                multiple_pov?: boolean;
+              }
+            | null;
+          return {
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_medium ||
+              book.cover_url_large ||
+              book.cover_url_small ||
+              "",
+            pagesSaved: book.pages_saved,
+            totalPages: book.page_count || 0,
+            rating: book.userBook.rating,
+            reviewAttributes: reviewAttrs || {},
+            notes: book.notes,
+            date_added: book.date_added,
+            updated_at: book.updated_at,
+            days_before_quitting: book.days_before_quitting,
+            status: book.userBook.status,
+          };
+        });
 
         setBooks(transformed);
       } else {
@@ -136,6 +168,21 @@ export default function DNFShelfPage() {
               "",
             pagesSaved: book.pages_saved,
             totalPages: book.page_count || 0,
+            rating: book.userBook.rating,
+            reviewAttributes: (book.userBook.review_attributes as
+              | {
+                  moods?: string[];
+                  pacing?: string | null;
+                  difficulty?: string | null;
+                  diverse_cast?: boolean;
+                  character_development?: boolean;
+                  plot_driven?: boolean;
+                  strong_prose?: boolean;
+                  world_building?: boolean;
+                  twist_ending?: boolean;
+                  multiple_pov?: boolean;
+                }
+              | null) || {},
             notes: book.notes,
             date_added: book.date_added,
             updated_at: book.updated_at,
@@ -147,6 +194,68 @@ export default function DNFShelfPage() {
       }
     },
     []
+  );
+
+  // Handle rating update
+  const handleRatingUpdate = useCallback(
+    async (bookId: string, rating: number) => {
+      // Optimistically update UI
+      setBooks((prev) =>
+        prev.map((book) =>
+          book.id === bookId ? { ...book, rating } : book
+        )
+      );
+
+      // Update in database (attributes are preserved from existing review_attributes)
+      const book = books.find((b) => b.id === bookId);
+      const existingAttributes = book?.reviewAttributes || {};
+      const result = await updateBookReview(bookId, rating, existingAttributes);
+
+      if (!result.success) {
+        console.error("Failed to update rating:", result.error);
+        // Revert by refetching
+        const fetchResult = await getDNFBooks();
+        if (fetchResult.success) {
+          const transformed: ShelfBook[] = fetchResult.books.map((book) => {
+            const reviewAttrs = book.userBook.review_attributes as
+              | {
+                  moods?: string[];
+                  pacing?: string | null;
+                  difficulty?: string | null;
+                  diverse_cast?: boolean;
+                  character_development?: boolean;
+                  plot_driven?: boolean;
+                  strong_prose?: boolean;
+                  world_building?: boolean;
+                  twist_ending?: boolean;
+                  multiple_pov?: boolean;
+                }
+              | null;
+            return {
+              id: book.id,
+              title: book.title,
+              author: book.authors?.join(", ") || "Unknown Author",
+              cover:
+                book.cover_url_medium ||
+                book.cover_url_large ||
+                book.cover_url_small ||
+                "",
+              pagesSaved: book.pages_saved,
+              totalPages: book.page_count || 0,
+              rating: book.userBook.rating,
+              reviewAttributes: reviewAttrs || {},
+              notes: book.notes,
+              date_added: book.date_added,
+              updated_at: book.updated_at,
+              days_before_quitting: book.days_before_quitting,
+              status: book.userBook.status,
+            };
+          });
+          setBooks(transformed);
+        }
+      }
+    },
+    [books]
   );
 
   // Handle status change
@@ -170,6 +279,21 @@ export default function DNFShelfPage() {
               "",
             pagesSaved: book.pages_saved,
             totalPages: book.page_count || 0,
+            rating: book.userBook.rating,
+            reviewAttributes: (book.userBook.review_attributes as
+              | {
+                  moods?: string[];
+                  pacing?: string | null;
+                  difficulty?: string | null;
+                  diverse_cast?: boolean;
+                  character_development?: boolean;
+                  plot_driven?: boolean;
+                  strong_prose?: boolean;
+                  world_building?: boolean;
+                  twist_ending?: boolean;
+                  multiple_pov?: boolean;
+                }
+              | null) || {},
             notes: book.notes,
             date_added: book.date_added,
             updated_at: book.updated_at,
@@ -394,12 +518,15 @@ export default function DNFShelfPage() {
                     cover: b.cover,
                     pagesRead: b.totalPages - b.pagesSaved,
                     totalPages: b.totalPages,
+                    rating: b.rating,
+                    reviewAttributes: b.reviewAttributes,
                     status: b.status,
                     notes: b.notes,
                   }))}
                   sortBy={sortBy}
                   onProgressUpdate={handleProgressUpdate}
                   onStatusChange={handleStatusChange}
+                  onRatingUpdate={handleRatingUpdate}
                   onRedemption={handleRedemption}
                   isDNFShelf={true}
                 />

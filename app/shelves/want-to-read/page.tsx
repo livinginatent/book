@@ -9,6 +9,7 @@ import {
   removeBookFromReadingList,
   updateBookStatus,
 } from "@/app/actions/book-actions";
+import { updateBookReview } from "@/app/actions/reviews";
 import { getWantToReadBooks } from "@/app/actions/want-to-read";
 import { ShelfBookGrid } from "@/components/shelves/shelf-book-grid";
 import { ShelfHeader } from "@/components/shelves/shelf-header";
@@ -46,6 +47,19 @@ interface ShelfBook {
   author: string;
   cover: string;
   totalPages: number;
+  rating?: number | null;
+  reviewAttributes?: {
+    moods?: string[];
+    pacing?: string | null;
+    difficulty?: string | null;
+    diverse_cast?: boolean;
+    character_development?: boolean;
+    plot_driven?: boolean;
+    strong_prose?: boolean;
+    world_building?: boolean;
+    twist_ending?: boolean;
+    multiple_pov?: boolean;
+  };
   date_added?: string;
   isPrioritized?: boolean;
 }
@@ -87,19 +101,38 @@ export default function WantToReadShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => ({
-          id: book.id,
-          title: book.title,
-          author: book.authors?.join(", ") || "Unknown Author",
-          cover:
-            book.cover_url_large ||
-            book.cover_url_medium ||
-            book.cover_url_small ||
-            "",
-          totalPages: book.page_count || 0,
-          date_added: book.date_added,
-          isPrioritized: book.isPrioritized,
-        }));
+        const transformed: ShelfBook[] = result.books.map((book) => {
+          const reviewAttrs = book.userBook?.review_attributes as
+            | {
+                moods?: string[];
+                pacing?: string | null;
+                difficulty?: string | null;
+                diverse_cast?: boolean;
+                character_development?: boolean;
+                plot_driven?: boolean;
+                strong_prose?: boolean;
+                world_building?: boolean;
+                twist_ending?: boolean;
+                multiple_pov?: boolean;
+              }
+            | null
+            | undefined;
+          return {
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_large ||
+              book.cover_url_medium ||
+              book.cover_url_small ||
+              "",
+            totalPages: book.page_count || 0,
+            rating: book.userBook?.rating,
+            reviewAttributes: reviewAttrs || {},
+            date_added: book.date_added,
+            isPrioritized: book.isPrioritized,
+          };
+        });
 
         setBooks(transformed);
       } else {
@@ -142,6 +175,22 @@ export default function WantToReadShelfPage() {
               book.cover_url_small ||
               "",
             totalPages: book.page_count || 0,
+            rating: book.userBook?.rating,
+            reviewAttributes: (book.userBook?.review_attributes as
+              | {
+                  moods?: string[];
+                  pacing?: string | null;
+                  difficulty?: string | null;
+                  diverse_cast?: boolean;
+                  character_development?: boolean;
+                  plot_driven?: boolean;
+                  strong_prose?: boolean;
+                  world_building?: boolean;
+                  twist_ending?: boolean;
+                  multiple_pov?: boolean;
+                }
+              | null
+              | undefined) || {},
             date_added: book.date_added,
             isPrioritized: book.isPrioritized,
           }));
@@ -150,6 +199,65 @@ export default function WantToReadShelfPage() {
       }
     },
     []
+  );
+
+  // Handle rating update
+  const handleRatingUpdate = useCallback(
+    async (bookId: string, rating: number) => {
+      // Optimistically update UI
+      setBooks((prev) =>
+        prev.map((book) =>
+          book.id === bookId ? { ...book, rating } : book
+        )
+      );
+
+      // Update in database (attributes are preserved from existing review_attributes)
+      const book = books.find((b) => b.id === bookId);
+      const existingAttributes = book?.reviewAttributes || {};
+      const result = await updateBookReview(bookId, rating, existingAttributes);
+
+      if (!result.success) {
+        console.error("Failed to update rating:", result.error);
+        // Revert by refetching
+        const fetchResult = await getWantToReadBooks();
+        if (fetchResult.success) {
+          const transformed: ShelfBook[] = fetchResult.books.map((book) => {
+            const reviewAttrs = book.userBook?.review_attributes as
+              | {
+                  moods?: string[];
+                  pacing?: string | null;
+                  difficulty?: string | null;
+                  diverse_cast?: boolean;
+                  character_development?: boolean;
+                  plot_driven?: boolean;
+                  strong_prose?: boolean;
+                  world_building?: boolean;
+                  twist_ending?: boolean;
+                  multiple_pov?: boolean;
+                }
+              | null
+              | undefined;
+            return {
+              id: book.id,
+              title: book.title,
+              author: book.authors?.join(", ") || "Unknown Author",
+              cover:
+                book.cover_url_large ||
+                book.cover_url_medium ||
+                book.cover_url_small ||
+                "",
+              totalPages: book.page_count || 0,
+              rating: book.userBook?.rating,
+              reviewAttributes: reviewAttrs || {},
+              date_added: book.date_added,
+              isPrioritized: book.isPrioritized,
+            };
+          });
+          setBooks(transformed);
+        }
+      }
+    },
+    [books]
   );
 
   const handleStatusChange = useCallback(
@@ -171,6 +279,22 @@ export default function WantToReadShelfPage() {
               book.cover_url_small ||
               "",
             totalPages: book.page_count || 0,
+            rating: book.userBook?.rating,
+            reviewAttributes: (book.userBook?.review_attributes as
+              | {
+                  moods?: string[];
+                  pacing?: string | null;
+                  difficulty?: string | null;
+                  diverse_cast?: boolean;
+                  character_development?: boolean;
+                  plot_driven?: boolean;
+                  strong_prose?: boolean;
+                  world_building?: boolean;
+                  twist_ending?: boolean;
+                  multiple_pov?: boolean;
+                }
+              | null
+              | undefined) || {},
             date_added: book.date_added,
             isPrioritized: book.isPrioritized,
           }));
@@ -334,11 +458,14 @@ export default function WantToReadShelfPage() {
                 books={books.map((b) => ({
                   ...b,
                   pagesRead: 0,
+                  rating: b.rating,
+                  reviewAttributes: b.reviewAttributes,
                   status: "want_to_read" as ReadingStatus,
                 }))}
                 sortBy={sortBy}
                 onStatusChange={handleStatusChange}
                 onRemove={handleRemove}
+                onRatingUpdate={handleRatingUpdate}
               />
             </div>
           </div>

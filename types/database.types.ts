@@ -184,6 +184,7 @@ export interface Database {
           status: ReadingStatus;
           rating: number | null;
           reading_format: ReadingFormat | null;
+          review_attributes: Json | null;
           date_added: string;
           date_started: string | null;
           date_finished: string | null;
@@ -199,6 +200,7 @@ export interface Database {
           status?: ReadingStatus;
           rating?: number | null;
           reading_format?: ReadingFormat | null;
+          review_attributes?: Json | null;
           date_added?: string;
           date_started?: string | null;
           date_finished?: string | null;
@@ -214,6 +216,7 @@ export interface Database {
           status?: ReadingStatus;
           rating?: number | null;
           reading_format?: ReadingFormat | null;
+          review_attributes?: Json | null;
           date_added?: string;
           date_started?: string | null;
           date_finished?: string | null;

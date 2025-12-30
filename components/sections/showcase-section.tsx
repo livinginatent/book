@@ -80,9 +80,10 @@ export function ShowcaseSection() {
               Currently Reading
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-              {currentlyReading.map((book) => (
+              {currentlyReading.map((book, index) => (
                 <BookCard
                   key={book.title}
+                  bookId={`mock-${index}`}
                   title={book.title}
                   author={book.author}
                   cover={book.cover}
@@ -99,9 +100,10 @@ export function ShowcaseSection() {
               Recently Finished
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-              {recentlyFinished.map((book) => (
+              {recentlyFinished.map((book, index) => (
                 <BookCard
                   key={book.title}
+                  bookId={`mock-finished-${index}`}
                   title={book.title}
                   author={book.author}
                   cover={book.cover}

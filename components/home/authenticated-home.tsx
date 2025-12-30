@@ -41,6 +41,14 @@ interface CurrentlyReadingBook {
   cover: string;
   pagesRead: number;
   totalPages: number;
+  rating?: number | null;
+  reviewAttributes?: {
+    moods?: string[];
+    pacing?: string | null;
+    diverse_cast?: boolean;
+    character_development?: boolean;
+    plot_driven?: boolean;
+  };
 }
 
 interface ReadingStatsData {
@@ -67,18 +75,33 @@ const MemoizedGoodreadsImport = memo(GoodreadsImport);
 
 // Transform database books to component format
 function transformBooks(books: BookWithProgress[]): CurrentlyReadingBook[] {
-  return books.map((book) => ({
-    id: book.id,
-    title: book.title,
-    author: book.authors?.join(", ") || "Unknown Author",
-    cover:
-      book.cover_url_medium ||
-      book.cover_url_large ||
-      book.cover_url_small ||
-      "",
-    pagesRead: book.progress?.pages_read || 0,
-    totalPages: book.page_count || 0,
-  }));
+  return books.map((book) => {
+    const reviewAttrs = book.userBook?.review_attributes as
+      | {
+          moods?: string[];
+          pacing?: string | null;
+          diverse_cast?: boolean;
+          character_development?: boolean;
+          plot_driven?: boolean;
+        }
+      | null
+      | undefined;
+
+    return {
+      id: book.id,
+      title: book.title,
+      author: book.authors?.join(", ") || "Unknown Author",
+      cover:
+        book.cover_url_medium ||
+        book.cover_url_large ||
+        book.cover_url_small ||
+        "",
+      pagesRead: book.progress?.pages_read || 0,
+      totalPages: book.page_count || 0,
+      rating: book.userBook?.rating ?? null,
+      reviewAttributes: reviewAttrs || undefined,
+    };
+  });
 }
 
 export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
@@ -245,6 +268,25 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
     []
   );
 
+  // Handle rating update - optimistic UI
+  const handleRatingUpdate = useCallback(
+    async (bookId: string, rating: number) => {
+      // Update UI optimistically
+      setCurrentlyReadingBooks((prev) =>
+        prev.map((book) =>
+          book.id === bookId ? { ...book, rating } : book
+        )
+      );
+
+      // Refresh to get latest data (including review_attributes)
+      const refreshResult = await refreshCurrentlyReading();
+      if (refreshResult.success && refreshResult.books) {
+        setCurrentlyReadingBooks(transformBooks(refreshResult.books));
+      }
+    },
+    []
+  );
+
   // Handle import complete
   const handleImportComplete = useCallback(async (imported: number) => {
     window.dispatchEvent(new CustomEvent("book-added"));
@@ -311,6 +353,7 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
               onProgressUpdate={handleProgressUpdate}
               onStatusChange={handleStatusChange}
               onRemove={handleRemove}
+              onRatingUpdate={handleRatingUpdate}
             />
 
             {/* Private Shelves - Show on mobile here, hide on desktop (shown in sidebar) */}

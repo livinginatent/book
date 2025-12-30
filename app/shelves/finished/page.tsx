@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getFinishedBooks } from "@/app/actions/read-shelf";
+import { updateBookReview } from "@/app/actions/reviews";
 import { useProfile } from "@/components/providers/auth-provider";
 import { ShelfBookGrid } from "@/components/shelves/shelf-book-grid";
 import { ShelfHeader } from "@/components/shelves/shelf-header";
@@ -21,6 +22,18 @@ interface ShelfBook {
   pagesRead: number;
   totalPages: number;
   rating?: number | null;
+  reviewAttributes?: {
+    moods?: string[];
+    pacing?: string | null;
+    difficulty?: string | null;
+    diverse_cast?: boolean;
+    character_development?: boolean;
+    plot_driven?: boolean;
+    strong_prose?: boolean;
+    world_building?: boolean;
+    twist_ending?: boolean;
+    multiple_pov?: boolean;
+  };
   subjects?: string[] | null;
   dateFinished?: string | null;
   status?: ReadingStatus;
@@ -64,22 +77,39 @@ export default function ReadShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => ({
-          id: book.id,
-          title: book.title,
-          author: book.authors?.join(", ") || "Unknown Author",
-          cover:
-            book.cover_url_medium ||
-            book.cover_url_large ||
-            book.cover_url_small ||
-            "",
-          pagesRead: book.page_count || 0,
-          totalPages: book.page_count || 0,
-          rating: book.userBook.rating,
-          subjects: book.subjects,
-          dateFinished: book.userBook.date_finished,
-          status: book.userBook.status,
-        }));
+        const transformed: ShelfBook[] = result.books.map((book) => {
+          const reviewAttrs = book.userBook.review_attributes as
+            | {
+                moods?: string[];
+                pacing?: string | null;
+                difficulty?: string | null;
+                diverse_cast?: boolean;
+                character_development?: boolean;
+                plot_driven?: boolean;
+                strong_prose?: boolean;
+                world_building?: boolean;
+                twist_ending?: boolean;
+                multiple_pov?: boolean;
+              }
+            | null;
+          return {
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover:
+              book.cover_url_medium ||
+              book.cover_url_large ||
+              book.cover_url_small ||
+              "",
+            pagesRead: book.page_count || 0,
+            totalPages: book.page_count || 0,
+            rating: book.userBook.rating,
+            reviewAttributes: reviewAttrs || {},
+            subjects: book.subjects,
+            dateFinished: book.userBook.date_finished,
+            status: book.userBook.status,
+          };
+        });
 
         setBooks(transformed);
       } else {
@@ -141,6 +171,66 @@ export default function ReadShelfPage() {
       alert("Reading summary copied to clipboard!");
     }
   }, [books, selectedYear, isPremium]);
+
+  // Handle rating update
+  const handleRatingUpdate = useCallback(
+    async (bookId: string, rating: number) => {
+      // Optimistically update UI
+      setBooks((prev) =>
+        prev.map((book) =>
+          book.id === bookId ? { ...book, rating } : book
+        )
+      );
+
+      // Update in database (attributes are preserved from existing review_attributes)
+      const book = books.find((b) => b.id === bookId);
+      const existingAttributes = book?.reviewAttributes || {};
+      const result = await updateBookReview(bookId, rating, existingAttributes);
+
+      if (!result.success) {
+        console.error("Failed to update rating:", result.error);
+        // Revert by refetching
+        const fetchResult = await getFinishedBooks(selectedYear || undefined);
+        if (fetchResult.success) {
+          const transformed: ShelfBook[] = fetchResult.books.map((book) => {
+            const reviewAttrs = book.userBook.review_attributes as
+              | {
+                  moods?: string[];
+                  pacing?: string | null;
+                  difficulty?: string | null;
+                  diverse_cast?: boolean;
+                  character_development?: boolean;
+                  plot_driven?: boolean;
+                  strong_prose?: boolean;
+                  world_building?: boolean;
+                  twist_ending?: boolean;
+                  multiple_pov?: boolean;
+                }
+              | null;
+            return {
+              id: book.id,
+              title: book.title,
+              author: book.authors?.join(", ") || "Unknown Author",
+              cover:
+                book.cover_url_medium ||
+                book.cover_url_large ||
+                book.cover_url_small ||
+                "",
+              pagesRead: book.page_count || 0,
+              totalPages: book.page_count || 0,
+              rating: book.userBook.rating,
+              reviewAttributes: reviewAttrs || {},
+              subjects: book.subjects,
+              dateFinished: book.userBook.date_finished,
+              status: book.userBook.status,
+            };
+          });
+          setBooks(transformed);
+        }
+      }
+    },
+    [books, selectedYear]
+  );
 
   // Sort books based on sortBy
   const sortedBooks = useMemo(() => {
@@ -261,10 +351,13 @@ export default function ReadShelfPage() {
                     cover: b.cover,
                     pagesRead: b.pagesRead,
                     totalPages: b.totalPages,
+                    rating: b.rating,
+                    reviewAttributes: b.reviewAttributes,
                     status: b.status,
                     dateFinished: b.dateFinished,
                   }))}
                   sortBy={sortBy}
+                  onRatingUpdate={handleRatingUpdate}
                 />
               ) : (
                 <DashboardCard
