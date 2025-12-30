@@ -119,26 +119,38 @@ export function CurrentlyReading({
         <div className="lg:hidden">
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
             {visibleBooksMobile.map((book) => (
-              <BookCard
-                key={book.id}
-                bookId={book.id}
-                title={book.title}
-                author={book.author}
-                cover={book.cover}
-                pagesRead={book.pagesRead}
-                totalPages={book.totalPages}
-                rating={book.rating ?? undefined}
-                reviewAttributes={book.reviewAttributes}
-                editable
-                onProgressUpdate={(pages) => onProgressUpdate?.(book.id, pages)}
-                onStatusChange={(status, dates) =>
-                  onStatusChange?.(book.id, status, dates)
-                }
-                onRemove={() => onRemove?.(book.id)}
-                onRatingUpdate={(rating) => onRatingUpdate?.(book.id, rating)}
-                currentStatus="currently_reading"
-                className="w-full"
-              />
+              <div key={book.id} className="flex flex-col">
+                <BookCard
+                  bookId={book.id}
+                  title={book.title}
+                  author={book.author}
+                  cover={book.cover}
+                  pagesRead={book.pagesRead}
+                  totalPages={book.totalPages}
+                  rating={book.rating ?? undefined}
+                  reviewAttributes={book.reviewAttributes}
+                  editable
+                  onProgressUpdate={(pages) =>
+                    onProgressUpdate?.(book.id, pages)
+                  }
+                  onStatusChange={(status, dates) =>
+                    onStatusChange?.(book.id, status, dates)
+                  }
+                  onRemove={() => onRemove?.(book.id)}
+                  onRatingUpdate={(rating) => onRatingUpdate?.(book.id, rating)}
+                  currentStatus="currently_reading"
+                  className="w-full flex-1"
+                />
+                <Link href={`/currently-reading/${book.id}`} className="mt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs rounded-xl text-white bg-primary hover:bg-primary/90"
+                  >
+                    See details
+                  </Button>
+                </Link>
+              </div>
             ))}
           </div>
           {hasMoreBooks && !showAllMobile && (
