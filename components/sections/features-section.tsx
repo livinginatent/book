@@ -2,9 +2,9 @@ import {
   BookMarked,
   Target,
   BarChart3,
-  Sparkles,
-  Bell,
+  UserCheck,
   GlobeLock,
+  MonitorDot,
 } from "lucide-react";
 
 import { FeatureCard } from "@/components/ui/feature-card";
@@ -36,16 +36,16 @@ const features = [
       "We believe your reading history is personal. Enjoy a platform with zero third-party tracking and no ads.",
   },
   {
-    icon: Sparkles,
+    icon: UserCheck,
     title: "Personalized Picks",
     description:
-      "Get book recommendations based on your taste, not algorithms. We understand readers.",
+      "Get book recommendations based on your taste. We understand readers.",
   },
   {
-    icon: Bell,
-    title: "Gentle Nudges",
+    icon: MonitorDot,
+    title: "Modern UI",
     description:
-      "Friendly reminders to keep reading. We'll cheer you on, not nag you.",
+      "Our sleek, intuitive design makes tracking your reading effortless and enjoyable.",
   },
 ];
 

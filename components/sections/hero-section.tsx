@@ -1,7 +1,7 @@
 "use client";
 
 
-import { BookOpen, Sparkles, TrendingUp, Users } from "lucide-react";
+import { BookOpen,  Users } from "lucide-react";
 import { Button } from "../ui/button";
 import Link from "next/link";
 
@@ -45,7 +45,6 @@ export function HeroSection() {
         <div className="max-w-4xl mx-auto text-center">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6 animate-fade-in">
-            <Sparkles className="w-4 h-4" />
             <span>Your reading journey, reimagined</span>
           </div>
 
@@ -101,21 +100,16 @@ export function HeroSection() {
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-accent" />
               <span>
-                <strong className="text-foreground">50K+</strong> happy readers
+                <strong className="text-foreground">1k+</strong> happy readers
               </span>
             </div>
             <div className="flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-primary" />
               <span>
-                <strong className="text-foreground">2M+</strong> books tracked
+                <strong className="text-foreground">20k+</strong> books tracked
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-accent" />
-              <span>
-                <strong className="text-foreground">4.9★</strong> average rating
-              </span>
-            </div>
+        
           </div>
         </div>
       </div>
