@@ -39,6 +39,7 @@ interface BookProgressEditorProps {
   onRemove?: () => void;
   currentStatus?: ReadingStatus;
   className?: string;
+  dateStarted?: string | null;
 }
 
 // All possible status actions with their display info
@@ -122,15 +123,28 @@ export function BookProgressEditor({
   onRemove,
   currentStatus,
   className,
+  dateStarted,
 }: BookProgressEditorProps) {
   const [mounted, setMounted] = useState(false);
   const [pages, setPages] = useState(currentPages);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showDNFReason, setShowDNFReason] = useState(false);
+  const [showFinishPrompt, setShowFinishPrompt] = useState(false);
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState("");
   const [finishDate, setFinishDate] = useState(today);
   const progress = totalPages > 0 ? Math.round((pages / totalPages) * 100) : 0;
+
+  // Helper function to convert ISO date string to YYYY-MM-DD format
+  const formatDateForInput = (isoDate: string | null | undefined): string => {
+    if (!isoDate) return "";
+    try {
+      const date = new Date(isoDate);
+      return date.toISOString().split("T")[0];
+    } catch {
+      return "";
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -140,13 +154,29 @@ export function BookProgressEditor({
     if (!isOpen) {
       setShowDatePicker(false);
       setShowDNFReason(false);
+      setShowFinishPrompt(false);
       setStartDate("");
       setFinishDate(new Date().toISOString().split("T")[0]);
+    } else if (isOpen && dateStarted) {
+      // Initialize start date from dateStarted when modal opens
+      setStartDate(formatDateForInput(dateStarted));
     }
-  }, [isOpen]);
+  }, [isOpen, dateStarted]);
 
   const handleIncrement = (amount: number) => {
-    setPages((prev) => Math.min(totalPages, Math.max(0, prev + amount)));
+    setPages((prev) => {
+      const newPages = Math.min(totalPages, Math.max(0, prev + amount));
+      // Check if we've reached total pages and book is not already finished
+      if (
+        newPages === totalPages &&
+        totalPages > 0 &&
+        currentStatus !== "finished" &&
+        prev < totalPages
+      ) {
+        setShowFinishPrompt(true);
+      }
+      return newPages;
+    });
   };
 
   const handleSave = () => {
@@ -209,6 +239,15 @@ export function BookProgressEditor({
 
   const handleDNFCancel = () => {
     setShowDNFReason(false);
+  };
+
+  const handleFinishPromptConfirm = () => {
+    setShowFinishPrompt(false);
+    setShowDatePicker(true);
+  };
+
+  const handleFinishPromptCancel = () => {
+    setShowFinishPrompt(false);
   };
 
   if (!isOpen || !mounted) return null;
@@ -341,6 +380,40 @@ export function BookProgressEditor({
           )}
         </div>
 
+        {/* Finish Prompt */}
+        {showFinishPrompt && (
+          <div className="p-4 border-t border-border bg-muted/30">
+            <div className="flex flex-col gap-4">
+              <div className="text-center">
+                <Check className="w-8 h-8 text-primary mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground mb-1">
+                  You&apos;ve reached the end!
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Would you like to mark this book as finished?
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleFinishPromptCancel}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 rounded-xl"
+                >
+                  Not yet
+                </Button>
+                <Button
+                  onClick={handleFinishPromptConfirm}
+                  size="sm"
+                  className="flex-1 rounded-xl"
+                >
+                  Mark as Finished
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Date Picker for Finished Status */}
         {showDatePicker && (
           <div className="p-4 border-t border-border bg-muted/30">
@@ -366,7 +439,7 @@ export function BookProgressEditor({
         )}
 
         {/* Status Actions */}
-        {!showDatePicker && !showDNFReason && (
+        {!showDatePicker && !showDNFReason && !showFinishPrompt && (
           <div className="p-4 border-t border-border bg-muted/30">
             <p className="text-xs text-muted-foreground mb-3 text-center">
               Or change status

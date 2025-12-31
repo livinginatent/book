@@ -50,7 +50,7 @@ export function ReadingDatePicker({
         {showStartDate && (
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">
-              Started reading (optional)
+              Started reading (default is when it was added to your library)
             </label>
             <input
               type="date"
