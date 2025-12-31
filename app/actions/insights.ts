@@ -24,8 +24,11 @@ export interface ForecastBook {
   estimatedFinish: string;
 }
 
+export type VelocityRange = "30days" | "ytd" | "alltime";
+
 export interface VelocityStatsResult {
   success: true;
+  range: VelocityRange;
   // Heatmap data
   heatmapData: HeatmapDataPoint[];
   // Daily average stats
@@ -36,9 +39,10 @@ export interface VelocityStatsResult {
   // Streak data
   currentStreak: number;
   bestStreak: number;
-  // Year-to-date stats
-  ytdPages: number;
-  booksFinishedYtd: number;
+  // Range-specific stats
+  totalPages: number;
+  booksFinished: number;
+  rangeLabel: string;
   // Forecast data
   forecastBooks: ForecastBook[];
 }
@@ -140,12 +144,12 @@ function calculateStreaks(sessions: { session_date: string; pages_read: number }
  * - Average pages per day (last 30 active days)
  * - Weekly total pages
  * - Current and best reading streaks
- * - Year-to-date stats
+ * - Range-specific stats (30 days, YTD, or All Time)
  * - Predicted finish dates for currently reading books
  */
-export async function getVelocityStats(): Promise<
-  VelocityStatsResult | VelocityStatsError
-> {
+export async function getVelocityStats(
+  range: VelocityRange = "ytd"
+): Promise<VelocityStatsResult | VelocityStatsError> {
   const timer = createTimer("getVelocityStats");
 
   try {
@@ -165,7 +169,7 @@ export async function getVelocityStats(): Promise<
       return { success: false, error: "You must be logged in" };
     }
 
-    // Calculate date boundaries
+    // Calculate date boundaries based on range
     const now = new Date();
     const currentYear = now.getFullYear();
     const yearStart = `${currentYear}-01-01`;
@@ -181,15 +185,55 @@ export async function getVelocityStats(): Promise<
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
     const yearAgoStr = yearAgo.toISOString().split("T")[0];
 
+    // Determine date filter and label based on range
+    let dateFilter: string;
+    let rangeLabel: string;
+    let finishedBooksFilter: string | undefined;
+
+    switch (range) {
+      case "30days":
+        dateFilter = thirtyDaysAgoStr;
+        rangeLabel = "Last 30 Days";
+        finishedBooksFilter = thirtyDaysAgoStr; // Finished books in last 30 days
+        break;
+      case "ytd":
+        dateFilter = yearStart;
+        rangeLabel = `Year to Date (${currentYear})`;
+        finishedBooksFilter = yearStart;
+        break;
+      case "alltime":
+        dateFilter = "1970-01-01"; // All time
+        rangeLabel = "All Time";
+        finishedBooksFilter = undefined; // All finished books
+        break;
+    }
+
     // Parallel queries for all data we need
     const queryTimer = createTimer("getVelocityStats.queries");
+    
+    // Build finished books query based on range
+    let finishedBooksQuery = supabase
+      .from("user_books")
+      .select(`
+        book_id,
+        books (
+          page_count
+        )
+      `)
+      .eq("user_id", user.id)
+      .eq("status", "finished");
+    
+    if (finishedBooksFilter) {
+      finishedBooksQuery = finishedBooksQuery.gte("date_finished", finishedBooksFilter);
+    }
+
     const [sessionsResult, userBooksResult, finishedBooksResult] = await Promise.all([
-      // 1. Get all reading sessions for last 365 days
+      // 1. Get reading sessions based on range (always get last 365 days for heatmap)
       supabase
         .from("reading_sessions")
         .select("session_date, pages_read")
         .eq("user_id", user.id)
-        .gte("session_date", yearAgoStr)
+        .gte("session_date", range === "alltime" ? "1970-01-01" : yearAgoStr)
         .order("session_date", { ascending: true }),
 
       // 2. Get currently reading books with their book details
@@ -207,18 +251,8 @@ export async function getVelocityStats(): Promise<
         .eq("user_id", user.id)
         .eq("status", "currently_reading"),
 
-      // 3. Get finished books this year for YTD stats
-      supabase
-        .from("user_books")
-        .select(`
-          book_id,
-          books (
-            page_count
-          )
-        `)
-        .eq("user_id", user.id)
-        .eq("status", "finished")
-        .gte("date_finished", yearStart),
+      // 3. Get finished books based on range
+      finishedBooksQuery,
     ]);
     queryTimer.end();
 
@@ -296,11 +330,11 @@ export async function getVelocityStats(): Promise<
     const { current: currentStreak, best: bestStreak } = calculateStreaks(sessions);
 
     // ========================================================================
-    // Step 5: Calculate YTD stats
+    // Step 5: Calculate range-specific stats
     // ========================================================================
-    const ytdSessions = sessions.filter((s) => s.session_date >= yearStart);
-    const ytdPages = ytdSessions.reduce((sum, s) => sum + (s.pages_read || 0), 0);
-    const booksFinishedYtd = finishedBooks.length;
+    const rangeSessions = sessions.filter((s) => s.session_date >= dateFilter);
+    const totalPages = rangeSessions.reduce((sum, s) => sum + (s.pages_read || 0), 0);
+    const booksFinished = finishedBooks.length;
 
     // ========================================================================
     // Step 6: Get reading progress for currently reading books
@@ -368,6 +402,7 @@ export async function getVelocityStats(): Promise<
 
     return {
       success: true,
+      range,
       heatmapData,
       avgPagesPerDay,
       weeklyTotal,
@@ -375,8 +410,9 @@ export async function getVelocityStats(): Promise<
       totalPagesLast30Days,
       currentStreak,
       bestStreak,
-      ytdPages,
-      booksFinishedYtd,
+      totalPages,
+      booksFinished,
+      rangeLabel,
       forecastBooks,
     };
   } catch (error) {
