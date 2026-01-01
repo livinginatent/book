@@ -16,8 +16,9 @@ export default function AdvancedInsightsPage() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-3">
-            <Zap className="w-5 h-5 text-primary" />
-            <h1 className="font-semibold text-foreground">Reading Command Center</h1>
+            <h1 className="font-semibold text-foreground">
+              Dashboard
+            </h1>
           </div>
         </div>
       </header>
@@ -26,9 +27,6 @@ export default function AdvancedInsightsPage() {
         {/* Hero Section */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Zap className="w-6 h-6 text-white" />
-            </div>
             <div>
               <h2 className="text-2xl font-bold text-foreground">
                 Reading Velocity
@@ -42,19 +40,27 @@ export default function AdvancedInsightsPage() {
           {/* Description Card */}
           <div className="mt-6 p-5 rounded-2xl bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 border border-primary/10">
             <p className="text-sm text-foreground leading-relaxed">
-              This dashboard focuses on <strong>how</strong> you read, not just what you read.
-              Track your reading pace with the <span className="text-blue-500 font-medium">Velocity Engine</span>,
-              maintain momentum with the <span className="text-orange-500 font-medium">Streak Counter</span>,
-              visualize your consistency with the <span className="text-emerald-500 font-medium">Activity Heatmap</span>,
-              and see exactly when you'll finish your current books with the <span className="text-violet-500 font-medium">Completion Forecast</span>.
+              This dashboard focuses on <strong>how</strong> you read, not just
+              what you read. Track your reading pace with the{" "}
+              <span className="text-primary">Velocity Engine</span>, maintain
+              momentum with the{" "}
+              <span className="text-primary">Streak Counter</span>, visualize
+              your consistency with the{" "}
+              <span className="text-primary">Activity Heatmap</span>, and see
+              exactly when you'll finish your current books with the{" "}
+              <span className="text-primary ">
+                Completion Forecast
+              </span>
+              .
             </p>
           </div>
 
           {/* Quick Stats Row */}
           <div className="mt-6 flex flex-wrap gap-4">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <Zap className="w-4 h-4" />
-              <span className="text-sm font-medium">30-Day Rolling Average</span>
+              <span className="text-sm font-medium">
+                30-Day Rolling Average
+              </span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400">
               <span className="text-sm font-medium">Don't Break the Chain</span>

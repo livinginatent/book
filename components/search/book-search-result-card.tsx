@@ -19,6 +19,7 @@ import { createPortal } from "react-dom";
 
 import {
   addBookToReadingList,
+  hasReadingSessions,
   updateBookStatus,
 } from "@/app/actions/book-actions";
 import { Badge } from "@/components/ui/badge";
@@ -148,6 +149,9 @@ export function BookSearchResultCard({
   const [optimisticStatus, setOptimisticStatus] = useState<
     ReadingStatus | undefined
   >(userBookStatus);
+  const [pendingCreateSession, setPendingCreateSession] = useState<
+    boolean | undefined
+  >(undefined);
 
   useEffect(() => {
     setMounted(true);
@@ -194,7 +198,8 @@ export function BookSearchResultCard({
   const handleAction = async (
     action: MobileActionId | BookAction,
     reason?: string | null,
-    createSession?: boolean
+    createSession?: boolean,
+    dates?: { dateStarted?: string; dateFinished?: string }
   ) => {
     const targetStatus = actionToStatusMap[action];
 
@@ -212,23 +217,30 @@ export function BookSearchResultCard({
           // For finished status, we need to provide a date
           if (action === "finished") {
             // Use dates from BookActionMenu if provided, otherwise use today's date
-            const finishDate = dates?.dateFinished || (() => {
-              const today = new Date();
-              today.setHours(23, 59, 59, 999);
-              return today.toISOString();
-            })();
+            const finishDate =
+              dates?.dateFinished ||
+              (() => {
+                const today = new Date();
+                today.setHours(23, 59, 59, 999);
+                return today.toISOString();
+              })();
 
             const updateOptions = dates
               ? {
                   dateFinished: dates.dateFinished,
                   dateStarted: dates.dateStarted,
-                  createSession: createSession !== undefined ? createSession : true,
+                  createSession:
+                    createSession !== undefined ? createSession : true,
                 }
               : createSession !== undefined
               ? { dateFinished: finishDate, createSession }
               : finishDate;
 
-            const result = await updateBookStatus(book.id, "finished", updateOptions);
+            const result = await updateBookStatus(
+              book.id,
+              "finished",
+              updateOptions
+            );
 
             if (result.success) {
               // Notify parent component
@@ -261,7 +273,11 @@ export function BookSearchResultCard({
               dateStarted: dates.dateStarted,
               createSession: createSession !== undefined ? createSession : true,
             };
-            const result = await updateBookStatus(book.id, "finished", updateOptions);
+            const result = await updateBookStatus(
+              book.id,
+              "finished",
+              updateOptions
+            );
             if (result.success) {
               onStatusChange?.(book.id, "finished");
               window.dispatchEvent(
@@ -276,10 +292,16 @@ export function BookSearchResultCard({
           }
           // Otherwise, check for reading sessions before showing date picker
           const sessionsResult = await hasReadingSessions(book.id);
-          if (sessionsResult.success && !sessionsResult.hasSessions && sessionsResult.pageCount > 0) {
+          if (
+            sessionsResult.success &&
+            !sessionsResult.hasSessions &&
+            sessionsResult.pageCount > 0
+          ) {
             // No sessions found, store createSession flag and show date picker
             // The date picker will handle the createSession flag
-            setPendingCreateSession(createSession !== undefined ? createSession : true);
+            setPendingCreateSession(
+              createSession !== undefined ? createSession : true
+            );
           } else {
             // Has sessions or no page count, proceed normally
             if (createSession !== undefined) {
@@ -341,16 +363,26 @@ export function BookSearchResultCard({
 
   const handleStatusChange = async (
     newStatus: ReadingStatus,
-    dates?: { dateStarted?: string; dateFinished?: string; createSession?: boolean }
+    dates?: {
+      dateStarted?: string;
+      dateFinished?: string;
+      createSession?: boolean;
+    }
   ) => {
     if (newStatus === "finished" && !dates?.dateFinished) {
       // Check for reading sessions before showing date picker
       if (book.id && book.page_count) {
         const sessionsResult = await hasReadingSessions(book.id);
-        if (sessionsResult.success && !sessionsResult.hasSessions && sessionsResult.pageCount > 0) {
+        if (
+          sessionsResult.success &&
+          !sessionsResult.hasSessions &&
+          sessionsResult.pageCount > 0
+        ) {
           // No sessions found - for mobile/quick actions, we'll default to creating session
           // Store createSession flag (default to true for quick actions)
-          setPendingCreateSession(dates?.createSession !== undefined ? dates.createSession : true);
+          setPendingCreateSession(
+            dates?.createSession !== undefined ? dates.createSession : true
+          );
         } else {
           // Has sessions or no page count, proceed normally
           if (dates?.createSession !== undefined) {
@@ -406,7 +438,11 @@ export function BookSearchResultCard({
     const finishDateObj = new Date(finishDate);
     finishDateObj.setHours(23, 59, 59, 999);
 
-    const dates: { dateStarted?: string; dateFinished: string; createSession?: boolean } = {
+    const dates: {
+      dateStarted?: string;
+      dateFinished: string;
+      createSession?: boolean;
+    } = {
       dateFinished: finishDateObj.toISOString(),
     };
 
@@ -713,8 +749,8 @@ export function BookSearchResultCard({
               style={{ pointerEvents: isHovered ? "auto" : "none" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <BookActionMenu 
-                onAction={handleAction} 
+              <BookActionMenu
+                onAction={handleAction}
                 bookId={book.id}
                 totalPages={book.page_count || 0}
                 dateStarted={undefined}

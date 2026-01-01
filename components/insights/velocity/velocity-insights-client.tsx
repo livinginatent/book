@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { Target, Activity, Flame } from "lucide-react";
+import { Target, Activity, Flame, History } from "lucide-react";
 
 import { getVelocityStats, type VelocityRange } from "@/app/actions/insights";
 import {
@@ -93,7 +93,8 @@ export function VelocityInsightsClient() {
             View Progress Through
           </h3>
           <p className="text-xs text-muted-foreground">
-            Switch between different time periods to analyze your reading patterns
+            Switch between different time periods to analyze your reading
+            patterns
           </p>
         </div>
         <div className="flex-1 max-w-2xl">
@@ -115,23 +116,28 @@ export function VelocityInsightsClient() {
       )}
 
       {/* Section 1: Core Metrics */}
-      <section className={isPending ? "opacity-50 transition-opacity" : "transition-opacity"}>
+      <section
+        className={
+          isPending ? "opacity-50 transition-opacity" : "transition-opacity"
+        }
+      >
         <div className="flex items-center gap-2 mb-2">
           <Target className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Core Metrics</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            Core Metrics
+          </h2>
         </div>
         <p className="text-sm text-muted-foreground mb-6">
-          Your reading productivity at a glance — velocity, streaks, and {rangeLabel.toLowerCase()} progress
+          Your reading productivity at a glance — velocity, streaks, and{" "}
+          {rangeLabel.toLowerCase()} progress
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <DailyAverageCard
             pagesPerDay={avgPagesPerDay}
             weeklyTotal={weeklyTotal}
+            rangeLabel={rangeLabel}
           />
-          <StreakCard
-            currentStreak={currentStreak}
-            bestStreak={bestStreak}
-          />
+          <StreakCard currentStreak={currentStreak} bestStreak={bestStreak} />
           <YtdPagesCard
             totalPages={totalPages}
             booksFinished={booksFinished}
@@ -141,10 +147,16 @@ export function VelocityInsightsClient() {
       </section>
 
       {/* Section 2: Activity Heatmap */}
-      <section className={isPending ? "opacity-50 transition-opacity" : "transition-opacity"}>
+      <section
+        className={
+          isPending ? "opacity-50 transition-opacity" : "transition-opacity"
+        }
+      >
         <div className="flex items-center gap-2 mb-2">
-          <Activity className="w-5 h-5 text-emerald-500" />
-          <h2 className="text-lg font-semibold text-foreground">Reading History</h2>
+          <History className="w-5 h-5 text-emerald-500" />
+          <h2 className="text-lg font-semibold text-foreground">
+            Reading History
+          </h2>
         </div>
         <p className="text-sm text-muted-foreground mb-6">
           A visual timeline of your reading journey over the past year
@@ -156,10 +168,16 @@ export function VelocityInsightsClient() {
       </section>
 
       {/* Section 3: Forecast */}
-      <section className={isPending ? "opacity-50 transition-opacity" : "transition-opacity"}>
+      <section
+        className={
+          isPending ? "opacity-50 transition-opacity" : "transition-opacity"
+        }
+      >
         <div className="flex items-center gap-2 mb-2">
           <Flame className="w-5 h-5 text-violet-500" />
-          <h2 className="text-lg font-semibold text-foreground">Book Forecasts</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            Book Forecasts
+          </h2>
         </div>
         <p className="text-sm text-muted-foreground mb-6">
           Predicted completion dates based on your current reading velocity

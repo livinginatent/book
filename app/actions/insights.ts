@@ -56,18 +56,22 @@ export interface VelocityStatsError {
 // Helper Functions
 // ============================================================================
 
-function calculateStreaks(sessions: { session_date: string; pages_read: number }[]): {
+function calculateStreaks(
+  sessions: { session_date: string; pages_read: number }[]
+): {
   current: number;
   best: number;
 } {
   if (sessions.length === 0) return { current: 0, best: 0 };
 
   // Get unique dates with pages_read > 0, sorted descending
-  const uniqueDates = [...new Set(
-    sessions
-      .filter((s) => s.pages_read > 0)
-      .map((s) => s.session_date.split("T")[0])
-  )].sort((a, b) => b.localeCompare(a));
+  const uniqueDates = [
+    ...new Set(
+      sessions
+        .filter((s) => s.pages_read > 0)
+        .map((s) => s.session_date.split("T")[0])
+    ),
+  ].sort((a, b) => b.localeCompare(a));
 
   if (uniqueDates.length === 0) return { current: 0, best: 0 };
 
@@ -210,36 +214,43 @@ export async function getVelocityStats(
 
     // Parallel queries for all data we need
     const queryTimer = createTimer("getVelocityStats.queries");
-    
+
     // Build finished books query based on range
     let finishedBooksQuery = supabase
       .from("user_books")
-      .select(`
+      .select(
+        `
         book_id,
         books (
           page_count
         )
-      `)
+      `
+      )
       .eq("user_id", user.id)
       .eq("status", "finished");
-    
+
     if (finishedBooksFilter) {
-      finishedBooksQuery = finishedBooksQuery.gte("date_finished", finishedBooksFilter);
+      finishedBooksQuery = finishedBooksQuery.gte(
+        "date_finished",
+        finishedBooksFilter
+      );
     }
 
-    const [sessionsResult, userBooksResult, finishedBooksResult] = await Promise.all([
-      // 1. Get reading sessions based on range (always get last 365 days for heatmap)
-      supabase
-        .from("reading_sessions")
-        .select("session_date, pages_read")
-        .eq("user_id", user.id)
-        .gte("session_date", range === "alltime" ? "1970-01-01" : yearAgoStr)
-        .order("session_date", { ascending: true }),
+    const [sessionsResult, userBooksResult, finishedBooksResult] =
+      await Promise.all([
+        // 1. Get reading sessions based on range (always get last 365 days for heatmap)
+        supabase
+          .from("reading_sessions")
+          .select("session_date, pages_read")
+          .eq("user_id", user.id)
+          .gte("session_date", range === "alltime" ? "1970-01-01" : yearAgoStr)
+          .order("session_date", { ascending: true }),
 
-      // 2. Get currently reading books with their book details
-      supabase
-        .from("user_books")
-        .select(`
+        // 2. Get currently reading books with their book details
+        supabase
+          .from("user_books")
+          .select(
+            `
           book_id,
           books (
             id,
@@ -247,13 +258,14 @@ export async function getVelocityStats(
             authors,
             page_count
           )
-        `)
-        .eq("user_id", user.id)
-        .eq("status", "currently_reading"),
+        `
+          )
+          .eq("user_id", user.id)
+          .eq("status", "currently_reading"),
 
-      // 3. Get finished books based on range
-      finishedBooksQuery,
-    ]);
+        // 3. Get finished books based on range
+        finishedBooksQuery,
+      ]);
     queryTimer.end();
 
     if (sessionsResult.error) {
@@ -265,7 +277,10 @@ export async function getVelocityStats(
     if (userBooksResult.error) {
       console.error("Error fetching user books:", userBooksResult.error);
       timer.end();
-      return { success: false, error: "Failed to fetch currently reading books" };
+      return {
+        success: false,
+        error: "Failed to fetch currently reading books",
+      };
     }
 
     const sessions = sessionsResult.data || [];
@@ -295,15 +310,16 @@ export async function getVelocityStats(
       .reduce((sum, s) => sum + (s.pages_read || 0), 0);
 
     // ========================================================================
-    // Step 3: Calculate average pages per day (last 30 active days)
+    // Step 3: Calculate average pages per day based on selected range
     // ========================================================================
-    const last30DaysSessions = sessions.filter(
-      (s) => s.session_date >= thirtyDaysAgoStr
+    // Use range-specific sessions for velocity calculation
+    const rangeSessionsForVelocity = sessions.filter(
+      (s) => s.session_date >= dateFilter
     );
 
     // Group by date to find active days and sum pages
     const activeDaysMap = new Map<string, number>();
-    for (const session of last30DaysSessions) {
+    for (const session of rangeSessionsForVelocity) {
       const dateKey = session.session_date.split("T")[0];
       const currentPages = activeDaysMap.get(dateKey) || 0;
       activeDaysMap.set(dateKey, currentPages + (session.pages_read || 0));
@@ -313,27 +329,48 @@ export async function getVelocityStats(
     const activeDaysWithReading = Array.from(activeDaysMap.entries()).filter(
       ([, pages]) => pages > 0
     );
-    const activeDaysLast30 = activeDaysWithReading.length;
-    const totalPagesLast30Days = activeDaysWithReading.reduce(
+    const activeDaysInRange = activeDaysWithReading.length;
+    const totalPagesInRange = activeDaysWithReading.reduce(
       (sum, [, pages]) => sum + pages,
       0
     );
 
     const avgPagesPerDay =
-      activeDaysLast30 > 0
-        ? Math.round(totalPagesLast30Days / activeDaysLast30)
+      activeDaysInRange > 0
+        ? Math.round(totalPagesInRange / activeDaysInRange)
         : 0;
+
+    // Also calculate last 30 days stats for display purposes
+    const last30DaysSessions = sessions.filter(
+      (s) => s.session_date >= thirtyDaysAgoStr
+    );
+    const last30DaysMap = new Map<string, number>();
+    for (const session of last30DaysSessions) {
+      const dateKey = session.session_date.split("T")[0];
+      const currentPages = last30DaysMap.get(dateKey) || 0;
+      last30DaysMap.set(dateKey, currentPages + (session.pages_read || 0));
+    }
+    const activeDaysLast30 = Array.from(last30DaysMap.entries()).filter(
+      ([, pages]) => pages > 0
+    ).length;
+    const totalPagesLast30Days = Array.from(last30DaysMap.entries())
+      .filter(([, pages]) => pages > 0)
+      .reduce((sum, [, pages]) => sum + pages, 0);
 
     // ========================================================================
     // Step 4: Calculate streaks
     // ========================================================================
-    const { current: currentStreak, best: bestStreak } = calculateStreaks(sessions);
+    const { current: currentStreak, best: bestStreak } =
+      calculateStreaks(sessions);
 
     // ========================================================================
     // Step 5: Calculate range-specific stats
     // ========================================================================
     const rangeSessions = sessions.filter((s) => s.session_date >= dateFilter);
-    const totalPages = rangeSessions.reduce((sum, s) => sum + (s.pages_read || 0), 0);
+    const totalPages = rangeSessions.reduce(
+      (sum, s) => sum + (s.pages_read || 0),
+      0
+    );
     const booksFinished = finishedBooks.length;
 
     // ========================================================================
@@ -379,12 +416,13 @@ export async function getVelocityStats(
 
         // Use user's average velocity for predictions
         const pagesPerDay = avgPagesPerDay > 0 ? avgPagesPerDay : 20; // Default to 20 if no data
-        const daysToFinish = pagesRemaining > 0 
-          ? Math.ceil(pagesRemaining / pagesPerDay)
-          : 0;
+        const daysToFinish =
+          pagesRemaining > 0 ? Math.ceil(pagesRemaining / pagesPerDay) : 0;
 
         const estimatedFinishDate = new Date();
-        estimatedFinishDate.setDate(estimatedFinishDate.getDate() + daysToFinish);
+        estimatedFinishDate.setDate(
+          estimatedFinishDate.getDate() + daysToFinish
+        );
 
         return {
           id: book.id,
@@ -396,7 +434,9 @@ export async function getVelocityStats(
           estimatedFinish: estimatedFinishDate.toISOString(),
         };
       })
-      .filter((book): book is ForecastBook => book !== null && book.totalPages > 0);
+      .filter(
+        (book): book is ForecastBook => book !== null && book.totalPages > 0
+      );
 
     timer.end();
 

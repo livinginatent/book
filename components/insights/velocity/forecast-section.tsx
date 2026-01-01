@@ -67,7 +67,7 @@ export function ForecastSection({ books, className }: ForecastSectionProps) {
               <p className="text-xs">
                 <strong>The Forecast</strong> answers the question: "If I keep reading 
                 at my current pace, exactly when will I finish each book?" Predictions 
-                are based on your 30-day velocity average.
+                are based on your selected time range velocity average.
               </p>
             </TooltipContent>
           </Tooltip>

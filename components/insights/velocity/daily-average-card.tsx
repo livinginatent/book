@@ -12,12 +12,14 @@ import {
 interface DailyAverageCardProps {
   pagesPerDay: number;
   weeklyTotal: number;
+  rangeLabel?: string;
   className?: string;
 }
 
 export function DailyAverageCard({
   pagesPerDay,
   weeklyTotal,
+  rangeLabel,
   className,
 }: DailyAverageCardProps) {
   // Categorize reading pace
@@ -42,7 +44,9 @@ export function DailyAverageCard({
           </div>
           <div>
             <h3 className="font-semibold text-foreground">Velocity Engine</h3>
-            <p className="text-xs text-muted-foreground">30-day rolling average</p>
+            <p className="text-xs text-muted-foreground">
+              {rangeLabel ? `${rangeLabel} average` : "30-day rolling average"}
+            </p>
           </div>
         </div>
         <TooltipProvider>
@@ -55,7 +59,7 @@ export function DailyAverageCard({
             <TooltipContent side="left" className="max-w-xs">
               <p className="text-xs">
                 <strong>The Velocity Engine</strong> calculates your current reading pace 
-                using a 30-day rolling average of pages read on active reading days. 
+                using the average pages per day from your selected time range. 
                 This powers your book completion forecasts.
               </p>
             </TooltipContent>

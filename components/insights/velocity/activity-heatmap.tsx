@@ -1,13 +1,14 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { Info } from "lucide-react";
+
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface HeatmapDay {
   date: string;
@@ -32,8 +33,9 @@ export function ActivityHeatmap({
   // Group data by weeks
   const weeks = Array.from({ length: 52 }, (_, i) => {
     const weekStart = new Date();
+    weekStart.setHours(0, 0, 0, 0);
     weekStart.setDate(
-      weekStart.getDate() - (weekStart.getDay() + 52 * 7) + i * 7
+      weekStart.getDate() - (weekStart.getDay() + 51 * 7) + i * 7
     );
     return Array.from({ length: 7 }, (_, dayIndex) => {
       const date = new Date(weekStart);
@@ -47,10 +49,10 @@ export function ActivityHeatmap({
 
   const getColor = (pages: number): string => {
     if (pages === 0) return "bg-muted";
-    if (pages < maxPages * 0.25) return "bg-emerald-200 dark:bg-emerald-900";
-    if (pages < maxPages * 0.5) return "bg-emerald-400 dark:bg-emerald-700";
-    if (pages < maxPages * 0.75) return "bg-emerald-500 dark:bg-emerald-500";
-    return "bg-emerald-600 dark:bg-emerald-400";
+    if (pages < maxPages * 0.25) return "bg-primary/20";
+    if (pages < maxPages * 0.5) return "bg-primary/40";
+    if (pages < maxPages * 0.75) return "bg-primary/70";
+    return "bg-primary";
   };
 
   const formatDate = (dateStr: string) => {
@@ -62,17 +64,38 @@ export function ActivityHeatmap({
     });
   };
 
-  // Month labels
+  // Month labels - show at the start of the week containing the 1st of each month
   const monthLabels: { month: string; weekIndex: number }[] = [];
-  let lastMonth = -1;
+  const seenMonths = new Set<number>();
+
   weeks.forEach((week, weekIndex) => {
-    const month = new Date(week[0].date).getMonth();
-    if (month !== lastMonth) {
-      monthLabels.push({
-        month: new Date(week[0].date).toLocaleDateString("en-US", { month: "short" }),
-        weekIndex,
+    // Check if this week contains the 1st of any month
+    const hasFirstOfMonth = week.some((day) => {
+      const date = new Date(day.date);
+      return date.getDate() === 1;
+    });
+
+    if (hasFirstOfMonth) {
+      // Find the first day of the month in this week
+      const firstDay = week.find((day) => {
+        const date = new Date(day.date);
+        return date.getDate() === 1;
       });
-      lastMonth = month;
+
+      if (firstDay) {
+        const date = new Date(firstDay.date);
+        const month = date.getMonth();
+
+        if (!seenMonths.has(month)) {
+          monthLabels.push({
+            month: date.toLocaleDateString("en-US", {
+              month: "short",
+            }),
+            weekIndex,
+          });
+          seenMonths.add(month);
+        }
+      }
     }
   });
 
@@ -87,7 +110,7 @@ export function ActivityHeatmap({
             12-Month Reading Activity
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Your visual proof of work — every green square is a day you read
+            Your visual proof of work — every colored square is a day you read
           </p>
         </div>
         <TooltipProvider>
@@ -99,9 +122,10 @@ export function ActivityHeatmap({
             </TooltipTrigger>
             <TooltipContent side="left" className="max-w-xs">
               <p className="text-xs">
-                <strong>The Heatmap</strong> is your visual "proof of work" — a GitHub-style 
-                grid showing the last 12 months of reading activity. Darker squares mean 
-                more pages read that day. Hover over any square to see the details.
+                <strong>The Heatmap</strong> is your visual &quot;proof of
+                work&quot; — a GitHub-style grid showing the last 12 months of
+                reading activity. Darker squares mean more pages read that day.
+                Hover over any square to see the details.
               </p>
             </TooltipContent>
           </Tooltip>
@@ -116,28 +140,45 @@ export function ActivityHeatmap({
         </div>
         <div>
           <span className="text-muted-foreground">Total pages: </span>
-          <span className="font-semibold text-foreground">{totalPages.toLocaleString()}</span>
+          <span className="font-semibold text-foreground">
+            {totalPages.toLocaleString()}
+          </span>
         </div>
       </div>
 
       {/* Month labels */}
       <div className="overflow-x-auto">
         <div className="min-w-max">
-          <div className="flex gap-1 mb-1 ml-8">
-            {monthLabels.map((m, i) => (
-              <div
-                key={i}
-                className="text-xs text-muted-foreground"
-                style={{
-                  marginLeft: i === 0 ? `${m.weekIndex * 14}px` : undefined,
-                  width: i < monthLabels.length - 1
-                    ? `${(monthLabels[i + 1].weekIndex - m.weekIndex) * 14}px`
-                    : "auto",
-                }}
-              >
-                {m.month}
-              </div>
-            ))}
+          <div
+            className="relative mb-1 ml-8"
+            style={{
+              height: "16px",
+              width: `${weeks.length * 16}px`,
+            }}
+          >
+            {monthLabels.map((m, i) => {
+              // Each week column is 12px (w-3) + 4px gap = 16px
+              const weekWidth = 16;
+              const position = m.weekIndex * weekWidth;
+              const nextPosition =
+                i < monthLabels.length - 1
+                  ? monthLabels[i + 1].weekIndex * weekWidth
+                  : weeks.length * weekWidth;
+              const width = nextPosition - position;
+
+              return (
+                <div
+                  key={i}
+                  className="absolute text-xs text-muted-foreground"
+                  style={{
+                    left: `${position}px`,
+                    width: `${width}px`,
+                  }}
+                >
+                  {m.month}
+                </div>
+              );
+            })}
           </div>
 
           {/* Day labels + Grid */}
@@ -169,12 +210,20 @@ export function ActivityHeatmap({
                           />
                         </TooltipTrigger>
                         <TooltipContent className="text-xs">
-                          <div className="font-medium">{formatDate(day.date)}</div>
-                          <div className={cn(
-                            "font-semibold",
-                            day.pages > 0 ? "text-emerald-500" : "text-muted-foreground"
-                          )}>
-                            {day.pages > 0 ? `${day.pages} pages` : "No reading"}
+                          <div className="font-medium">
+                            {formatDate(day.date)}
+                          </div>
+                          <div
+                            className={cn(
+                              "font-semibold",
+                              day.pages > 0
+                                ? "text-primary"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            {day.pages > 0
+                              ? `${day.pages} pages`
+                              : "No reading"}
                           </div>
                         </TooltipContent>
                       </Tooltip>
@@ -196,10 +245,10 @@ export function ActivityHeatmap({
           <span>Less</span>
           <div className="flex gap-1">
             <div className="w-3 h-3 rounded-sm bg-muted" />
-            <div className="w-3 h-3 rounded-sm bg-emerald-200 dark:bg-emerald-900" />
-            <div className="w-3 h-3 rounded-sm bg-emerald-400 dark:bg-emerald-700" />
-            <div className="w-3 h-3 rounded-sm bg-emerald-500 dark:bg-emerald-500" />
-            <div className="w-3 h-3 rounded-sm bg-emerald-600 dark:bg-emerald-400" />
+            <div className="w-3 h-3 rounded-sm bg-primary/20" />
+            <div className="w-3 h-3 rounded-sm bg-primary/40" />
+            <div className="w-3 h-3 rounded-sm bg-primary/70" />
+            <div className="w-3 h-3 rounded-sm bg-primary" />
           </div>
           <span>More</span>
         </div>
