@@ -14,6 +14,7 @@ import {
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { hasReadingSessions } from "@/app/actions/book-actions";
 import { DNFReasonInput } from "@/components/ui/book/dnf-reason-input";
 import { ReadingDatePicker } from "@/components/ui/book/reading-date-picker";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export interface BookStatusDates {
   dateStarted?: string;
   dateFinished?: string;
   notes?: string | null;
+  createSession?: boolean;
 }
 
 interface BookProgressEditorProps {
@@ -40,6 +42,7 @@ interface BookProgressEditorProps {
   currentStatus?: ReadingStatus;
   className?: string;
   dateStarted?: string | null;
+  bookId?: string;
 }
 
 // All possible status actions with their display info
@@ -124,12 +127,17 @@ export function BookProgressEditor({
   currentStatus,
   className,
   dateStarted,
+  bookId,
 }: BookProgressEditorProps) {
   const [mounted, setMounted] = useState(false);
   const [pages, setPages] = useState(currentPages);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showDNFReason, setShowDNFReason] = useState(false);
   const [showFinishPrompt, setShowFinishPrompt] = useState(false);
+  const [showNoSessionsModal, setShowNoSessionsModal] = useState(false);
+  const [shouldCreateSession, setShouldCreateSession] = useState(true);
+  const [checkingSessions, setCheckingSessions] = useState(false);
+  const [showedNoSessionsModal, setShowedNoSessionsModal] = useState(false);
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState("");
   const [finishDate, setFinishDate] = useState(today);
@@ -155,6 +163,9 @@ export function BookProgressEditor({
       setShowDatePicker(false);
       setShowDNFReason(false);
       setShowFinishPrompt(false);
+      setShowNoSessionsModal(false);
+      setShowedNoSessionsModal(false);
+      setShouldCreateSession(true);
       setStartDate("");
       setFinishDate(new Date().toISOString().split("T")[0]);
     } else if (isOpen && dateStarted) {
@@ -184,9 +195,27 @@ export function BookProgressEditor({
     onClose();
   };
 
-  const handleStatusChange = (status: BookStatus) => {
+  const handleStatusChange = async (status: BookStatus) => {
     if (status === "finished") {
-      setShowDatePicker(true);
+      // Check if book has reading sessions before showing date picker
+      if (bookId) {
+        setCheckingSessions(true);
+        const result = await hasReadingSessions(bookId);
+        setCheckingSessions(false);
+        
+        if (result.success && !result.hasSessions && result.pageCount > 0) {
+          // No sessions found, show modal asking if they want to log pages
+          setShowedNoSessionsModal(true);
+          setShowNoSessionsModal(true);
+        } else {
+          // Has sessions or no page count, proceed normally
+          setShowedNoSessionsModal(false);
+          setShowDatePicker(true);
+        }
+      } else {
+        // No bookId provided, proceed normally
+        setShowDatePicker(true);
+      }
     } else if (status === "dnf") {
       setShowDNFReason(true);
     } else {
@@ -219,6 +248,11 @@ export function BookProgressEditor({
       dates.dateStarted = startDateObj.toISOString();
     }
 
+    // Include createSession flag if we showed the no-sessions modal
+    if (showedNoSessionsModal) {
+      dates.createSession = shouldCreateSession;
+    }
+
     onStatusChange("finished", dates);
     onClose();
   };
@@ -248,6 +282,18 @@ export function BookProgressEditor({
 
   const handleFinishPromptCancel = () => {
     setShowFinishPrompt(false);
+  };
+
+  const handleNoSessionsConfirm = () => {
+    setShowNoSessionsModal(false);
+    setShouldCreateSession(true);
+    setShowDatePicker(true);
+  };
+
+  const handleNoSessionsCancel = () => {
+    setShowNoSessionsModal(false);
+    setShouldCreateSession(false);
+    setShowDatePicker(true);
   };
 
   if (!isOpen || !mounted) return null;
@@ -414,8 +460,42 @@ export function BookProgressEditor({
           </div>
         )}
 
+        {/* No Sessions Modal */}
+        {showNoSessionsModal && (
+          <div className="p-4 border-t border-border bg-muted/30">
+            <div className="flex flex-col gap-4">
+              <div className="text-center">
+                <BookOpen className="w-8 h-8 text-primary mx-auto mb-2" />
+                <p className="text-sm font-medium text-foreground mb-1">
+                  You haven&apos;t logged any sessions for this book.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Should we log the full {totalPages} pages for this book?
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleNoSessionsCancel}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 rounded-xl"
+                >
+                  No
+                </Button>
+                <Button
+                  onClick={handleNoSessionsConfirm}
+                  size="sm"
+                  className="flex-1 rounded-xl"
+                >
+                  Yes, log {totalPages} pages
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Date Picker for Finished Status */}
-        {showDatePicker && (
+        {showDatePicker && !showNoSessionsModal && (
           <div className="p-4 border-t border-border bg-muted/30">
             <ReadingDatePicker
               startDate={startDate}
@@ -438,8 +518,18 @@ export function BookProgressEditor({
           />
         )}
 
+        {/* Loading state while checking sessions */}
+        {checkingSessions && (
+          <div className="p-4 border-t border-border bg-muted/30">
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+              <span>Checking reading sessions...</span>
+            </div>
+          </div>
+        )}
+
         {/* Status Actions */}
-        {!showDatePicker && !showDNFReason && !showFinishPrompt && (
+        {!showDatePicker && !showDNFReason && !showFinishPrompt && !showNoSessionsModal && !checkingSessions && (
           <div className="p-4 border-t border-border bg-muted/30">
             <p className="text-xs text-muted-foreground mb-3 text-center">
               Or change status

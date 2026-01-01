@@ -403,6 +403,7 @@ export default function CurrentlyReadingDetailPage() {
               onRemove={handleRemove}
               currentStatus="currently_reading"
               dateStarted={book.startDate?.toISOString()}
+              bookId={bookId}
             />
           </div>
         </div>

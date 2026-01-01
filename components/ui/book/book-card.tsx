@@ -46,6 +46,7 @@ interface BookCardProps {
   isPaused?: boolean;
   daysSinceLastRead?: number | null;
   latestJournalEntry?: string | null;
+  dateStarted?: string | null;
 }
 
 export function BookCard({
@@ -72,6 +73,7 @@ export function BookCard({
   isPaused = false,
   daysSinceLastRead,
   latestJournalEntry,
+  dateStarted,
 }: BookCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
@@ -222,6 +224,8 @@ export function BookCard({
             onStatusChange={handleStatusChange}
             onRemove={onRemove}
             currentStatus={currentStatus}
+            bookId={bookId}
+            dateStarted={dateStarted}
           />
         )}
       </div>

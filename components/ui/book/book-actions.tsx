@@ -13,7 +13,10 @@ import {
 import { useState, useRef, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
+import { hasReadingSessions } from "@/app/actions/book-actions";
 import { DNFReasonInput } from "@/components/ui/book/dnf-reason-input";
+import { ReadingDatePicker } from "@/components/ui/book/reading-date-picker";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // Hook to check if we're on the client (for portal rendering)
@@ -34,8 +37,16 @@ export type BookAction =
   | "finished";
 
 interface BookActionMenuProps {
-  onAction: (action: BookAction, reason?: string | null) => void;
+  onAction: (
+    action: BookAction,
+    reason?: string | null,
+    createSession?: boolean,
+    dates?: { dateStarted?: string; dateFinished?: string }
+  ) => void;
   className?: string;
+  bookId?: string;
+  totalPages?: number;
+  dateStarted?: string | null;
 }
 
 // Actions arranged in a half-circle (like the curve of letter D)
@@ -85,13 +96,50 @@ const START_ANGLE = 90; // degrees
 const END_ANGLE = 270; // degrees
 const ANGLE_STEP = (END_ANGLE - START_ANGLE) / (actions.length - 1);
 
-export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
+export function BookActionMenu({
+  onAction,
+  className,
+  bookId,
+  totalPages,
+  dateStarted,
+}: BookActionMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeAction, setActiveAction] = useState<BookAction | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [showDNFDialog, setShowDNFDialog] = useState(false);
+  const [showNoSessionsModal, setShowNoSessionsModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [checkingSessions, setCheckingSessions] = useState(false);
+  const [pendingCreateSession, setPendingCreateSession] = useState<
+    boolean | undefined
+  >(undefined);
+  // Helper function to convert ISO date string to YYYY-MM-DD format
+  const formatDateForInput = (isoDate: string | null | undefined): string => {
+    if (!isoDate) return "";
+    try {
+      const date = new Date(isoDate);
+      return date.toISOString().split("T")[0];
+    } catch {
+      return "";
+    }
+  };
+
+  const today = new Date().toISOString().split("T")[0];
+  const [startDate, setStartDate] = useState(() =>
+    formatDateForInput(dateStarted)
+  );
+  const [finishDate, setFinishDate] = useState(today);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isClient = useIsClient();
+
+  // Update start date when dateStarted prop changes (only if different)
+  useEffect(() => {
+    const formatted = formatDateForInput(dateStarted);
+    if (formatted !== startDate) {
+      setStartDate(formatted);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateStarted]);
 
   // Update menu position when opened
   useEffect(() => {
@@ -131,14 +179,73 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
     };
   }, [isOpen]);
 
-  const handleAction = (action: BookAction) => {
+  const handleAction = async (action: BookAction) => {
     if (action === "did-not-finish") {
       setIsOpen(false);
       setShowDNFDialog(true);
+    } else if (action === "finished" && bookId && totalPages) {
+      // Check if book has reading sessions before finishing
+      setIsOpen(false);
+      setCheckingSessions(true);
+      const result = await hasReadingSessions(bookId);
+      setCheckingSessions(false);
+
+      if (result.success && !result.hasSessions && result.pageCount > 0) {
+        // No sessions found, show modal asking if they want to log pages
+        setShowNoSessionsModal(true);
+      } else {
+        // Has sessions or no page count, proceed to date picker
+        setPendingCreateSession(true);
+        setShowDatePicker(true);
+      }
     } else {
       onAction(action);
       setIsOpen(false);
     }
+  };
+
+  const handleNoSessionsConfirm = () => {
+    setShowNoSessionsModal(false);
+    setPendingCreateSession(true);
+    setShowDatePicker(true);
+  };
+
+  const handleNoSessionsCancel = () => {
+    setShowNoSessionsModal(false);
+    setPendingCreateSession(false);
+    setShowDatePicker(true);
+  };
+
+  const handleDateConfirm = () => {
+    // Convert finish date string to ISO string (end of day in user's timezone)
+    const finishDateObj = new Date(finishDate);
+    finishDateObj.setHours(23, 59, 59, 999);
+    const dateFinished = finishDateObj.toISOString();
+
+    const dates: { dateStarted?: string; dateFinished: string } = {
+      dateFinished,
+    };
+
+    // Convert start date if provided
+    if (startDate) {
+      const startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+      dates.dateStarted = startDateObj.toISOString();
+    }
+
+    // Call onAction with dates and createSession flag
+    onAction("finished", undefined, pendingCreateSession, dates);
+    setShowDatePicker(false);
+    setPendingCreateSession(undefined);
+    setStartDate("");
+    setFinishDate(today);
+  };
+
+  const handleDateCancel = () => {
+    setShowDatePicker(false);
+    setPendingCreateSession(undefined);
+    setStartDate(dateStarted ? formatDateForInput(dateStarted) : "");
+    setFinishDate(today);
   };
 
   const handleDNFConfirm = (reason: string | null) => {
@@ -238,6 +345,147 @@ export function BookActionMenu({ onAction, className }: BookActionMenuProps) {
               })}
             </div>
           </>,
+          document.body
+        )}
+
+      {/* Loading state while checking sessions */}
+      {checkingSessions &&
+        isClient &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setCheckingSessions(false);
+              }
+            }}
+          >
+            <div
+              className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl animate-in fade-in-50 zoom-in-95 duration-200 overflow-hidden p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                <span>Checking reading sessions...</span>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* No Sessions Modal */}
+      {showNoSessionsModal &&
+        isClient &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleNoSessionsCancel();
+              }
+            }}
+          >
+            <div
+              className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl animate-in fade-in-50 zoom-in-95 duration-200 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <BookOpen className="w-4 h-4 text-primary" />
+                  <span>Mark as Finished</span>
+                </div>
+                <button
+                  onClick={handleNoSessionsCancel}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-4">
+                <div className="flex flex-col gap-4">
+                  <div className="text-center">
+                    <BookOpen className="w-8 h-8 text-primary mx-auto mb-2" />
+                    <p className="text-sm font-medium text-foreground mb-1">
+                      You haven&apos;t logged any sessions for this book.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Should we log the full {totalPages} pages for this book?
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleNoSessionsCancel}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 rounded-xl"
+                    >
+                      No
+                    </Button>
+                    <Button
+                      onClick={handleNoSessionsConfirm}
+                      size="sm"
+                      className="flex-1 rounded-xl"
+                    >
+                      Yes, log {totalPages} pages
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Date Picker Modal */}
+      {showDatePicker &&
+        isClient &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleDateCancel();
+              }
+            }}
+          >
+            <div
+              className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl animate-in fade-in-50 zoom-in-95 duration-200 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
+                  <span>Mark as Finished</span>
+                </div>
+                <button
+                  onClick={handleDateCancel}
+                  className="p-2 rounded-lg hover:bg-muted transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+
+              {/* Date Picker */}
+              <div className="p-4">
+                <ReadingDatePicker
+                  startDate={startDate}
+                  finishDate={finishDate}
+                  onStartDateChange={setStartDate}
+                  onFinishDateChange={setFinishDate}
+                  onConfirm={handleDateConfirm}
+                  onCancel={handleDateCancel}
+                  showStartDate={true}
+                  title="When did you read this book?"
+                />
+              </div>
+            </div>
+          </div>,
           document.body
         )}
 

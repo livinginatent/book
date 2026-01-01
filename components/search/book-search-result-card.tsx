@@ -193,7 +193,8 @@ export function BookSearchResultCard({
 
   const handleAction = async (
     action: MobileActionId | BookAction,
-    reason?: string | null
+    reason?: string | null,
+    createSession?: boolean
   ) => {
     const targetStatus = actionToStatusMap[action];
 
@@ -209,15 +210,25 @@ export function BookSearchResultCard({
 
         if (addResult.success) {
           // For finished status, we need to provide a date
-          // Since this is a quick action (not from modal), use today's date
           if (action === "finished") {
-            const today = new Date();
-            today.setHours(23, 59, 59, 999);
-            const result = await updateBookStatus(
-              book.id,
-              "finished",
-              today.toISOString()
-            );
+            // Use dates from BookActionMenu if provided, otherwise use today's date
+            const finishDate = dates?.dateFinished || (() => {
+              const today = new Date();
+              today.setHours(23, 59, 59, 999);
+              return today.toISOString();
+            })();
+
+            const updateOptions = dates
+              ? {
+                  dateFinished: dates.dateFinished,
+                  dateStarted: dates.dateStarted,
+                  createSession: createSession !== undefined ? createSession : true,
+                }
+              : createSession !== undefined
+              ? { dateFinished: finishDate, createSession }
+              : finishDate;
+
+            const result = await updateBookStatus(book.id, "finished", updateOptions);
 
             if (result.success) {
               // Notify parent component
@@ -241,7 +252,41 @@ export function BookSearchResultCard({
           setOptimisticStatus(undefined);
         }
       } else {
-        // Book is already owned, just update status
+        // Book is already owned
+        if (action === "finished") {
+          // If dates are provided from BookActionMenu, use them directly
+          if (dates?.dateFinished) {
+            const updateOptions = {
+              dateFinished: dates.dateFinished,
+              dateStarted: dates.dateStarted,
+              createSession: createSession !== undefined ? createSession : true,
+            };
+            const result = await updateBookStatus(book.id, "finished", updateOptions);
+            if (result.success) {
+              onStatusChange?.(book.id, "finished");
+              window.dispatchEvent(
+                new CustomEvent("book-status-changed", {
+                  detail: { bookId: book.id, newStatus: "finished" },
+                })
+              );
+            } else {
+              setOptimisticStatus(undefined);
+            }
+            return;
+          }
+          // Otherwise, check for reading sessions before showing date picker
+          const sessionsResult = await hasReadingSessions(book.id);
+          if (sessionsResult.success && !sessionsResult.hasSessions && sessionsResult.pageCount > 0) {
+            // No sessions found, store createSession flag and show date picker
+            // The date picker will handle the createSession flag
+            setPendingCreateSession(createSession !== undefined ? createSession : true);
+          } else {
+            // Has sessions or no page count, proceed normally
+            if (createSession !== undefined) {
+              setPendingCreateSession(createSession);
+            }
+          }
+        }
         await handleStatusChange(action);
       }
       return;
@@ -296,10 +341,28 @@ export function BookSearchResultCard({
 
   const handleStatusChange = async (
     newStatus: ReadingStatus,
-    dates?: { dateStarted?: string; dateFinished?: string }
+    dates?: { dateStarted?: string; dateFinished?: string; createSession?: boolean }
   ) => {
     if (newStatus === "finished" && !dates?.dateFinished) {
-      // Show date picker instead of immediately updating
+      // Check for reading sessions before showing date picker
+      if (book.id && book.page_count) {
+        const sessionsResult = await hasReadingSessions(book.id);
+        if (sessionsResult.success && !sessionsResult.hasSessions && sessionsResult.pageCount > 0) {
+          // No sessions found - for mobile/quick actions, we'll default to creating session
+          // Store createSession flag (default to true for quick actions)
+          setPendingCreateSession(dates?.createSession !== undefined ? dates.createSession : true);
+        } else {
+          // Has sessions or no page count, proceed normally
+          if (dates?.createSession !== undefined) {
+            setPendingCreateSession(dates.createSession);
+          }
+        }
+      } else {
+        // Store createSession flag if it was provided
+        if (dates?.createSession !== undefined) {
+          setPendingCreateSession(dates.createSession);
+        }
+      }
       setShowDatePicker(true);
       return;
     }
@@ -343,7 +406,7 @@ export function BookSearchResultCard({
     const finishDateObj = new Date(finishDate);
     finishDateObj.setHours(23, 59, 59, 999);
 
-    const dates: { dateStarted?: string; dateFinished: string } = {
+    const dates: { dateStarted?: string; dateFinished: string; createSession?: boolean } = {
       dateFinished: finishDateObj.toISOString(),
     };
 
@@ -354,6 +417,12 @@ export function BookSearchResultCard({
       dates.dateStarted = startDateObj.toISOString();
     }
 
+    // Include createSession flag if it was pending
+    if (pendingCreateSession !== undefined) {
+      dates.createSession = pendingCreateSession;
+      setPendingCreateSession(undefined);
+    }
+
     await handleStatusChange("finished", dates);
   };
 
@@ -361,6 +430,7 @@ export function BookSearchResultCard({
     setShowDatePicker(false);
     setStartDate("");
     setFinishDate(today);
+    setPendingCreateSession(undefined);
   };
 
   const modalContent =
@@ -643,7 +713,12 @@ export function BookSearchResultCard({
               style={{ pointerEvents: isHovered ? "auto" : "none" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <BookActionMenu onAction={handleAction} />
+              <BookActionMenu 
+                onAction={handleAction} 
+                bookId={book.id}
+                totalPages={book.page_count || 0}
+                dateStarted={undefined}
+              />
             </div>
           )}
         </div>

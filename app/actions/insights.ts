@@ -343,7 +343,7 @@ export async function getVelocityStats(
       .map((ub) => ub.book_id)
       .filter((id): id is string => !!id);
 
-    let progressMap: Record<string, number> = {};
+    const progressMap: Record<string, number> = {};
 
     if (bookIds.length > 0) {
       const { data: progressData } = await supabase

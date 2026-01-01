@@ -193,6 +193,71 @@ export interface UpdateBookStatusOptions {
   dateStarted?: string | null;
   dateFinished?: string | null;
   notes?: string | null;
+  createSession?: boolean;
+}
+
+/**
+ * Check if a book has any reading sessions
+ */
+export async function hasReadingSessions(
+  bookId: string
+): Promise<
+  { success: true; hasSessions: boolean; pageCount: number } | BookActionError
+> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Get book page_count
+    const { data: book, error: bookError } = await supabase
+      .from("books")
+      .select("page_count")
+      .eq("id", bookId)
+      .single();
+
+    if (bookError || !book) {
+      console.error("Error fetching book:", bookError);
+      return { success: false, error: "Book not found" };
+    }
+
+    const pageCount = book.page_count || 0;
+
+    // Check if there are any reading sessions
+    const { data: sessions, error: sessionsError } = await supabase
+      .from("reading_sessions")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("book_id", bookId)
+      .limit(1);
+
+    if (sessionsError) {
+      console.error("Error fetching reading sessions:", sessionsError);
+      return { success: false, error: "Failed to fetch reading sessions" };
+    }
+
+    return {
+      success: true,
+      hasSessions: (sessions || []).length > 0,
+      pageCount,
+    };
+  } catch (error) {
+    console.error("Has reading sessions error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
 }
 
 /**
@@ -202,11 +267,13 @@ export interface UpdateBookStatusOptions {
  * @param userBookId - The ID of the user_books record
  * @param finishDate - The date the book was finished (ISO string)
  * @param dateStarted - Optional start date (ISO string)
+ * @param createSession - Whether to create a reading session for remaining pages (default: true)
  */
 export async function finishBook(
   userBookId: string,
   finishDate: string,
-  dateStarted?: string | null
+  dateStarted?: string | null,
+  createSession: boolean = true
 ): Promise<BookActionResult | BookActionError> {
   try {
     const cookieStore = cookies();
@@ -296,8 +363,8 @@ export async function finishBook(
       return { success: false, error: "Failed to update book status" };
     }
 
-    // Step 7: If remaining_pages > 0, insert a reading session
-    if (remainingPages > 0) {
+    // Step 7: If remaining_pages > 0 and createSession is true, insert a reading session
+    if (remainingPages > 0 && createSession) {
       const { error: sessionError } = await supabase
         .from("reading_sessions")
         .insert({
@@ -358,6 +425,7 @@ export async function updateBookStatus(
     let dateStarted: string | null | undefined;
     let dateFinished: string | null | undefined;
     let notes: string | null | undefined;
+    let createSession: boolean | undefined;
 
     if (
       typeof dateFinishedOrOptions === "object" &&
@@ -366,6 +434,7 @@ export async function updateBookStatus(
       dateStarted = dateFinishedOrOptions.dateStarted;
       dateFinished = dateFinishedOrOptions.dateFinished;
       notes = dateFinishedOrOptions.notes;
+      createSession = dateFinishedOrOptions.createSession;
     } else {
       dateFinished = dateFinishedOrOptions;
     }
@@ -394,8 +463,16 @@ export async function updateBookStatus(
       }
 
       // Use the finishBook function which handles backfill
+      // Default to creating session if not specified (backward compatibility)
       const finishDate = dateFinished || new Date().toISOString();
-      return finishBook(userBook.id, finishDate, dateStarted);
+      const shouldCreateSession =
+        createSession !== undefined ? createSession : true;
+      return finishBook(
+        userBook.id,
+        finishDate,
+        dateStarted,
+        shouldCreateSession
+      );
     } else if (status === "paused") {
       // Keep date_started but don't set date_finished
       updateData.date_finished = null;

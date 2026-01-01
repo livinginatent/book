@@ -35,6 +35,7 @@ interface Book {
     character_development?: boolean;
     plot_driven?: boolean;
   };
+  dateStarted?: string | null;
 }
 
 interface CurrentlyReadingProps {
@@ -140,6 +141,7 @@ export function CurrentlyReading({
                   onRatingUpdate={(rating) => onRatingUpdate?.(book.id, rating)}
                   currentStatus="currently_reading"
                   className="w-full flex-1"
+                  dateStarted={book.dateStarted}
                 />
                 <Link href={`/currently-reading/${book.id}`} className="mt-2">
                   <Button
@@ -199,6 +201,7 @@ export function CurrentlyReading({
                   onRemove={() => onRemove?.(book.id)}
                   onRatingUpdate={(rating) => onRatingUpdate?.(book.id, rating)}
                   currentStatus="currently_reading"
+                  dateStarted={book.dateStarted}
                 />
 
                 <Link

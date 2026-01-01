@@ -49,6 +49,7 @@ interface CurrentlyReadingBook {
     character_development?: boolean;
     plot_driven?: boolean;
   };
+  dateStarted?: string | null;
 }
 
 interface ReadingStatsData {
@@ -100,6 +101,7 @@ function transformBooks(books: BookWithProgress[]): CurrentlyReadingBook[] {
       totalPages: book.page_count || 0,
       rating: book.userBook?.rating ?? null,
       reviewAttributes: reviewAttrs || undefined,
+      dateStarted: book.progress?.started_at || book.userBook?.date_started || null,
     };
   });
 }
