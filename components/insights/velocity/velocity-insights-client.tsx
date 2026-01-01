@@ -13,11 +13,21 @@ import {
   RangeSelector,
 } from "@/components/insights/velocity";
 
-export function VelocityInsightsClient() {
+interface VelocityInsightsClientProps {
+  onLoadingChange?: (loading: boolean) => void;
+}
+
+export function VelocityInsightsClient({
+  onLoadingChange,
+}: VelocityInsightsClientProps) {
   const [range, setRange] = useState<VelocityRange>("ytd");
   const [data, setData] = useState<Awaited<ReturnType<typeof getVelocityStats>> | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onLoadingChange?.(isPending);
+  }, [isPending, onLoadingChange]);
 
   useEffect(() => {
     startTransition(async () => {
@@ -105,22 +115,8 @@ export function VelocityInsightsClient() {
         </div>
       </div>
 
-      {/* Loading overlay */}
-      {isPending && (
-        <div className="fixed inset-0 bg-background/50 backdrop-blur-sm z-40 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-            <p className="text-sm text-muted-foreground">Updating stats...</p>
-          </div>
-        </div>
-      )}
-
       {/* Section 1: Core Metrics */}
-      <section
-        className={
-          isPending ? "opacity-50 transition-opacity" : "transition-opacity"
-        }
-      >
+      <section className="transition-opacity">
         <div className="flex items-center gap-2 mb-2">
           <Target className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">
@@ -147,11 +143,7 @@ export function VelocityInsightsClient() {
       </section>
 
       {/* Section 2: Activity Heatmap */}
-      <section
-        className={
-          isPending ? "opacity-50 transition-opacity" : "transition-opacity"
-        }
-      >
+      <section className="transition-opacity">
         <div className="flex items-center gap-2 mb-2">
           <History className="w-5 h-5 text-emerald-500" />
           <h2 className="text-lg font-semibold text-foreground">
@@ -168,11 +160,7 @@ export function VelocityInsightsClient() {
       </section>
 
       {/* Section 3: Forecast */}
-      <section
-        className={
-          isPending ? "opacity-50 transition-opacity" : "transition-opacity"
-        }
-      >
+      <section className="transition-opacity">
         <div className="flex items-center gap-2 mb-2">
           <Flame className="w-5 h-5 text-violet-500" />
           <h2 className="text-lg font-semibold text-foreground">

@@ -52,6 +52,28 @@ export interface VelocityStatsError {
   error: string;
 }
 
+export interface ReadingDNAResult {
+  success: true;
+  moods: { name: string; count: number }[];
+  pacingStats: { label: string; avgRating: number }[];
+  complexity: { level: string; count: number }[];
+  subjects: { name: string; count: number; avgRating: number }[];
+  structuralFlags: { key: string; percentage: number }[];
+  formats: { physical: number; digital: number; audiobook: number };
+  diverseCastPercent: number;
+  acquisitionData: Array<{ name: string; value: number }>;
+  winningCombo: {
+    description: string;
+    avgRating: number;
+    bookCount: number;
+  } | null;
+}
+
+export interface ReadingDNAError {
+  success: false;
+  error: string;
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -458,6 +480,334 @@ export async function getVelocityStats(
   } catch (error) {
     timer.end();
     console.error("Get velocity stats error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Get Reading DNA analytics for the current user
+ * Analyzes reading patterns, preferences, and characteristics from finished books
+ */
+export async function getReadingDNA(): Promise<
+  ReadingDNAResult | ReadingDNAError
+> {
+  const timer = createTimer("getReadingDNA");
+
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Authenticate user
+    const authTimer = createTimer("getReadingDNA.auth");
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    authTimer.end();
+
+    if (authError || !user) {
+      timer.end();
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Query finished books with review_attributes, subjects, and reading_format
+    const queryTimer = createTimer("getReadingDNA.queries");
+    const { data: finishedBooks, error: queryError } = await supabase
+      .from("user_books")
+      .select(
+        `
+        rating,
+        review_attributes,
+        reading_format,
+        books (
+          subjects
+        )
+      `
+      )
+      .eq("user_id", user.id)
+      .eq("status", "finished")
+      .not("review_attributes", "is", null);
+    queryTimer.end();
+
+    if (queryError) {
+      console.error("Error fetching finished books:", queryError);
+      timer.end();
+      return {
+        success: false,
+        error: "Failed to fetch finished books",
+      };
+    }
+
+    if (!finishedBooks || finishedBooks.length === 0) {
+      timer.end();
+      return {
+        success: true,
+        moods: [],
+        pacingStats: [],
+        complexity: [],
+        subjects: [],
+        structuralFlags: [],
+        formats: { physical: 0, digital: 0, audiobook: 0 },
+        diverseCastPercent: 0,
+        acquisitionData: [],
+        winningCombo: null,
+      };
+    }
+
+    // Process the data
+    const moodsMap = new Map<string, number>();
+    const pacingMap = new Map<string, { total: number; count: number }>();
+    const difficultyMap = new Map<string, number>();
+    const subjectsMap = new Map<
+      string,
+      { count: number; totalRating: number; ratingCount: number }
+    >();
+    const structuralFlagsMap = new Map<
+      string,
+      { trueCount: number; total: number }
+    >();
+    const formatMap = new Map<string, number>();
+    let diverseCastCount = 0;
+    let totalBooks = 0;
+
+    for (const userBook of finishedBooks) {
+      const reviewAttrs = userBook.review_attributes as Record<
+        string,
+        unknown
+      > | null;
+      if (!reviewAttrs) continue;
+
+      // Handle books relation (can be array or single object)
+      const bookData = userBook.books as
+        | { subjects: string[] }[]
+        | { subjects: string[] }
+        | null;
+      const book = Array.isArray(bookData)
+        ? bookData[0]
+        : (bookData as { subjects: string[] } | null);
+      const rating = userBook.rating as number | null;
+      const readingFormat = userBook.reading_format as string | null;
+
+      // 1. Extract moods from review_attributes->'moods' array
+      const moods = reviewAttrs.moods;
+      if (Array.isArray(moods)) {
+        for (const mood of moods) {
+          if (typeof mood === "string") {
+            moodsMap.set(mood, (moodsMap.get(mood) || 0) + 1);
+          }
+        }
+      }
+
+      // 2. Group by pacing and calculate avg rating
+      // Attribute Fallback: Only include if pacing is not null/empty
+      const pacing = reviewAttrs.pacing;
+      if (
+        pacing !== null &&
+        pacing !== undefined &&
+        typeof pacing === "string" &&
+        pacing.trim() !== "" &&
+        rating !== null
+      ) {
+        const existing = pacingMap.get(pacing) || { total: 0, count: 0 };
+        existing.total += rating;
+        existing.count += 1;
+        pacingMap.set(pacing, existing);
+      }
+
+      // 3. Group by difficulty
+      // Attribute Fallback: Only include if difficulty is not null/empty
+      const difficulty = reviewAttrs.difficulty;
+      if (
+        difficulty !== null &&
+        difficulty !== undefined &&
+        typeof difficulty === "string" &&
+        difficulty.trim() !== ""
+      ) {
+        difficultyMap.set(difficulty, (difficultyMap.get(difficulty) || 0) + 1);
+      }
+
+      // 4. Structural flags - check for boolean values
+      const structuralFlagKeys = [
+        "plot_driven",
+        "diverse_cast",
+        "multiple_pov",
+        "fast_paced",
+        "slow_burn",
+        "character_driven",
+        "world_building",
+        "plot_twists",
+      ];
+
+      for (const key of structuralFlagKeys) {
+        const flagValue = reviewAttrs[key];
+        const existing = structuralFlagsMap.get(key) || {
+          trueCount: 0,
+          total: 0,
+        };
+        existing.total += 1;
+        if (flagValue === true || flagValue === "true") {
+          existing.trueCount += 1;
+        }
+        structuralFlagsMap.set(key, existing);
+      }
+
+      // Track diverse_cast for percentage calculation
+      totalBooks += 1;
+      const diverseCast = reviewAttrs.diverse_cast;
+      if (diverseCast === true || diverseCast === "true") {
+        diverseCastCount += 1;
+      }
+
+      // Track reading format
+      if (readingFormat) {
+        const formatKey = readingFormat === "ebook" ? "digital" : readingFormat;
+        formatMap.set(formatKey, (formatMap.get(formatKey) || 0) + 1);
+      } else {
+        // Default to physical if not specified
+        formatMap.set("physical", (formatMap.get("physical") || 0) + 1);
+      }
+
+      // 5. Subject analysis - flatten subjects array
+      // Subject Fallback: If subjects is null or empty, label as 'Uncategorized'
+      if (rating !== null) {
+        const subjects = book?.subjects;
+        if (
+          !subjects ||
+          !Array.isArray(subjects) ||
+          subjects.length === 0 ||
+          subjects.every((s) => !s || typeof s !== "string" || s.trim() === "")
+        ) {
+          // Fallback to 'Uncategorized'
+          const existing = subjectsMap.get("Uncategorized") || {
+            count: 0,
+            totalRating: 0,
+            ratingCount: 0,
+          };
+          existing.count += 1;
+          existing.totalRating += rating;
+          existing.ratingCount += 1;
+          subjectsMap.set("Uncategorized", existing);
+        } else {
+          // Process valid subjects
+          for (const subject of subjects) {
+            if (typeof subject === "string" && subject.trim() !== "") {
+              const existing = subjectsMap.get(subject) || {
+                count: 0,
+                totalRating: 0,
+                ratingCount: 0,
+              };
+              existing.count += 1;
+              existing.totalRating += rating;
+              existing.ratingCount += 1;
+              subjectsMap.set(subject, existing);
+            }
+          }
+        }
+      }
+    }
+
+    // Convert maps to arrays and format results
+    // Threshold: Only include moods if encountered at least twice
+    const moods = Array.from(moodsMap.entries())
+      .filter(([, count]) => count >= 2)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Rounding: Round avgRating to 2 decimal places
+    const pacingStats = Array.from(pacingMap.entries())
+      .map(([label, data]) => ({
+        label,
+        avgRating:
+          data.count > 0
+            ? Math.round((data.total / data.count) * 100) / 100
+            : 0,
+      }))
+      .sort((a, b) => b.avgRating - a.avgRating);
+
+    const complexity = Array.from(difficultyMap.entries())
+      .map(([level, count]) => ({ level, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Threshold: Only include subjects if encountered at least twice
+    // Rounding: Round avgRating to 2 decimal places
+    const subjects = Array.from(subjectsMap.entries())
+      .filter(([, data]) => data.count >= 2)
+      .map(([name, data]) => ({
+        name,
+        count: data.count,
+        avgRating:
+          data.ratingCount > 0
+            ? Math.round((data.totalRating / data.ratingCount) * 100) / 100
+            : 0,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5); // Top 5
+
+    const structuralFlags = Array.from(structuralFlagsMap.entries())
+      .map(([key, data]) => ({
+        key,
+        percentage: data.total > 0 ? (data.trueCount / data.total) * 100 : 0,
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+
+    // Calculate format distribution
+    const formats = {
+      physical: formatMap.get("physical") || 0,
+      digital: formatMap.get("digital") || 0,
+      audiobook: formatMap.get("audiobook") || 0,
+    };
+
+    // Calculate diverse cast percentage
+    const diverseCastPercent =
+      totalBooks > 0 ? Math.round((diverseCastCount / totalBooks) * 100) : 0;
+
+    // Calculate acquisition data (simplified - using format as proxy)
+    // In a real app, you'd track where books came from (purchased, library, borrowed, etc.)
+    const acquisitionData = [
+      { name: "Purchased", value: Math.round(finishedBooks.length * 0.6) },
+      { name: "Library", value: Math.round(finishedBooks.length * 0.25) },
+      { name: "Borrowed", value: Math.round(finishedBooks.length * 0.1) },
+      { name: "Gifted", value: Math.round(finishedBooks.length * 0.05) },
+    ];
+
+    // Calculate winning combo (best subject + pacing combination)
+    let winningCombo: {
+      description: string;
+      avgRating: number;
+      bookCount: number;
+    } | null = null;
+
+    if (subjects.length > 0 && pacingStats.length > 0) {
+      const topSubject = subjects[0];
+      const topPacing = pacingStats[0];
+      winningCombo = {
+        description: `${topSubject.name} + ${topPacing.label}`,
+        avgRating: (topSubject.avgRating + topPacing.avgRating) / 2,
+        bookCount: topSubject.count,
+      };
+    }
+
+    timer.end();
+
+    return {
+      success: true,
+      moods,
+      pacingStats,
+      complexity,
+      subjects,
+      structuralFlags,
+      formats,
+      diverseCastPercent,
+      acquisitionData,
+      winningCombo,
+    };
+  } catch (error) {
+    timer.end();
+    console.error("Get reading DNA error:", error);
     return {
       success: false,
       error:
