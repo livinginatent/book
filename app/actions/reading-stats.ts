@@ -18,13 +18,15 @@ export interface ReadingStatsError {
   error: string;
 }
 
+export type ReadingStatsPeriod = "1month" | "3months" | "6months" | "year" | "ytd";
+
 /**
- * Get reading stats for currently reading books
+ * Get reading stats for a specific time period
  * Optimized with parallel queries
  */
-export async function getReadingStats(): Promise<
-  ReadingStatsResult | ReadingStatsError
-> {
+export async function getReadingStats(
+  period: ReadingStatsPeriod = "ytd"
+): Promise<ReadingStatsResult | ReadingStatsError> {
   const timer = createTimer("getReadingStats");
   
   try {
@@ -43,71 +45,94 @@ export async function getReadingStats(): Promise<
       return { success: false, error: "You must be logged in" };
     }
 
-    const currentYear = new Date().getFullYear();
-    const yearStart = `${currentYear}-01-01`;
+    // Calculate date range based on period
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    let dateStart: string;
+    
+    switch (period) {
+      case "1month": {
+        const oneMonthAgo = new Date(now);
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        dateStart = oneMonthAgo.toISOString().split("T")[0];
+        break;
+      }
+      case "3months": {
+        const threeMonthsAgo = new Date(now);
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        dateStart = threeMonthsAgo.toISOString().split("T")[0];
+        break;
+      }
+      case "6months": {
+        const sixMonthsAgo = new Date(now);
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        dateStart = sixMonthsAgo.toISOString().split("T")[0];
+        break;
+      }
+      case "year": {
+        const oneYearAgo = new Date(now);
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        dateStart = oneYearAgo.toISOString().split("T")[0];
+        break;
+      }
+      case "ytd":
+      default: {
+        dateStart = `${currentYear}-01-01`;
+        break;
+      }
+    }
 
     // Parallel queries for all data we need
     const queryTimer = createTimer("getReadingStats.queries");
     const [
-      currentlyReadingResult,
       finishedBooksResult,
       sessionsResult,
     ] = await Promise.all([
       supabase
         .from("user_books")
-        .select("book_id")
-        .eq("user_id", user.id)
-        .eq("status", "currently_reading"),
-      supabase
-        .from("user_books")
-        .select("id")
+        .select("id, book_id")
         .eq("user_id", user.id)
         .eq("status", "finished")
-        .gte("date_finished", yearStart),
+        .gte("date_finished", dateStart),
       supabase
         .from("reading_sessions")
-        .select("session_date")
+        .select("pages_read, session_date")
         .eq("user_id", user.id)
-        .order("session_date", { ascending: false })
-        .limit(365),
+        .gte("session_date", dateStart)
+        .order("session_date", { ascending: false }),
     ]);
     queryTimer.end();
 
-    const bookIds = (currentlyReadingResult.data || []).map((ub) => ub.book_id);
-    const booksRead = (finishedBooksResult.data || []).length;
+    const finishedBooks = finishedBooksResult.data || [];
     const sessions = sessionsResult.data || [];
+    
+    const booksRead = finishedBooks.length;
 
-    // Get reading progress if there are currently reading books
-    let pagesRead = 0;
+    // Calculate pages read in the period from reading sessions
+    // This gives us the actual pages read during the period, regardless of when books were started
+    const pagesRead = sessions.reduce((sum, session) => sum + (session.pages_read || 0), 0);
+
+    // Calculate average pages per day
+    // Use actual days with reading sessions, or fall back to period duration
     let avgPagesPerDay = 0;
+    if (sessions.length > 0) {
+      const uniqueDates = new Set(
+        sessions.map((s) => s.session_date.split("T")[0])
+      );
+      const daysWithReading = uniqueDates.size;
+      
+      // Calculate period duration as fallback
+      const periodEnd = now.getTime();
+      const periodStart = new Date(dateStart).getTime();
+      const daysInPeriod = Math.max(
+        1,
+        Math.ceil((periodEnd - periodStart) / (1000 * 60 * 60 * 24))
+      );
 
-    if (bookIds.length > 0) {
-      const { data: progressList } = await supabase
-        .from("reading_progress")
-        .select("pages_read, started_at")
-        .eq("user_id", user.id)
-        .in("book_id", bookIds);
-
-      if (progressList && progressList.length > 0) {
-        pagesRead = progressList.reduce(
-          (sum, p) => sum + (p.pages_read || 0),
-          0
-        );
-
-        const now = Date.now();
-        let totalDays = 0;
-        for (const p of progressList) {
-          if (p.started_at) {
-            const daysSinceStart = Math.max(
-              1,
-              Math.ceil((now - new Date(p.started_at).getTime()) / (1000 * 60 * 60 * 24))
-            );
-            totalDays += daysSinceStart;
-          }
-        }
-        if (totalDays > 0) {
-          avgPagesPerDay = Math.round(pagesRead / totalDays);
-        }
+      // Use days with reading or period duration, whichever makes more sense
+      // For average, we'll use period duration to show consistent rate
+      if (daysInPeriod > 0) {
+        avgPagesPerDay = Math.round(pagesRead / daysInPeriod);
       }
     }
 

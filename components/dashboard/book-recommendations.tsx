@@ -1,4 +1,4 @@
-import { Sparkles, Star } from "lucide-react";
+import { Aperture, Sparkles, Star } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
@@ -26,7 +26,7 @@ export function BookRecommendations({
           ? "Curated picks just for you"
           : "Based on your reading history"
       }
-      icon={Sparkles}
+      icon={Aperture}
       locked={locked}
     >
       <div className="space-y-3">

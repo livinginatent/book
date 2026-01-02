@@ -11,11 +11,9 @@ import {
 import type {
   DashboardData,
   BookWithProgress,
-  GoalsData,
 } from "@/app/actions/dashboard-data";
 import { refreshCurrentlyReading } from "@/app/actions/dashboard-data";
 import { updateReadingProgress } from "@/app/actions/reading-progress";
-import { getReadingStats } from "@/app/actions/reading-stats";
 import { AdvancedInsights } from "@/components/dashboard/advanced-insights";
 import { BookRecommendations } from "@/components/dashboard/book-recommendations";
 import { CurrentlyReading } from "@/components/dashboard/currently-reading";
@@ -29,7 +27,6 @@ import type {
 } from "@/components/ui/book/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { ReadingStatus } from "@/types/database.types";
 
 import { GoodreadsImport } from "../import/goodreads-import";
 import { ReadingGoalsContainer } from "../reading-goals";
@@ -50,13 +47,6 @@ interface CurrentlyReadingBook {
     plot_driven?: boolean;
   };
   dateStarted?: string | null;
-}
-
-interface ReadingStatsData {
-  booksRead: number;
-  pagesRead: number;
-  readingStreak: number;
-  avgPagesPerDay: number;
 }
 
 interface AuthenticatedHomeProps {
@@ -101,7 +91,8 @@ function transformBooks(books: BookWithProgress[]): CurrentlyReadingBook[] {
       totalPages: book.page_count || 0,
       rating: book.userBook?.rating ?? null,
       reviewAttributes: reviewAttrs || undefined,
-      dateStarted: book.progress?.started_at || book.userBook?.date_started || null,
+      dateStarted:
+        book.progress?.started_at || book.userBook?.date_started || null,
     };
   });
 }
@@ -112,9 +103,10 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
     user,
     profile,
     currentlyReading,
-    stats: initialStats,
     shelves: initialShelves,
     goals: initialGoals,
+    insights: initialInsights,
+    moodSummary: initialMoodSummary,
   } = initialData;
 
   // Derive auth info from pre-fetched data
@@ -129,9 +121,6 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingBooks, setLoadingBooks] = useState(false); // Start as false since we have initial data!
   const [showImport, setShowImport] = useState(false);
-  const [readingStats, setReadingStats] = useState<ReadingStatsData | null>(
-    initialStats
-  );
 
   const hasInitializedImportRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -166,10 +155,7 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
       if (!isMountedRef.current) return;
 
       // Use lightweight refresh instead of full dashboard refetch
-      const [booksResult, statsResult] = await Promise.all([
-        refreshCurrentlyReading(),
-        getReadingStats(),
-      ]);
+      const booksResult = await refreshCurrentlyReading();
 
       if (!isMountedRef.current) return;
 
@@ -177,14 +163,8 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
         setCurrentlyReadingBooks(transformBooks(booksResult.books));
       }
 
-      if (statsResult.success) {
-        setReadingStats({
-          booksRead: statsResult.booksRead,
-          pagesRead: statsResult.pagesRead,
-          readingStreak: statsResult.readingStreak,
-          avgPagesPerDay: statsResult.avgPagesPerDay,
-        });
-      }
+      // Trigger reading stats refresh via custom event
+      window.dispatchEvent(new CustomEvent("refresh-reading-stats"));
     };
 
     window.addEventListener("book-added", refreshData);
@@ -217,16 +197,8 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
           setCurrentlyReadingBooks(transformBooks(refreshResult.books));
         }
       } else {
-        // Refresh reading stats after successful progress update
-        const statsResult = await getReadingStats();
-        if (statsResult.success) {
-          setReadingStats({
-            booksRead: statsResult.booksRead,
-            pagesRead: statsResult.pagesRead,
-            readingStreak: statsResult.readingStreak,
-            avgPagesPerDay: statsResult.avgPagesPerDay,
-          });
-        }
+        // Trigger reading stats refresh via custom event
+        window.dispatchEvent(new CustomEvent("refresh-reading-stats"));
       }
     },
     []
@@ -275,9 +247,7 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
     async (bookId: string, rating: number) => {
       // Update UI optimistically
       setCurrentlyReadingBooks((prev) =>
-        prev.map((book) =>
-          book.id === bookId ? { ...book, rating } : book
-        )
+        prev.map((book) => (book.id === bookId ? { ...book, rating } : book))
       );
 
       // Refresh to get latest data (including review_attributes)
@@ -367,8 +337,8 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
             </div>
 
             {/* Reading Goals */}
-            <MemoizedReadingGoalsContainer 
-              initialProfile={profile} 
+            <MemoizedReadingGoalsContainer
+              initialProfile={profile}
               initialGoals={initialGoals}
             />
 
@@ -444,10 +414,13 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
             )}
 
             {/* Reading Stats - Available to all */}
-            {readingStats && <MemoizedReadingStats {...readingStats} />}
+            <MemoizedReadingStats />
 
             {/* Advanced Insights - Premium only */}
-            <MemoizedAdvancedInsights locked={isFree} />
+            <MemoizedAdvancedInsights
+              locked={isFree}
+              initialData={initialInsights}
+            />
           </div>
 
           {/* Right Column - Sidebar */}
@@ -464,7 +437,10 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
             </div>
 
             {/* Mood Tracker - Premium only */}
-            <MemoizedMoodTracker locked={isFree} />
+            <MemoizedMoodTracker
+              locked={isFree}
+              initialData={initialMoodSummary}
+            />
           </div>
         </div>
 

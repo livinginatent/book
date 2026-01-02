@@ -74,6 +74,18 @@ export interface ReadingDNAError {
   error: string;
 }
 
+export interface MoodSummaryResult {
+  success: true;
+  hasEnoughData: boolean;
+  moods: Array<{ mood: string; color: string }>;
+  pacing: string | null;
+}
+
+export interface MoodSummaryError {
+  success: false;
+  error: string;
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -798,6 +810,180 @@ export async function getReadingDNA(): Promise<
   } catch (error) {
     timer.end();
     console.error("Get reading DNA error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Get mood summary from highly-rated finished books and currently reading books
+ * Returns top 4 most frequent moods and most frequent pacing
+ * Requires at least 3 books with mood tags to return data
+ */
+export async function getMoodSummary(): Promise<
+  MoodSummaryResult | MoodSummaryError
+> {
+  const timer = createTimer("getMoodSummary");
+
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Authenticate user
+    const authTimer = createTimer("getMoodSummary.auth");
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    authTimer.end();
+
+    if (authError || !user) {
+      timer.end();
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Query Timer
+    const queryTimer = createTimer("getMoodSummary.queries");
+
+    // Scope A: Last 10 finished books with rating >= 4
+    const { data: finishedBooks, error: finishedError } = await supabase
+      .from("user_books")
+      .select("review_attributes")
+      .eq("user_id", user.id)
+      .eq("status", "finished")
+      .gte("rating", 4)
+      .not("review_attributes", "is", null)
+      .order("date_finished", { ascending: false })
+      .limit(10);
+
+    // Scope B: All currently reading books
+    const { data: currentlyReadingBooks, error: currentlyReadingError } =
+      await supabase
+        .from("user_books")
+        .select("review_attributes")
+        .eq("user_id", user.id)
+        .eq("status", "currently_reading")
+        .not("review_attributes", "is", null);
+
+    queryTimer.end();
+
+    if (finishedError || currentlyReadingError) {
+      console.error(
+        "Error fetching books:",
+        finishedError || currentlyReadingError
+      );
+      timer.end();
+      return {
+        success: false,
+        error: "Failed to fetch books",
+      };
+    }
+
+    // Combined pool: Merge both sets
+    const combinedBooks = [
+      ...(finishedBooks || []),
+      ...(currentlyReadingBooks || []),
+    ];
+
+    // Helper function to get color for mood
+    function getMoodColor(mood: string): string {
+      const colorMap: Record<string, string> = {
+        Dark: "purple",
+        Lighthearted: "yellow",
+        Emotional: "pink",
+        Tense: "red",
+        Reflective: "blue",
+        Hopeful: "green",
+        Melancholic: "indigo",
+        Humorous: "orange",
+        Suspenseful: "red",
+        Romantic: "pink",
+        Mysterious: "purple",
+        Inspiring: "green",
+        "Thought-provoking": "blue",
+        Adventurous: "orange",
+        Nostalgic: "amber",
+      };
+      return colorMap[mood] || "gray";
+    }
+
+    // Count books with at least one mood tag
+    let booksWithMoods = 0;
+    const moodsMap = new Map<string, number>();
+    const pacingMap = new Map<string, number>();
+
+    for (const userBook of combinedBooks) {
+      const reviewAttrs = userBook.review_attributes as Record<
+        string,
+        unknown
+      > | null;
+      if (!reviewAttrs) continue;
+
+      // Extract moods from review_attributes->'moods' array
+      const moods = reviewAttrs.moods;
+      if (Array.isArray(moods) && moods.length > 0) {
+        booksWithMoods++;
+        for (const mood of moods) {
+          if (typeof mood === "string" && mood.trim() !== "") {
+            moodsMap.set(mood, (moodsMap.get(mood) || 0) + 1);
+          }
+        }
+      }
+
+      // Extract pacing (count even if no moods)
+      const pacing = reviewAttrs.pacing;
+      if (
+        pacing !== null &&
+        pacing !== undefined &&
+        typeof pacing === "string" &&
+        pacing.trim() !== ""
+      ) {
+        pacingMap.set(pacing, (pacingMap.get(pacing) || 0) + 1);
+      }
+    }
+
+    // Minimum Data Rule: Check if at least 3 books have mood tags
+    if (booksWithMoods < 3) {
+      timer.end();
+      return {
+        success: true,
+        hasEnoughData: false,
+        moods: [],
+        pacing: null,
+      };
+    }
+
+    // Get top 4 most frequent moods
+    const topMoods = Array.from(moodsMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([mood]) => ({
+        mood,
+        color: getMoodColor(mood),
+      }));
+
+    // Get most frequent pacing
+    let mostFrequentPacing: string | null = null;
+    if (pacingMap.size > 0) {
+      const pacingEntries = Array.from(pacingMap.entries());
+      pacingEntries.sort((a, b) => b[1] - a[1]);
+      mostFrequentPacing = pacingEntries[0][0];
+    }
+
+    timer.end();
+
+    return {
+      success: true,
+      hasEnoughData: true,
+      moods: topMoods,
+      pacing: mostFrequentPacing,
+    };
+  } catch (error) {
+    timer.end();
+    console.error("Get mood summary error:", error);
     return {
       success: false,
       error:

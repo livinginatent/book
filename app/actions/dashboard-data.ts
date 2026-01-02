@@ -41,6 +41,20 @@ export interface GoalsData {
   limit: number;
 }
 
+// Quick insights data (for AdvancedInsights component)
+export interface QuickInsightsData {
+  avgPagesPerDay: number;
+  currentStreak: number;
+  topGenre: string | null;
+}
+
+// Mood summary data (for MoodTracker component)
+export interface MoodSummaryData {
+  hasEnoughData: boolean;
+  moods: Array<{ mood: string; color: string }>;
+  pacing: string | null;
+}
+
 export interface DashboardData {
   success: true;
   user: {
@@ -55,6 +69,8 @@ export interface DashboardData {
     custom: ShelfData[];
   };
   goals: GoalsData;
+  insights: QuickInsightsData;
+  moodSummary: MoodSummaryData;
   timing: {
     total: number;
     auth: number;
@@ -103,6 +119,12 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
     // ========================================================================
     const queryTimer = createTimer("parallel queries");
     
+    // Calculate date boundaries for queries
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
     const [
       profileResult,
       userBooksResult,
@@ -110,6 +132,8 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
       finishedBooksResult,
       sessionsResult,
       goalsResult,
+      recentSessionsResult,
+      moodBooksResult,
     ] = await Promise.all([
       // 1. Profile
       supabase
@@ -154,6 +178,20 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
+
+      // 7. Reading sessions for last 30 days (for velocity insights)
+      supabase
+        .from("reading_sessions")
+        .select("session_date, pages_read")
+        .eq("user_id", user.id)
+        .gte("session_date", thirtyDaysAgoStr),
+
+      // 8. Books with review_attributes for mood tracking (last 10 highly-rated finished + currently reading)
+      supabase
+        .from("user_books")
+        .select("status, rating, review_attributes, subjects")
+        .eq("user_id", user.id)
+        .not("review_attributes", "is", null),
     ]);
     
     const queryTime = queryTimer.end();
@@ -165,6 +203,8 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
     const finishedBooks = finishedBooksResult.data || [];
     const sessions = sessionsResult.data || [];
     const allGoals = (goalsResult.data || []) as DBReadingGoal[];
+    const recentSessions = recentSessionsResult.data || [];
+    const moodBooks = moodBooksResult.data || [];
 
     // ========================================================================
     // Step 3: Get books and progress for currently reading
@@ -439,6 +479,150 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
     const activeGoalCount = activeDbGoals.length;
     const canCreateGoal = activeGoalCount < goalLimit;
 
+    // ========================================================================
+    // Step 7: Calculate Quick Insights (for AdvancedInsights component)
+    // ========================================================================
+    
+    // Calculate avg pages per day from last 30 days sessions
+    const activeDaysMap = new Map<string, number>();
+    for (const session of recentSessions) {
+      const dateKey = session.session_date.split("T")[0];
+      const currentPages = activeDaysMap.get(dateKey) || 0;
+      activeDaysMap.set(dateKey, currentPages + (session.pages_read || 0));
+    }
+    const activeDaysWithReading = Array.from(activeDaysMap.entries()).filter(
+      ([, pages]) => pages > 0
+    );
+    const activeDaysInRange = activeDaysWithReading.length;
+    const totalPagesInRange = activeDaysWithReading.reduce(
+      (sum, [, pages]) => sum + pages,
+      0
+    );
+    const insightAvgPagesPerDay =
+      activeDaysInRange > 0 ? Math.round(totalPagesInRange / activeDaysInRange) : 0;
+
+    // Get top genre from finished books with subjects
+    const genreCountMap = new Map<string, number>();
+    for (const ub of moodBooks) {
+      if (ub.status === "finished" && ub.subjects) {
+        const subjects = ub.subjects as string[];
+        for (const subject of subjects) {
+          if (typeof subject === "string" && subject.trim() !== "") {
+            genreCountMap.set(subject, (genreCountMap.get(subject) || 0) + 1);
+          }
+        }
+      }
+    }
+    let topGenre: string | null = null;
+    if (genreCountMap.size > 0) {
+      const sortedGenres = Array.from(genreCountMap.entries()).sort(
+        (a, b) => b[1] - a[1]
+      );
+      topGenre = sortedGenres[0][0];
+    }
+
+    const quickInsights: QuickInsightsData = {
+      avgPagesPerDay: insightAvgPagesPerDay,
+      currentStreak: readingStreak,
+      topGenre,
+    };
+
+    // ========================================================================
+    // Step 8: Calculate Mood Summary (for MoodTracker component)
+    // ========================================================================
+    
+    // Helper function to get color for mood
+    function getMoodColor(mood: string): string {
+      const colorMap: Record<string, string> = {
+        Dark: "purple",
+        Lighthearted: "yellow",
+        Emotional: "pink",
+        Tense: "red",
+        Reflective: "blue",
+        Hopeful: "green",
+        Melancholic: "indigo",
+        Humorous: "orange",
+        Suspenseful: "red",
+        Romantic: "pink",
+        Mysterious: "purple",
+        Inspiring: "green",
+        "Thought-provoking": "blue",
+        Adventurous: "orange",
+        Nostalgic: "amber",
+      };
+      return colorMap[mood] || "gray";
+    }
+
+    // Filter books for mood tracking:
+    // - Last 10 finished books with rating >= 4
+    // - All currently reading books
+    const finishedMoodBooks = moodBooks
+      .filter((ub) => ub.status === "finished" && (ub.rating ?? 0) >= 4)
+      .slice(0, 10);
+    const currentlyReadingMoodBooks = moodBooks.filter(
+      (ub) => ub.status === "currently_reading"
+    );
+    const combinedMoodBooks = [...finishedMoodBooks, ...currentlyReadingMoodBooks];
+
+    let booksWithMoods = 0;
+    const moodsMap = new Map<string, number>();
+    const pacingMap = new Map<string, number>();
+
+    for (const userBook of combinedMoodBooks) {
+      const reviewAttrs = userBook.review_attributes as Record<string, unknown> | null;
+      if (!reviewAttrs) continue;
+
+      // Extract moods
+      const moods = reviewAttrs.moods;
+      if (Array.isArray(moods) && moods.length > 0) {
+        booksWithMoods++;
+        for (const mood of moods) {
+          if (typeof mood === "string" && mood.trim() !== "") {
+            moodsMap.set(mood, (moodsMap.get(mood) || 0) + 1);
+          }
+        }
+      }
+
+      // Extract pacing
+      const pacing = reviewAttrs.pacing;
+      if (
+        pacing !== null &&
+        pacing !== undefined &&
+        typeof pacing === "string" &&
+        pacing.trim() !== ""
+      ) {
+        pacingMap.set(pacing, (pacingMap.get(pacing) || 0) + 1);
+      }
+    }
+
+    // Check if at least 3 books have mood tags
+    const hasEnoughMoodData = booksWithMoods >= 3;
+
+    // Get top 4 moods
+    const topMoods = hasEnoughMoodData
+      ? Array.from(moodsMap.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 4)
+          .map(([mood]) => ({
+            mood,
+            color: getMoodColor(mood),
+          }))
+      : [];
+
+    // Get most frequent pacing
+    let mostFrequentPacing: string | null = null;
+    if (pacingMap.size > 0) {
+      const pacingEntries = Array.from(pacingMap.entries());
+      pacingEntries.sort((a, b) => b[1] - a[1]);
+      mostFrequentPacing = pacingEntries[0][0];
+    }
+
+    const moodSummary: MoodSummaryData = {
+      hasEnoughData: hasEnoughMoodData,
+      moods: topMoods,
+      pacing: mostFrequentPacing,
+    };
+
     const totalTime = totalTimer.end();
 
     return {
@@ -466,6 +650,8 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
         currentCount: activeGoalCount,
         limit: goalLimit,
       },
+      insights: quickInsights,
+      moodSummary,
       timing: {
         total: totalTime,
         auth: authTime,
