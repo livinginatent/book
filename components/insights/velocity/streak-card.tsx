@@ -1,13 +1,13 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { Flame, Info } from "lucide-react";
+
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface StreakCardProps {
   currentStreak: number;
@@ -50,21 +50,19 @@ export function StreakCard({
               <p className="text-xs text-muted-foreground">Don't break the chain</p>
             </div>
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-                  <Info className="w-4 h-4 text-muted-foreground" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="left" className="max-w-xs">
-                <p className="text-xs">
-                  <strong>The Streak</strong> counts consecutive days you've read at least one page. 
-                  Keep it going to build lasting reading habits!
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                <Info className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="left" className="max-w-xs">
+              <p className="text-xs">
+                <strong>The Streak</strong> counts consecutive days you've read at least one page. 
+                Keep it going to build lasting reading habits!
+              </p>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="space-y-3 mt-4">

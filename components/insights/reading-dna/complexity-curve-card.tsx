@@ -1,5 +1,6 @@
 "use client";
 
+import { Info } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -11,6 +12,11 @@ import {
 } from "recharts";
 
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 
 interface ComplexityCurveProps {
@@ -21,11 +27,30 @@ interface ComplexityCurveProps {
 }
 
 export function ComplexityCurveCard({ data }: ComplexityCurveProps) {
+  const infoTooltip = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <Info className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="left" className="max-w-xs">
+        <p className="text-xs">
+          Your complexity curve shows the distribution of books you've read
+          across different difficulty levels. This helps you understand whether
+          you gravitate toward lighter reads, challenging texts, or maintain a
+          balanced reading diet.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+
   if (data.length === 0) {
     return (
       <DashboardCard
         title="Complexity Curve"
         description="Books read by difficulty level"
+        action={infoTooltip}
       >
         <div className="h-72 flex items-center justify-center text-muted-foreground">
           <p className="text-sm">No complexity data available</p>
@@ -41,6 +66,7 @@ export function ComplexityCurveCard({ data }: ComplexityCurveProps) {
     <DashboardCard
       title="Complexity Curve"
       description="Books read by difficulty level"
+      action={infoTooltip}
     >
       <>
         {/* Mobile: Horizontal Bar Chart */}

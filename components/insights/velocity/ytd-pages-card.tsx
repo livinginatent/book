@@ -1,13 +1,14 @@
+/* eslint-disable react-hooks/purity */
 "use client";
 
-import { cn } from "@/lib/utils";
-import { Calendar, Info } from "lucide-react";
+import {  CalendarCheck2, Info } from "lucide-react";
+
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface YtdPagesCardProps {
   totalPages: number;
@@ -42,30 +43,33 @@ export function YtdPagesCard({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-            <Calendar className="w-6 h-6" />
+            <CalendarCheck2 className="w-6 h-6" />
           </div>
           <div>
             <h3 className="font-semibold text-foreground">
-              {rangeLabel.includes("All Time") ? "Total Performance" : rangeLabel.includes("30 Days") ? "30-Day Performance" : "YTD Performance"}
+              {rangeLabel.includes("All Time")
+                ? "Total Performance"
+                : rangeLabel.includes("30 Days")
+                ? "30-Day Performance"
+                : "YTD Performance"}
             </h3>
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-                <Info className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-xs">
-              <p className="text-xs">
-                <strong>Year-to-Date Performance</strong> tracks your cumulative reading 
-                from January 1st to right now. Watch these numbers grow throughout the year!
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+              <Info className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="left" className="max-w-xs">
+            <p className="text-xs">
+              <strong>Year-to-Date Performance</strong> tracks your cumulative
+              reading from January 1st to right now. Watch these numbers grow
+              throughout the year!
+            </p>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="space-y-3 mt-4">
