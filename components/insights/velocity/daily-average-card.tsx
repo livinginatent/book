@@ -1,13 +1,13 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { Gauge, Info } from "lucide-react";
+
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface DailyAverageCardProps {
   pagesPerDay: number;
@@ -24,10 +24,14 @@ export function DailyAverageCard({
 }: DailyAverageCardProps) {
   // Categorize reading pace
   const getPaceCategory = () => {
-    if (pagesPerDay >= 50) return { label: "Speed Reader", color: "text-emerald-500" };
-    if (pagesPerDay >= 30) return { label: "Strong Pace", color: "text-blue-500" };
-    if (pagesPerDay >= 15) return { label: "Steady Reader", color: "text-amber-500" };
-    if (pagesPerDay > 0) return { label: "Light Reading", color: "text-muted-foreground" };
+    if (pagesPerDay >= 50)
+      return { label: "Speed Reader", color: "text-emerald-500" };
+    if (pagesPerDay >= 30)
+      return { label: "Strong Pace", color: "text-blue-500" };
+    if (pagesPerDay >= 15)
+      return { label: "Steady Reader", color: "text-amber-500" };
+    if (pagesPerDay > 0)
+      return { label: "Light Reading", color: "text-muted-foreground" };
     return { label: "Getting Started", color: "text-muted-foreground" };
   };
 
@@ -49,22 +53,20 @@ export function DailyAverageCard({
             </p>
           </div>
         </div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-                <Info className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-xs">
-              <p className="text-xs">
-                <strong>The Velocity Engine</strong> calculates your current reading pace 
-                using the average pages per day from your selected time range. 
-                This powers your book completion forecasts.
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+              <Info className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="left" className="max-w-xs">
+            <p className="text-xs">
+              <strong>The Velocity Engine</strong> calculates your current
+              reading pace using the average pages per day from your selected
+              time range. This powers your book completion forecasts.
+            </p>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="space-y-3 mt-4">
@@ -74,7 +76,9 @@ export function DailyAverageCard({
             <p className="text-4xl font-bold text-foreground">{pagesPerDay}</p>
             <p className="text-sm text-muted-foreground">pages/day</p>
           </div>
-          <p className={cn("text-xs font-medium mt-1", pace.color)}>{pace.label}</p>
+          <p className={cn("text-xs font-medium mt-1", pace.color)}>
+            {pace.label}
+          </p>
         </div>
         <div className="pt-3 border-t border-border">
           <p className="text-xs text-muted-foreground mb-1">Last 7 Days</p>

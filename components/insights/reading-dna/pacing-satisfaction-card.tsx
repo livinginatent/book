@@ -1,6 +1,6 @@
 "use client";
 
-import { Gauge } from "lucide-react";
+import { Gauge, Info } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -12,6 +12,11 @@ import {
 } from "recharts";
 
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 
 interface PacingSatisfactionProps {
@@ -29,11 +34,29 @@ export function PacingSatisfactionCard({
     rating: stat.avgRating,
   }));
 
+  const infoTooltip = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <Info className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="left" className="max-w-xs">
+        <p className="text-xs">
+          This chart reveals how book pacing influences your ratings. Compare
+          average ratings across different pacing styles to discover which
+          narrative tempo resonates most with your reading preferences.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+
   return (
     <DashboardCard
       title="Pacing Satisfaction"
       description="How pacing affects your ratings"
       icon={Gauge}
+      action={infoTooltip}
     >
       {pacingStats.length === 0 ? (
         <div className="h-72 flex items-center justify-center text-muted-foreground">

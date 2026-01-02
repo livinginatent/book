@@ -1,6 +1,6 @@
 "use client";
 
-import { Dna } from "lucide-react";
+import { Dna, HeartHandshake, LibraryBig, SquareUserRound } from "lucide-react";
 import { useState, useEffect, useTransition } from "react";
 
 import { getReadingDNA } from "@/app/actions/insights";
@@ -12,7 +12,7 @@ import {
   PacingSatisfactionCard,
   GenreLandscapeCard,
   DNARadar,
-} from "@/components/reading-dna";
+} from "@/components/insights/reading-dna";
 
 interface ReadingDNAClientProps {
   isOpen: boolean;
@@ -97,7 +97,7 @@ export function ReadingDNAClient({
       {/* Section 1: Core Preferences */}
       <section className="transition-opacity">
         <div className="flex items-center gap-2 mb-2">
-          <Dna className="w-5 h-5 text-primary" />
+          <HeartHandshake className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">
             Core Preferences
           </h2>
@@ -119,7 +119,7 @@ export function ReadingDNAClient({
       {/* Section 2: Reading Patterns */}
       <section className="transition-opacity">
         <div className="flex items-center gap-2 mb-2">
-          <Dna className="w-5 h-5 text-emerald-500" />
+          <LibraryBig className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">
             Reading Patterns
           </h2>
@@ -139,7 +139,7 @@ export function ReadingDNAClient({
       {/* Section 3: Reading DNA Profile */}
       <section className="transition-opacity">
         <div className="flex items-center gap-2 mb-2">
-          <Dna className="w-5 h-5 text-violet-500" />
+          <SquareUserRound className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">
             Reading DNA Profile
           </h2>

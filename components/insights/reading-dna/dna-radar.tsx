@@ -1,6 +1,6 @@
 "use client";
 
-import { Radar } from "lucide-react";
+import { Info, Radar } from "lucide-react";
 import {
   RadarChart,
   PolarGrid,
@@ -13,6 +13,11 @@ import {
 
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import { DashboardCard } from "@/components/ui/dashboard-card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface DNARadarProps {
   structuralFlags: Array<{
@@ -40,6 +45,24 @@ export function DNARadar({ structuralFlags }: DNARadarProps) {
     value: Math.round(flag.percentage),
   }));
 
+  const infoTooltip = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <Info className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="left" className="max-w-xs">
+        <p className="text-xs">
+          Your Reading DNA Radar visualizes your top reading preferences across
+          different narrative attributes. The shape of the radar chart reveals
+          your unique reading profile—showing which elements you gravitate
+          toward most in the books you read.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+
   if (chartData.length === 0) {
     return (
       <DashboardCard
@@ -47,6 +70,7 @@ export function DNARadar({ structuralFlags }: DNARadarProps) {
         description="Your reading preferences profile"
         icon={Radar}
         className="col-span-full"
+        action={infoTooltip}
       >
         <div className="h-64 md:h-72 flex items-center justify-center text-muted-foreground">
           <p className="text-sm">No preference data available</p>
@@ -61,6 +85,7 @@ export function DNARadar({ structuralFlags }: DNARadarProps) {
       description="Your reading preferences profile"
       icon={Radar}
       className="col-span-full"
+      action={infoTooltip}
     >
       <div className="w-full overflow-hidden">
         <ChartContainer

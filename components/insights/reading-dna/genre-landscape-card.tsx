@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen } from "lucide-react";
+import { BookOpen, Info } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -13,6 +13,11 @@ import {
 
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import { DashboardCard } from "@/components/ui/dashboard-card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface GenreLandscapeProps {
   subjects: Array<{
@@ -32,6 +37,24 @@ export function GenreLandscapeCard({ subjects }: GenreLandscapeProps) {
     rating: subject.avgRating,
   }));
 
+  const infoTooltip = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <Info className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="left" className="max-w-xs">
+        <p className="text-xs">
+          Your genre landscape shows the distribution of books across different
+          genres in your reading history. This visualization helps you
+          understand your reading preferences and discover patterns in your
+          literary tastes.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+
   if (subjects.length === 0) {
     return (
       <DashboardCard
@@ -39,6 +62,7 @@ export function GenreLandscapeCard({ subjects }: GenreLandscapeProps) {
         description="Your top reading genres"
         icon={BookOpen}
         className="col-span-full lg:col-span-2"
+        action={infoTooltip}
       >
         <div className="h-72 flex items-center justify-center text-muted-foreground">
           <p className="text-sm">No genre data available</p>
@@ -53,6 +77,7 @@ export function GenreLandscapeCard({ subjects }: GenreLandscapeProps) {
       description="Your top reading genres"
       icon={BookOpen}
       className="col-span-full lg:col-span-2"
+      action={infoTooltip}
     >
       <>
         {/* Mobile: Horizontal Bar Chart */}
@@ -162,4 +187,3 @@ export function GenreLandscapeCard({ subjects }: GenreLandscapeProps) {
     </DashboardCard>
   );
 }
-

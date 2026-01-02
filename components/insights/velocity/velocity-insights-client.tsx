@@ -1,7 +1,7 @@
 "use client";
 
+import {  Flame, History, ChartLine } from "lucide-react";
 import { useState, useEffect, useTransition } from "react";
-import { Target, Activity, Flame, History } from "lucide-react";
 
 import { getVelocityStats, type VelocityRange } from "@/app/actions/insights";
 import {
@@ -118,7 +118,7 @@ export function VelocityInsightsClient({
       {/* Section 1: Core Metrics */}
       <section className="transition-opacity">
         <div className="flex items-center gap-2 mb-2">
-          <Target className="w-5 h-5 text-primary" />
+          <ChartLine className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">
             Core Metrics
           </h2>
@@ -145,7 +145,7 @@ export function VelocityInsightsClient({
       {/* Section 2: Activity Heatmap */}
       <section className="transition-opacity">
         <div className="flex items-center gap-2 mb-2">
-          <History className="w-5 h-5 text-emerald-500" />
+          <History className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">
             Reading History
           </h2>
@@ -162,7 +162,7 @@ export function VelocityInsightsClient({
       {/* Section 3: Forecast */}
       <section className="transition-opacity">
         <div className="flex items-center gap-2 mb-2">
-          <Flame className="w-5 h-5 text-violet-500" />
+          <Flame className="w-5 h-5 text-primary" />
           <h2 className="text-lg font-semibold text-foreground">
             Book Forecasts
           </h2>

@@ -3,6 +3,11 @@
 import { Info } from "lucide-react";
 
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -113,23 +118,21 @@ export function ActivityHeatmap({
             Your visual proof of work — every colored square is a day you read
           </p>
         </div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0">
-                <Info className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-xs">
-              <p className="text-xs">
-                <strong>The Heatmap</strong> is your visual &quot;proof of
-                work&quot; — a GitHub-style grid showing the last 12 months of
-                reading activity. Darker squares mean more pages read that day.
-                Hover over any square to see the details.
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0">
+              <Info className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="left" className="max-w-xs">
+            <p className="text-xs">
+              <strong>The Heatmap</strong> is your visual &quot;proof of
+              work&quot; — a GitHub-style grid showing the last 12 months of
+              reading activity. Darker squares mean more pages read that day.
+              Hover over any square to see the details.
+            </p>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Stats summary */}
