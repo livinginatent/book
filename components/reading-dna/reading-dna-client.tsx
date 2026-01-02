@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
 import { Dna } from "lucide-react";
+import { useState, useEffect, useTransition } from "react";
 
 import { getReadingDNA } from "@/app/actions/insights";
 import {
@@ -9,7 +9,6 @@ import {
   StructuralPreferencesCard,
   FormatDiversityCard,
   ComplexityCurveCard,
-  AcquisitionIntegrityCard,
   PacingSatisfactionCard,
   GenreLandscapeCard,
   DNARadar,
@@ -24,16 +23,15 @@ export function ReadingDNAClient({
   isOpen,
   onLoadingChange,
 }: ReadingDNAClientProps) {
-  const [data, setData] = useState<
-    Awaited<ReturnType<typeof getReadingDNA>> | null
-  >(null);
-  const [isPending, startTransition] = useTransition();
+  const [data, setData] = useState<Awaited<
+    ReturnType<typeof getReadingDNA>
+  > | null>(null);
+  const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
 
   useEffect(() => {
     if (isOpen && !hasFetched) {
-      setHasFetched(true);
       onLoadingChange?.(true);
       startTransition(async () => {
         setError(null);
@@ -43,10 +41,12 @@ export function ReadingDNAClient({
         } else {
           setError(result.error);
         }
+        setHasFetched(true);
         onLoadingChange?.(false);
       });
     }
-  }, [isOpen, hasFetched, onLoadingChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, hasFetched]);
 
   if (error) {
     return (
@@ -79,15 +79,8 @@ export function ReadingDNAClient({
     structuralFlags,
     formats,
     diverseCastPercent,
-    acquisitionData,
     winningCombo,
   } = data;
-
-  // Calculate structural preferences
-  const plotDriven =
-    structuralFlags.find((f) => f.key === "plot_driven")?.percentage || 0;
-  const characterDriven =
-    structuralFlags.find((f) => f.key === "character_driven")?.percentage || 0;
 
   // Transform complexity data for chart
   const complexityData = complexity.map((c) => ({
@@ -114,13 +107,8 @@ export function ReadingDNAClient({
           winning combinations
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {winningCombo && (
-            <WinningComboCard combo={winningCombo} />
-          )}
-          <StructuralPreferencesCard
-            plotDriven={plotDriven}
-            characterDriven={characterDriven}
-          />
+          {winningCombo && <WinningComboCard combo={winningCombo} />}
+          <StructuralPreferencesCard structuralFlags={structuralFlags} />
           <FormatDiversityCard
             formats={formats}
             diverseCastPercent={diverseCastPercent}
@@ -159,12 +147,10 @@ export function ReadingDNAClient({
         <p className="text-sm text-muted-foreground mb-6">
           A comprehensive view of your reading identity
         </p>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <DNARadar structuralFlags={structuralFlags} />
-          <AcquisitionIntegrityCard data={acquisitionData} />
         </div>
       </section>
     </div>
   );
 }
-

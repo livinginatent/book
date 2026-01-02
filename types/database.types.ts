@@ -185,6 +185,7 @@ export interface Database {
           rating: number | null;
           reading_format: ReadingFormat | null;
           review_attributes: Json | null;
+          subjects: string[];
           date_added: string;
           date_started: string | null;
           date_finished: string | null;
@@ -201,6 +202,7 @@ export interface Database {
           rating?: number | null;
           reading_format?: ReadingFormat | null;
           review_attributes?: Json | null;
+          subjects?: string[];
           date_added?: string;
           date_started?: string | null;
           date_finished?: string | null;
@@ -217,6 +219,7 @@ export interface Database {
           rating?: number | null;
           reading_format?: ReadingFormat | null;
           review_attributes?: Json | null;
+          subjects?: string[];
           date_added?: string;
           date_started?: string | null;
           date_finished?: string | null;

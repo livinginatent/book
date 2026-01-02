@@ -1,6 +1,13 @@
 "use client";
+import { BookOpen, Info } from "lucide-react";
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { DashboardCard } from "@/components/ui/dashboard-card";
-import { BookOpen } from "lucide-react";
 
 interface FormatDiversityProps {
   formats: {
@@ -17,11 +24,46 @@ export function FormatDiversityCard({
 }: FormatDiversityProps) {
   const total = formats.physical + formats.digital + formats.audiobook;
 
+  const infoTooltip = (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+            <Info className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="left" className="max-w-xs">
+          <p className="text-xs">
+            Your reading format distribution shows how you prefer to consume
+            books. The diverse cast percentage reflects the inclusivity of
+            characters in your library.
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+
+  if (total === 0) {
+    return (
+      <DashboardCard
+        title="Format & Diversity"
+        description="How you read and inclusivity"
+        icon={BookOpen}
+        action={infoTooltip}
+      >
+        <div className="h-32 flex items-center justify-center text-muted-foreground">
+          <p className="text-sm">No format data available</p>
+        </div>
+      </DashboardCard>
+    );
+  }
+
   return (
     <DashboardCard
       title="Format & Diversity"
       description="How you read and inclusivity"
       icon={BookOpen}
+      action={infoTooltip}
     >
       <div className="space-y-4">
         <div>
@@ -35,7 +77,7 @@ export function FormatDiversityCard({
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-blue-500 to-blue-600"
+              className="h-full bg-primary transition-all"
               style={{ width: `${(formats.physical / total) * 100}%` }}
             />
           </div>
@@ -50,7 +92,7 @@ export function FormatDiversityCard({
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-purple-500 to-purple-600"
+              className="h-full bg-primary transition-all"
               style={{ width: `${(formats.digital / total) * 100}%` }}
             />
           </div>
@@ -67,7 +109,7 @@ export function FormatDiversityCard({
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-amber-500 to-amber-600"
+              className="h-full bg-primary transition-all"
               style={{ width: `${(formats.audiobook / total) * 100}%` }}
             />
           </div>

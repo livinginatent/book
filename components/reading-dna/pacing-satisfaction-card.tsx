@@ -1,5 +1,5 @@
 "use client";
-import { DashboardCard } from "@/components/ui/dashboard-card";
+
 import { Gauge } from "lucide-react";
 import {
   BarChart,
@@ -10,7 +10,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
+import { DashboardCard } from "@/components/ui/dashboard-card";
 
 interface PacingSatisfactionProps {
   pacingStats: Array<{
@@ -32,47 +34,102 @@ export function PacingSatisfactionCard({
       title="Pacing Satisfaction"
       description="How pacing affects your ratings"
       icon={Gauge}
-      className="col-span-full lg:col-span-2"
     >
       {pacingStats.length === 0 ? (
         <div className="h-72 flex items-center justify-center text-muted-foreground">
           <p className="text-sm">No pacing data available</p>
         </div>
       ) : (
-        <ChartContainer
-          config={{
-            rating: {
-              label: "Avg Rating",
-              color: "hsl(var(--chart-2))",
-            },
-          }}
-          className="h-72"
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="hsl(var(--border))"
-              />
-              <XAxis
-                dataKey="pacing"
-                tick={{ fill: "hsl(var(--muted-foreground))" }}
-              />
-              <YAxis
-                domain={[0, 5]}
-                tick={{ fill: "hsl(var(--muted-foreground))" }}
-              />
-              <Tooltip content={<ChartTooltipContent />} />
-              <Bar
-                dataKey="rating"
-                fill="hsl(var(--chart-2))"
-                radius={[8, 8, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+        <>
+          {/* Mobile: Horizontal Bar Chart */}
+          <div className="md:hidden w-full overflow-hidden">
+            <ChartContainer
+              config={{
+                rating: {
+                  label: "Avg Rating",
+                  color: "hsl(var(--chart-2))",
+                },
+              }}
+              className="h-72 w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  layout="vertical"
+                  barCategoryGap="8%"
+                  margin={{ left: 45, right: 5, top: 5, bottom: 5 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                    horizontal={false}
+                  />
+                  <XAxis
+                    type="number"
+                    domain={[0, 5]}
+                    tick={{
+                      fill: "hsl(var(--muted-foreground))",
+                      fontSize: 10,
+                    }}
+                    width={25}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="pacing"
+                    tick={{
+                      fill: "hsl(var(--muted-foreground))",
+                      fontSize: 10,
+                    }}
+                    width={42}
+                  />
+                  <Tooltip content={<ChartTooltipContent />} />
+                  <Bar
+                    dataKey="rating"
+                    fill="hsl(var(--chart-2))"
+                    radius={[0, 8, 8, 0]}
+                    barSize={22}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </div>
+
+          {/* Desktop: Vertical Bar Chart */}
+          <ChartContainer
+            config={{
+              rating: {
+                label: "Avg Rating",
+                color: "hsl(var(--chart-2))",
+              },
+            }}
+            className="hidden md:block h-72"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} barCategoryGap="10%">
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="hsl(var(--border))"
+                />
+                <XAxis
+                  dataKey="pacing"
+                  tick={{ fill: "hsl(var(--muted-foreground))" }}
+                />
+                <YAxis
+                  domain={[0, 5]}
+                  tick={{ fill: "hsl(var(--muted-foreground))" }}
+                />
+                <Tooltip content={<ChartTooltipContent />} />
+                <Bar
+                  dataKey="rating"
+                  fill="hsl(var(--chart-2))"
+                  radius={[8, 8, 0, 0]}
+                  barSize={40}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </>
       )}
     </DashboardCard>
   );
 }
-

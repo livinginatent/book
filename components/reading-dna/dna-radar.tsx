@@ -23,13 +23,12 @@ interface DNARadarProps {
 
 const flagLabels: Record<string, string> = {
   plot_driven: "Plot-Driven",
-  character_driven: "Character-Driven",
-  fast_paced: "Fast-Paced",
-  slow_burn: "Slow Burn",
+  character_development: "Character Dev",
   multiple_pov: "Multiple POV",
   world_building: "World Building",
-  plot_twists: "Plot Twists",
+  twist_ending: "Twist Ending",
   diverse_cast: "Diverse Cast",
+  strong_prose: "Strong Prose",
 };
 
 export function DNARadar({ structuralFlags }: DNARadarProps) {
@@ -49,7 +48,7 @@ export function DNARadar({ structuralFlags }: DNARadarProps) {
         icon={Radar}
         className="col-span-full"
       >
-        <div className="h-72 flex items-center justify-center text-muted-foreground">
+        <div className="h-64 md:h-72 flex items-center justify-center text-muted-foreground">
           <p className="text-sm">No preference data available</p>
         </div>
       </DashboardCard>
@@ -63,38 +62,57 @@ export function DNARadar({ structuralFlags }: DNARadarProps) {
       icon={Radar}
       className="col-span-full"
     >
-      <ChartContainer
-        config={{
-          value: {
-            label: "Preference %",
-            color: "hsl(var(--chart-3))",
-          },
-        }}
-        className="h-72"
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <RadarChart data={chartData}>
-            <PolarGrid stroke="hsl(var(--border))" />
-            <PolarAngleAxis
-              dataKey="attribute"
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-            />
-            <PolarRadiusAxis
-              angle={90}
-              domain={[0, 100]}
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
-            />
-            <RechartsRadar
-              name="Preference"
-              dataKey="value"
-              stroke="hsl(var(--chart-3))"
-              fill="hsl(var(--chart-3))"
-              fillOpacity={0.6}
-            />
-            <Tooltip content={<ChartTooltipContent />} />
-          </RadarChart>
-        </ResponsiveContainer>
-      </ChartContainer>
+      <div className="w-full overflow-hidden">
+        <ChartContainer
+          config={{
+            value: {
+              label: "Preference %",
+              color: "hsl(var(--chart-3))",
+            },
+          }}
+          className="h-64 md:h-72 w-full"
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart
+              data={chartData}
+              margin={{
+                top: 10,
+                right: 10,
+                bottom: 10,
+                left: 10,
+              }}
+            >
+              <PolarGrid stroke="hsl(var(--border))" />
+              <PolarAngleAxis
+                dataKey="attribute"
+                tick={{
+                  fill: "hsl(var(--muted-foreground))",
+                  fontSize: 10,
+                }}
+                className="md:text-xs"
+              />
+              <PolarRadiusAxis
+                angle={90}
+                domain={[0, 100]}
+                tick={{
+                  fill: "hsl(var(--muted-foreground))",
+                  fontSize: 9,
+                }}
+                className="md:text-xs"
+              />
+              <RechartsRadar
+                name="Preference"
+                dataKey="value"
+                stroke="hsl(var(--chart-3))"
+                fill="hsl(var(--chart-3))"
+                fillOpacity={0.6}
+                strokeWidth={1.5}
+              />
+              <Tooltip content={<ChartTooltipContent />} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+      </div>
     </DashboardCard>
   );
 }

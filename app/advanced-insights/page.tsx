@@ -91,7 +91,7 @@ export default function AdvancedInsightsPage() {
 
         {/* Reading DNA Section */}
         <CollapsibleSection
-          className="mb-4"
+          className="mb-4 rounded-lg"
           title="Reading DNA"
           description="Discover your unique reading identity"
           defaultOpen={false}

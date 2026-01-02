@@ -523,9 +523,7 @@ export async function getReadingDNA(): Promise<
         rating,
         review_attributes,
         reading_format,
-        books (
-          subjects
-        )
+        subjects
       `
       )
       .eq("user_id", user.id)
@@ -581,16 +579,9 @@ export async function getReadingDNA(): Promise<
       > | null;
       if (!reviewAttrs) continue;
 
-      // Handle books relation (can be array or single object)
-      const bookData = userBook.books as
-        | { subjects: string[] }[]
-        | { subjects: string[] }
-        | null;
-      const book = Array.isArray(bookData)
-        ? bookData[0]
-        : (bookData as { subjects: string[] } | null);
       const rating = userBook.rating as number | null;
       const readingFormat = userBook.reading_format as string | null;
+      const subjects = (userBook.subjects as string[] | null) || [];
 
       // 1. Extract moods from review_attributes->'moods' array
       const moods = reviewAttrs.moods;
@@ -631,15 +622,15 @@ export async function getReadingDNA(): Promise<
       }
 
       // 4. Structural flags - check for boolean values
+      // Match the attribute names from book-review-form.tsx
       const structuralFlagKeys = [
         "plot_driven",
         "diverse_cast",
         "multiple_pov",
-        "fast_paced",
-        "slow_burn",
-        "character_driven",
+        "character_development",
         "world_building",
-        "plot_twists",
+        "twist_ending",
+        "strong_prose",
       ];
 
       for (const key of structuralFlagKeys) {
@@ -671,17 +662,17 @@ export async function getReadingDNA(): Promise<
         formatMap.set("physical", (formatMap.get("physical") || 0) + 1);
       }
 
-      // 5. Subject analysis - flatten subjects array
+      // 5. Subject analysis - use subjects from user_books
+      // Process subjects even without ratings (for genre landscape)
       // Subject Fallback: If subjects is null or empty, label as 'Uncategorized'
-      if (rating !== null) {
-        const subjects = book?.subjects;
-        if (
-          !subjects ||
-          !Array.isArray(subjects) ||
-          subjects.length === 0 ||
-          subjects.every((s) => !s || typeof s !== "string" || s.trim() === "")
-        ) {
-          // Fallback to 'Uncategorized'
+      if (
+        !subjects ||
+        !Array.isArray(subjects) ||
+        subjects.length === 0 ||
+        subjects.every((s) => !s || typeof s !== "string" || s.trim() === "")
+      ) {
+        // Fallback to 'Uncategorized' - only count if has rating
+        if (rating !== null) {
           const existing = subjectsMap.get("Uncategorized") || {
             count: 0,
             totalRating: 0,
@@ -691,20 +682,24 @@ export async function getReadingDNA(): Promise<
           existing.totalRating += rating;
           existing.ratingCount += 1;
           subjectsMap.set("Uncategorized", existing);
-        } else {
-          // Process valid subjects
-          for (const subject of subjects) {
-            if (typeof subject === "string" && subject.trim() !== "") {
-              const existing = subjectsMap.get(subject) || {
-                count: 0,
-                totalRating: 0,
-                ratingCount: 0,
-              };
-              existing.count += 1;
+        }
+      } else {
+        // Process valid subjects
+        for (const subject of subjects) {
+          if (typeof subject === "string" && subject.trim() !== "") {
+            const existing = subjectsMap.get(subject) || {
+              count: 0,
+              totalRating: 0,
+              ratingCount: 0,
+            };
+            // Always count the book for this subject
+            existing.count += 1;
+            // Only add to rating calculations if rating exists
+            if (rating !== null) {
               existing.totalRating += rating;
               existing.ratingCount += 1;
-              subjectsMap.set(subject, existing);
             }
+            subjectsMap.set(subject, existing);
           }
         }
       }
@@ -732,10 +727,10 @@ export async function getReadingDNA(): Promise<
       .map(([level, count]) => ({ level, count }))
       .sort((a, b) => b.count - a.count);
 
-    // Threshold: Only include subjects if encountered at least twice
+    // Threshold: Only include subjects if encountered at least once (lowered from 2)
     // Rounding: Round avgRating to 2 decimal places
     const subjects = Array.from(subjectsMap.entries())
-      .filter(([, data]) => data.count >= 2)
+      .filter(([, data]) => data.count >= 1)
       .map(([name, data]) => ({
         name,
         count: data.count,
@@ -745,7 +740,7 @@ export async function getReadingDNA(): Promise<
             : 0,
       }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 5); // Top 5
+      .slice(0, 10); // Top 10 (increased from 5)
 
     const structuralFlags = Array.from(structuralFlagsMap.entries())
       .map(([key, data]) => ({
@@ -765,14 +760,9 @@ export async function getReadingDNA(): Promise<
     const diverseCastPercent =
       totalBooks > 0 ? Math.round((diverseCastCount / totalBooks) * 100) : 0;
 
-    // Calculate acquisition data (simplified - using format as proxy)
-    // In a real app, you'd track where books came from (purchased, library, borrowed, etc.)
-    const acquisitionData = [
-      { name: "Purchased", value: Math.round(finishedBooks.length * 0.6) },
-      { name: "Library", value: Math.round(finishedBooks.length * 0.25) },
-      { name: "Borrowed", value: Math.round(finishedBooks.length * 0.1) },
-      { name: "Gifted", value: Math.round(finishedBooks.length * 0.05) },
-    ];
+    // Calculate acquisition data (disabled for now - will be implemented in the future)
+    // TODO: Implement actual acquisition tracking when feature is ready
+    const acquisitionData: Array<{ name: string; value: number }> = [];
 
     // Calculate winning combo (best subject + pacing combination)
     let winningCombo: {
