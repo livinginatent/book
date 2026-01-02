@@ -1,6 +1,7 @@
 "use client";
 
 import { BookMarked, Info } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import {
@@ -9,6 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface StructuralPreferencesProps {
   structuralFlags: Array<{
@@ -31,28 +33,127 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
 export function StructuralPreferencesCard({
   structuralFlags,
 }: StructuralPreferencesProps) {
+  const [open, setOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const justOpenedRef = useRef(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile || !open) {
+      justOpenedRef.current = false;
+      return;
+    }
+
+    // Delay handler registration to avoid catching the opening click
+    const timeoutId = setTimeout(() => {
+      justOpenedRef.current = false;
+    }, 100);
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      // Ignore if we just opened
+      if (justOpenedRef.current) return;
+
+      const target = e.target as HTMLElement;
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(target) &&
+        tooltipRef.current &&
+        !tooltipRef.current.contains(target)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    // Use capture phase and delay to avoid immediate firing
+    const delayedHandler = (e: MouseEvent | TouchEvent) => {
+      setTimeout(() => handleClickOutside(e), 0);
+    };
+
+    document.addEventListener("mousedown", delayedHandler, true);
+    document.addEventListener("touchstart", delayedHandler, true);
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener("mousedown", delayedHandler, true);
+      document.removeEventListener("touchstart", delayedHandler, true);
+    };
+  }, [isMobile, open]);
+
   // Filter and sort flags by percentage (highest first)
   const sortedFlags = structuralFlags
     .filter((flag) => ATTRIBUTE_LABELS[flag.key])
     .sort((a, b) => b.percentage - a.percentage);
 
+  const tooltipContent = (
+    <p className="text-xs">
+      The structural elements you gravitate toward in books. These percentages
+      show how often you encounter and enjoy specific narrative features across
+      your reading history.
+    </p>
+  );
+
   const infoTooltip = (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+    <div className="relative">
+      {isMobile ? (
+        <>
+          <button
+            ref={buttonRef}
+            className="p-1.5 rounded-lg hover:bg-muted transition-colors touch-manipulation"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!open) {
+                justOpenedRef.current = true;
+              }
+              setOpen((prev) => !prev);
+            }}
+          >
             <Info className="w-4 h-4 text-muted-foreground" />
           </button>
-        </TooltipTrigger>
-        <TooltipContent side="left" className="max-w-xs">
-          <p className="text-xs">
-            The structural elements you gravitate toward in books. These
-            percentages show how often you encounter and enjoy specific
-            narrative features across your reading history.
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+          {/* Mobile: Simple positioned div */}
+          {open && (
+            <div
+              ref={tooltipRef}
+              data-mobile-tooltip
+              className={cn(
+                "absolute z-[100] w-64 p-3 rounded-md shadow-lg",
+                "bg-foreground text-background text-xs",
+                "animate-in fade-in-0 zoom-in-95",
+                "right-0 top-full mt-2"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              {tooltipContent}
+              <div className="absolute -top-1 right-4 w-2 h-2 bg-foreground rotate-45" />
+            </div>
+          )}
+        </>
+      ) : (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                <Info className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-xs">
+              {tooltipContent}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
   );
 
   if (sortedFlags.length === 0) {
