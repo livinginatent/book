@@ -1,7 +1,8 @@
 "use client";
 
-import { BarChart3, Clock, BookOpen, Calendar, Loader2 } from "lucide-react";
+import { Clock, Calendar, Loader2, Hash } from "lucide-react";
 import { useState, useEffect } from "react";
+import { IoStatsChart } from "react-icons/io5";
 
 import {
   getReadingStats,
@@ -28,7 +29,7 @@ const periods: Array<{ value: ReadingStatsPeriod; label: string }> = [
 ];
 
 export function ReadingStats() {
-  const [period, setPeriod] = useState<ReadingStatsPeriod>("ytd");
+  const [period, setPeriod] = useState<ReadingStatsPeriod>("1month");
   const [stats, setStats] = useState<ReadingStatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +77,7 @@ export function ReadingStats() {
     <DashboardCard
       title="Reading Stats"
       description="Your reading journey"
-      icon={BarChart3}
+      icon={IoStatsChart}
     >
       <div className="space-y-4">
         {/* Period Toggles */}
@@ -107,7 +108,7 @@ export function ReadingStats() {
         ) : stats ? (
           <div className="grid grid-cols-2 gap-3">
             <StatCard
-              icon={BookOpen}
+              icon={Hash}
               value={String(stats.booksRead)}
               label="Books Read"
             />
@@ -122,7 +123,7 @@ export function ReadingStats() {
               label="Reading Streak"
             />
             <StatCard
-              icon={BarChart3}
+              icon={IoStatsChart}
               value={String(stats.avgPagesPerDay)}
               label="Avg Pages/Day"
             />

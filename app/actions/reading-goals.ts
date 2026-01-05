@@ -27,6 +27,12 @@ export interface ReadingGoalResult {
   goal: ReadingGoal;
 }
 
+export interface AllActiveGoalsResult {
+  success: true;
+  goals: ReadingGoal[];
+  showYearlyReset?: boolean;
+}
+
 export interface DBReadingGoalResult {
   success: true;
   goal: DBReadingGoal;
@@ -227,20 +233,17 @@ export async function upsertGoalType(
       };
     }
 
-    // Deactivate any existing active goals for this user
-    // Set status to 'archived' if the column exists
-    const { error: deactivateError } = await supabase
-      .from("reading_goals")
-      .update({
-        is_active: false,
-        // Try to set status to 'archived' if column exists (will be ignored if it doesn't)
-        status: "archived" as any,
-      })
-      .eq("user_id", user.id)
-      .eq("is_active", true);
+    // Check if user can create a new goal
+    const canCreateResult = await canCreateGoal(user.id, tier);
+    if (!canCreateResult.success) {
+      return canCreateResult;
+    }
 
-    if (deactivateError) {
-      console.error("Error deactivating existing goals:", deactivateError);
+    if (!canCreateResult.canCreate) {
+      return {
+        success: false,
+        error: `You have reached your goal limit of ${canCreateResult.limit} active goals. Please deactivate an existing goal or upgrade to Bibliophile for more goals.`,
+      };
     }
 
     // Create a new active goal
@@ -346,6 +349,26 @@ async function batchCalculateGoalProgress(
     .toISOString()
     .split("T")[0];
 
+  // Check if we need reading_sessions (for consistency goals)
+  const hasConsistencyGoal = goals.some((g) => g.type === "consistency");
+
+  // Fetch reading sessions only if there's at least one consistency goal
+  let readingSessions: { session_date: string }[] = [];
+  if (hasConsistencyGoal) {
+    const { data: sessions, error: sessionsError } = await supabase
+      .from("reading_sessions")
+      .select("session_date")
+      .eq("user_id", userId)
+      .gte("session_date", yearStart)
+      .lte("session_date", yearEnd);
+
+    if (sessionsError) {
+      console.error("Error fetching reading sessions:", sessionsError);
+    } else {
+      readingSessions = sessions || [];
+    }
+  }
+
   // Fetch all finished user_books for this user in the current year - SINGLE QUERY
   const { data: finishedBooks, error: booksError } = await supabase
     .from("user_books")
@@ -439,9 +462,10 @@ async function batchCalculateGoalProgress(
 
       case "consistency": {
         const uniqueDays = new Set<string>();
-        booksInRange.forEach((ub) => {
-          if (ub.date_finished) {
-            uniqueDays.add(ub.date_finished.split("T")[0]);
+        readingSessions.forEach((session) => {
+          const sessionDate = session.session_date;
+          if (sessionDate >= dateStart && sessionDate <= dateEnd) {
+            uniqueDays.add(sessionDate);
           }
         });
         progress = uniqueDays.size;
@@ -564,24 +588,20 @@ async function calculateGoalProgress(
     }
 
     case "consistency": {
-      const { data: finishedBooks, error } = await supabase
-        .from("user_books")
-        .select("date_finished")
+      const { data: sessions, error } = await supabase
+        .from("reading_sessions")
+        .select("session_date")
         .eq("user_id", userId)
-        .eq("status", "finished")
-        .gte("date_finished", dateStart)
-        .lte("date_finished", dateEnd)
-        .not("date_finished", "is", null);
+        .gte("session_date", dateStart)
+        .lte("session_date", dateEnd);
 
-      if (error || !finishedBooks || finishedBooks.length === 0) {
+      if (error || !sessions || sessions.length === 0) {
         return 0;
       }
 
       const uniqueDays = new Set<string>();
-      finishedBooks.forEach((ub) => {
-        if (ub.date_finished) {
-          uniqueDays.add(ub.date_finished.split("T")[0]);
-        }
+      sessions.forEach((session) => {
+        uniqueDays.add(session.session_date);
       });
 
       return uniqueDays.size;
@@ -631,9 +651,10 @@ async function checkAndMarkGoalCompleted(
  * Get all active goals for the current user.
  * Automatically calculates progress from user_books table for each goal.
  * Uses batch calculation to minimize database queries.
+ * Filters by current year and auto-archives previous year's goals.
  */
 export async function getAllActiveGoals(): Promise<
-  { success: true; goals: ReadingGoal[] } | ReadingGoalError
+  AllActiveGoalsResult | ReadingGoalError
 > {
   try {
     const cookieStore = cookies();
@@ -648,21 +669,115 @@ export async function getAllActiveGoals(): Promise<
       return { success: false, error: "You must be logged in" };
     }
 
-    // Fetch all active goals
-    const { data: goals, error } = await supabase
+    const currentYear = new Date().getFullYear();
+    const previousYear = currentYear - 1;
+
+    // Fetch all active goals first
+    const { data: allActiveGoals, error: fetchError } = await supabase
       .from("reading_goals")
       .select("*")
       .eq("user_id", user.id)
       .eq("is_active", true)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching active goals:", error);
+    if (fetchError) {
+      console.error("Error fetching active goals:", fetchError);
       return { success: false, error: "Failed to fetch active goals" };
     }
 
+    if (!allActiveGoals || allActiveGoals.length === 0) {
+      // Check if user had goals specifically in previous year (for showYearlyReset flag)
+      // We need to check all goals (not just active) to see if they had goals in previous year
+      const { data: allUserGoals } = await supabase
+        .from("reading_goals")
+        .select("config")
+        .eq("user_id", user.id);
+
+      let hadPreviousYearGoals = false;
+      if (allUserGoals && allUserGoals.length > 0) {
+        for (const goal of allUserGoals) {
+          const config = (goal.config as Record<string, unknown>) || {};
+          const goalYear = config.year as number | undefined;
+          if (goalYear === previousYear) {
+            hadPreviousYearGoals = true;
+            break;
+          }
+        }
+      }
+
+      return {
+        success: true,
+        goals: [],
+        showYearlyReset: hadPreviousYearGoals,
+      };
+    }
+
+    // Separate goals by year
+    const goalsToArchive: string[] = [];
+    const currentYearGoals: typeof allActiveGoals = [];
+    let hadPreviousYearGoals = false;
+
+    for (const goal of allActiveGoals) {
+      const config = (goal.config as Record<string, unknown>) || {};
+      const goalYear = config.year as number | undefined;
+
+      if (goalYear === undefined || goalYear === null) {
+        // Goals without year specified are treated as current year
+        currentYearGoals.push(goal);
+      } else if (goalYear === currentYear) {
+        currentYearGoals.push(goal);
+      } else if (goalYear < currentYear) {
+        // Archive goals from previous years
+        goalsToArchive.push(goal.id);
+        if (goalYear === previousYear) {
+          hadPreviousYearGoals = true;
+        }
+      }
+    }
+
+    // Auto-cleanup: Archive active goals from previous year
+    if (goalsToArchive.length > 0) {
+      const { error: archiveError } = await supabase
+        .from("reading_goals")
+        .update({
+          is_active: false,
+          status: "archived" as any,
+        })
+        .in("id", goalsToArchive);
+
+      if (archiveError) {
+        console.error("Error archiving previous year goals:", archiveError);
+        // Continue execution even if archiving fails
+      }
+    }
+
+    // If no current year goals, check if user had goals specifically in previous year
+    if (currentYearGoals.length === 0 && !hadPreviousYearGoals) {
+      const { data: allUserGoals } = await supabase
+        .from("reading_goals")
+        .select("config")
+        .eq("user_id", user.id);
+
+      if (allUserGoals && allUserGoals.length > 0) {
+        for (const goal of allUserGoals) {
+          const config = (goal.config as Record<string, unknown>) || {};
+          const goalYear = config.year as number | undefined;
+          if (goalYear === previousYear) {
+            hadPreviousYearGoals = true;
+            break;
+          }
+        }
+      }
+    }
+
+    const goals = currentYearGoals;
+
     if (!goals || goals.length === 0) {
-      return { success: true, goals: [] };
+      return {
+        success: true,
+        goals: [],
+        showYearlyReset: hadPreviousYearGoals,
+      };
     }
 
     // Batch calculate progress for all goals (2 queries instead of N*2)
@@ -696,9 +811,14 @@ export async function getAllActiveGoals(): Promise<
       return !status || status === "active";
     });
 
+    // Check if we should show yearly reset prompt
+    // Show if: had goals in previous year AND no active goals for current year
+    const showYearlyReset = hadPreviousYearGoals && activeGoals.length === 0;
+
     return {
       success: true,
       goals: activeGoals,
+      showYearlyReset,
     };
   } catch (error) {
     console.error("Get all active goals error:", error);
@@ -887,6 +1007,7 @@ export async function updateGoalConfig(
 /**
  * Get the user's current active goal, if any.
  * Automatically calculates progress from user_books table.
+ * Filters by current year and auto-archives previous year's goals.
  */
 export async function getActiveGoal(): Promise<
   ReadingGoalResult | { success: true; goal: null } | ReadingGoalError
@@ -904,19 +1025,65 @@ export async function getActiveGoal(): Promise<
       return { success: false, error: "You must be logged in" };
     }
 
-    const { data: goal, error } = await supabase
+    const currentYear = new Date().getFullYear();
+
+    // Fetch all active goals first
+    const { data: allActiveGoals, error: fetchError } = await supabase
       .from("reading_goals")
       .select("*")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order("created_at", { ascending: false });
 
-    if (error && error.code !== "PGRST116") {
-      console.error("Error fetching active goal:", error);
+    if (fetchError && fetchError.code !== "PGRST116") {
+      console.error("Error fetching active goal:", fetchError);
       return { success: false, error: "Failed to fetch active goal" };
     }
+
+    if (!allActiveGoals || allActiveGoals.length === 0) {
+      return { success: true, goal: null };
+    }
+
+    // Separate goals by year and archive old ones
+    const goalsToArchive: string[] = [];
+    let currentYearGoal: (typeof allActiveGoals)[0] | null = null;
+
+    for (const g of allActiveGoals) {
+      const config = (g.config as Record<string, unknown>) || {};
+      const goalYear = config.year as number | undefined;
+
+      if (goalYear === undefined || goalYear === null) {
+        // Goals without year specified are treated as current year
+        if (!currentYearGoal) {
+          currentYearGoal = g;
+        }
+      } else if (goalYear === currentYear) {
+        if (!currentYearGoal) {
+          currentYearGoal = g;
+        }
+      } else if (goalYear < currentYear) {
+        // Archive goals from previous years
+        goalsToArchive.push(g.id);
+      }
+    }
+
+    // Auto-cleanup: Archive active goals from previous year
+    if (goalsToArchive.length > 0) {
+      const { error: archiveError } = await supabase
+        .from("reading_goals")
+        .update({
+          is_active: false,
+          status: "archived" as any,
+        })
+        .in("id", goalsToArchive);
+
+      if (archiveError) {
+        console.error("Error archiving previous year goals:", archiveError);
+        // Continue execution even if archiving fails
+      }
+    }
+
+    const goal = currentYearGoal;
 
     if (!goal) {
       return { success: true, goal: null };
@@ -990,20 +1157,17 @@ export async function saveReadingGoal(
     // Convert component goal to DB format
     const { type, config } = componentGoalToDbGoal(goal);
 
-    // Deactivate any existing active goals for this user
-    // Set status to 'archived' if the column exists, otherwise just set is_active = false
-    const { error: deactivateError } = await supabase
-      .from("reading_goals")
-      .update({
-        is_active: false,
-        // Try to set status to 'archived' if column exists (will be ignored if it doesn't)
-        status: "archived" as any,
-      })
-      .eq("user_id", user.id)
-      .eq("is_active", true);
+    // Check if user can create a new goal
+    const canCreateResult = await canCreateGoal(user.id, tier);
+    if (!canCreateResult.success) {
+      return canCreateResult;
+    }
 
-    if (deactivateError) {
-      console.error("Error deactivating existing goals:", deactivateError);
+    if (!canCreateResult.canCreate) {
+      return {
+        success: false,
+        error: `You have reached your goal limit of ${canCreateResult.limit} active goals. Please deactivate an existing goal or upgrade to Bibliophile for more goals.`,
+      };
     }
 
     // Create a new active goal

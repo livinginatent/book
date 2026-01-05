@@ -1,8 +1,9 @@
 import type { LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
 
 interface StepCardProps {
   step: number;
-  icon: LucideIcon;
+  icon: LucideIcon | IconType;
   title: string;
   description: string;
 }

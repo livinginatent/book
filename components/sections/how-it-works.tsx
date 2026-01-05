@@ -1,14 +1,21 @@
 "use client";
 
-import { Search, BookPlus, BarChart3, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Search, BookPlus, Sparkles } from "lucide-react";
+import type { IconType } from "react-icons";
+import { IoStatsChart } from "react-icons/io5";
 
 import { SectionHeading } from "@/components/ui/section-heading";
 
 import { StepCard } from "../ui/step-card";
 
+interface Step {
+  icon: LucideIcon | IconType;
+  title: string;
+  description: string;
+}
 
-
-const steps = [
+const steps: Step[] = [
   {
     icon: Search,
     title: "Find your books or import them",
@@ -22,7 +29,7 @@ const steps = [
       "Organize your collection your way. Create custom shelves, add tags, and track your reading progress.",
   },
   {
-    icon: BarChart3,
+    icon: IoStatsChart,
     title: "Watch your stats grow",
     description:
       "See beautiful charts of your reading habits. Track streaks, set goals, and celebrate milestones.",

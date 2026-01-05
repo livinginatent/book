@@ -1,9 +1,10 @@
 import type { LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
 
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
-  icon: LucideIcon;
+  icon: LucideIcon | IconType;
   value: string;
   label: string;
   className?: string;
@@ -22,7 +23,7 @@ export function StatCard({
         className
       )}
     >
-      <div className="w-12 h-12 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
+      <div className="w-12 h-12 text-primary rounded-xl  flex items-center justify-center shrink-0">
         <Icon className="w-6 h-6" />
       </div>
       <div>

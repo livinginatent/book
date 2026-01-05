@@ -1,30 +1,34 @@
-import {
-  BookMarked,
-  Target,
-  BarChart3,
-  UserCheck,
-  GlobeLock,
-  MonitorDot,
-} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { UserCheck, GlobeLock, MonitorDot } from "lucide-react";
+import type { IconType } from "react-icons";
+import { IoStatsChart } from "react-icons/io5";
+import { PiTarget } from "react-icons/pi";
+import { RiBook2Fill } from "react-icons/ri";
 
 import { FeatureCard } from "@/components/ui/feature-card";
 import { SectionHeading } from "@/components/ui/section-heading";
 
-const features = [
+interface Feature {
+  icon: LucideIcon | IconType;
+  title: string;
+  description: string;
+}
+
+const features: Feature[] = [
   {
-    icon: BookMarked,
+    icon: RiBook2Fill,
     title: "Beautiful Library",
     description:
       "Organize your books in a visual library that's a joy to browse. See covers, not spreadsheets.",
   },
   {
-    icon: Target,
+    icon: PiTarget,
     title: "Reading Goals",
     description:
       "Set yearly goals and watch your progress with satisfying animations and celebrations.",
   },
   {
-    icon: BarChart3,
+    icon: IoStatsChart,
     title: "Fun Statistics",
     description:
       "Discover your reading patterns with playful charts. Pages read, genres explored, and more.",

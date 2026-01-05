@@ -1,17 +1,17 @@
 "use client";
 
 
-import { BookOpen,  Users } from "lucide-react";
-import { Button } from "../ui/button";
+import {   Users } from "lucide-react";
 import Link from "next/link";
+import { RiBook2Fill } from "react-icons/ri";
 
-
-const floatingBooks = [
+import { Button } from "../ui/button";
+/* const floatingBooks = [
   { top: "10%", left: "5%", rotate: "-12deg", delay: "0s" },
   { top: "20%", right: "8%", rotate: "15deg", delay: "0.5s" },
   { bottom: "25%", left: "10%", rotate: "8deg", delay: "1s" },
   { bottom: "15%", right: "5%", rotate: "-8deg", delay: "1.5s" },
-];
+]; */
 
 export function HeroSection() {
   return (
@@ -23,7 +23,7 @@ export function HeroSection() {
       </div>
 
       {/* Floating book illustrations */}
-      {floatingBooks.map((book, i) => (
+  {/*     {floatingBooks.map((book, i) => (
         <div
           key={i}
           className="absolute hidden lg:block opacity-20 animate-bounce"
@@ -39,7 +39,7 @@ export function HeroSection() {
         >
           <BookOpen className="w-16 h-16 text-primary" />
         </div>
-      ))}
+      ))} */}
 
       <div className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto text-center">
@@ -104,7 +104,7 @@ export function HeroSection() {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-primary" />
+              <RiBook2Fill className="w-5 h-5 text-primary" />
               <span>
                 <strong className="text-foreground">20k+</strong> books tracked
               </span>

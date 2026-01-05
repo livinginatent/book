@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Lock } from "lucide-react";
+import type { IconType } from "react-icons";
 import type React from "react";
 
 import { cn } from "@/lib/utils";
@@ -7,7 +8,7 @@ import { cn } from "@/lib/utils";
 interface DashboardCardProps {
   title: string;
   description?: string;
-  icon?: LucideIcon;
+  icon?: LucideIcon | IconType;
   locked?: boolean;
   children?: React.ReactNode;
   className?: string;
@@ -26,10 +27,10 @@ export function DashboardCard({
   return (
     <div
       className={cn(
-        "relative p-5 rounded-2xl bg-card border border-border transition-all duration-300",
+        "relative p-5 rounded-2xl bg-card border border-border ",
         locked
           ? "opacity-60"
-          : "hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1",
+          : "hover:shadow-lg hover:shadow-primary/5 ",
         className
       )}
     >

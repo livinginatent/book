@@ -21,6 +21,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { DashboardCard } from "@/components/ui/dashboard-card";
+import { IoStatsChart } from "react-icons/io5";
 
 interface Book {
   pagesRead: number;
@@ -412,7 +413,7 @@ export function ShelfStats({
             </p>
           </div>
           <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-            <BarChart3 className="w-4 h-4" />
+            <IoStatsChart className="w-4 h-4" />
           </div>
         </div>
       </DashboardCard>

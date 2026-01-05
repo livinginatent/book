@@ -484,22 +484,14 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
     // ========================================================================
     
     // Calculate avg pages per day from last 30 days sessions
-    const activeDaysMap = new Map<string, number>();
-    for (const session of recentSessions) {
-      const dateKey = session.session_date.split("T")[0];
-      const currentPages = activeDaysMap.get(dateKey) || 0;
-      activeDaysMap.set(dateKey, currentPages + (session.pages_read || 0));
-    }
-    const activeDaysWithReading = Array.from(activeDaysMap.entries()).filter(
-      ([, pages]) => pages > 0
-    );
-    const activeDaysInRange = activeDaysWithReading.length;
-    const totalPagesInRange = activeDaysWithReading.reduce(
-      (sum, [, pages]) => sum + pages,
+    // Use total days in period (30) as denominator for accurate daily average
+    const totalPagesInLast30Days = recentSessions.reduce(
+      (sum, session) => sum + (session.pages_read || 0),
       0
     );
+    // 30 days is the fixed period for this calculation
     const insightAvgPagesPerDay =
-      activeDaysInRange > 0 ? Math.round(totalPagesInRange / activeDaysInRange) : 0;
+      totalPagesInLast30Days > 0 ? Math.round(totalPagesInLast30Days / 30) : 0;
 
     // Get top genre from finished books with subjects
     const genreCountMap = new Map<string, number>();

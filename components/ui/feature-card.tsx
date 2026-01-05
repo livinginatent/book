@@ -1,9 +1,10 @@
 import type { LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
 
 import { cn } from "@/lib/utils";
 
 interface FeatureCardProps {
-  icon: LucideIcon;
+  icon: LucideIcon | IconType;
   title: string;
   description: string;
   className?: string;

@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Target,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
+import { getReadingStats } from "@/app/actions/reading-stats";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +27,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AVAILABLE_GENRES, estimateReadingTime } from "@/lib/goal-wizard/goals";
+import {
+  AVAILABLE_GENRES,
+  estimateDaysForPages,
+  estimateDaysForBooks,
+} from "@/lib/goal-wizard/goals";
 import { cn } from "@/lib/utils";
 import { User, GoalType, ReadingGoal } from "@/types/user.type";
 
@@ -96,6 +100,7 @@ export function GoalSettingWizard({
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const [avgPagesPerDay, setAvgPagesPerDay] = useState<number>(0);
 
   // Determine steps based on goal type
   const steps: Step[] =
@@ -116,6 +121,13 @@ export function GoalSettingWizard({
       setCustomStartDate("");
       setCustomEndDate("");
       setIsSaving(false);
+
+      // Fetch 30-day reading average
+      getReadingStats("1month").then((result) => {
+        if (result.success) {
+          setAvgPagesPerDay(result.avgPagesPerDay);
+        }
+      });
     }
   }, [open]);
 
@@ -241,9 +253,12 @@ export function GoalSettingWizard({
     return true;
   };
 
-  const estimatedTime =
-    goalType === "pages" && target > 0
-      ? estimateReadingTime(target, user.averageReadingSpeed)
+  // Calculate estimated time based on 30-day reading average
+  const estimatedDays =
+    goalType === "pages" && target > 0 && avgPagesPerDay > 0
+      ? estimateDaysForPages(target, avgPagesPerDay)
+      : goalType === "books" && target > 0 && avgPagesPerDay > 0
+      ? estimateDaysForBooks(target, avgPagesPerDay)
       : null;
 
   return (
@@ -474,10 +489,10 @@ export function GoalSettingWizard({
                         }
                         className="text-2xl font-bold"
                       />
-                      {goalType === "pages" && estimatedTime && (
+                      {estimatedDays && (
                         <p className="text-sm text-muted-foreground">
-                          Based on your reading speed, this will take{" "}
-                          {estimatedTime}
+                          Based on your last 30 days ({avgPagesPerDay}{" "}
+                          pages/day), this will take {estimatedDays}
                         </p>
                       )}
                     </div>
@@ -592,19 +607,31 @@ export function GoalSettingWizard({
 
                 {/* Period preview */}
                 {periodMonths && (
-                  <div className="rounded-lg bg-secondary/50 p-3 text-sm">
+                  <div className="rounded-lg bg-secondary/50 p-3 text-sm space-y-1">
                     <p className="text-muted-foreground">
                       Goal period: {periodMonths} months starting from today
                     </p>
+                    {avgPagesPerDay > 0 && (
+                      <p className="text-muted-foreground">
+                        Based on your pace ({avgPagesPerDay} pages/day), this
+                        will take {estimateDaysForBooks(target, avgPagesPerDay)}
+                      </p>
+                    )}
                   </div>
                 )}
                 {periodMonths === null && customStartDate && customEndDate && (
-                  <div className="rounded-lg bg-secondary/50 p-3 text-sm">
+                  <div className="rounded-lg bg-secondary/50 p-3 text-sm space-y-1">
                     <p className="text-muted-foreground">
                       Goal period:{" "}
                       {new Date(customStartDate).toLocaleDateString()} to{" "}
                       {new Date(customEndDate).toLocaleDateString()}
                     </p>
+                    {avgPagesPerDay > 0 && (
+                      <p className="text-muted-foreground">
+                        Based on your pace ({avgPagesPerDay} pages/day), this
+                        will take {estimateDaysForBooks(target, avgPagesPerDay)}
+                      </p>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -682,7 +709,7 @@ export function GoalSettingWizard({
                 </div>
 
                 {/* Summary */}
-                <div className="rounded-lg bg-secondary/50 p-4">
+                <div className="rounded-lg bg-secondary/50 p-4 space-y-2">
                   <h4 className="mb-2 text-sm font-medium text-muted-foreground">
                     Summary
                   </h4>
@@ -705,6 +732,16 @@ export function GoalSettingWizard({
                       : `Read ${target.toLocaleString()} ${goalType}`}{" "}
                     {goalType !== "books" && `in ${new Date().getFullYear()}`}
                   </p>
+                  {avgPagesPerDay > 0 &&
+                    (goalType === "books" || goalType === "pages") && (
+                      <p className="text-xs text-muted-foreground">
+                        Estimated time:{" "}
+                        {goalType === "pages"
+                          ? estimateDaysForPages(target, avgPagesPerDay)
+                          : estimateDaysForBooks(target, avgPagesPerDay)}{" "}
+                        (based on {avgPagesPerDay} pages/day)
+                      </p>
+                    )}
                 </div>
               </motion.div>
             )}

@@ -96,6 +96,60 @@ export function estimateReadingTime(
   return `~${hours} hours`;
 }
 
+/**
+ * Estimate days to complete a pages goal based on average pages per day
+ * Uses the 30-day rolling average from reading sessions
+ */
+export function estimateDaysForPages(
+  targetPages: number,
+  avgPagesPerDay: number
+): string {
+  if (avgPagesPerDay <= 0) return "unknown (no reading data yet)";
+  
+  const days = Math.ceil(targetPages / avgPagesPerDay);
+  
+  if (days === 1) return "~1 day";
+  if (days < 7) return `~${days} days`;
+  if (days < 30) {
+    const weeks = Math.round(days / 7);
+    return weeks === 1 ? "~1 week" : `~${weeks} weeks`;
+  }
+  if (days < 365) {
+    const months = Math.round(days / 30);
+    return months === 1 ? "~1 month" : `~${months} months`;
+  }
+  const years = Math.round(days / 365 * 10) / 10;
+  return years === 1 ? "~1 year" : `~${years} years`;
+}
+
+/**
+ * Estimate days to complete a books goal based on average books per month
+ * Uses the 30-day rolling average from reading sessions
+ */
+export function estimateDaysForBooks(
+  targetBooks: number,
+  avgPagesPerDay: number,
+  avgPagesPerBook: number = 300 // Default average book length
+): string {
+  if (avgPagesPerDay <= 0) return "unknown (no reading data yet)";
+  
+  const totalPages = targetBooks * avgPagesPerBook;
+  const days = Math.ceil(totalPages / avgPagesPerDay);
+  
+  if (days === 1) return "~1 day";
+  if (days < 7) return `~${days} days`;
+  if (days < 30) {
+    const weeks = Math.round(days / 7);
+    return weeks === 1 ? "~1 week" : `~${weeks} weeks`;
+  }
+  if (days < 365) {
+    const months = Math.round(days / 30);
+    return months === 1 ? "~1 month" : `~${months} months`;
+  }
+  const years = Math.round(days / 365 * 10) / 10;
+  return years === 1 ? "~1 year" : `~${years} years`;
+}
+
 export const AVAILABLE_GENRES = [
   "Fiction",
   "Non-Fiction",

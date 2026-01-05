@@ -2,8 +2,13 @@
 
 import { cookies } from "next/headers";
 
+import {
+  getAllActiveGoals,
+  getAllAchievedGoals,
+} from "@/app/actions/reading-goals";
 import { createClient } from "@/lib/supabase/server";
 import { createTimer } from "@/lib/utils/perf";
+import type { ReadingGoal } from "@/types/user.type";
 
 // ============================================================================
 // Types
@@ -82,6 +87,40 @@ export interface MoodSummaryResult {
 }
 
 export interface MoodSummaryError {
+  success: false;
+  error: string;
+}
+
+export interface ActiveGoalInsight {
+  id: string;
+  type: string;
+  target: number;
+  current: number;
+  requiredDailyPace: number;
+  timeElapsedPercent: number;
+  progressPercent: number;
+  isOnTrack: boolean;
+  endDate: string;
+}
+
+export interface PaceAlert {
+  goalId: string;
+  goalType: string;
+  severity: "warning" | "critical";
+  message: string;
+  requiredDailyPace: number;
+  currentProgress: number;
+  target: number;
+}
+
+export interface GoalInsightsResult {
+  success: true;
+  activeGoals: ActiveGoalInsight[];
+  successRate: number;
+  paceAlerts: PaceAlert[];
+}
+
+export interface GoalInsightsError {
   success: false;
   error: string;
 }
@@ -984,6 +1023,226 @@ export async function getMoodSummary(): Promise<
   } catch (error) {
     timer.end();
     console.error("Get mood summary error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Get goal insights for the current user including:
+ * - Active goals with pace calculations
+ * - Time analysis (elapsed vs progress)
+ * - Success rate (completed vs total goals)
+ * - Pace alerts for goals behind schedule
+ */
+export async function getGoalInsights(): Promise<
+  GoalInsightsResult | GoalInsightsError
+> {
+  const timer = createTimer("getGoalInsights");
+
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    // Authenticate user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      timer.end();
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Fetch all active and completed goals
+    const [activeGoalsResult, achievedGoalsResult, allGoalsResult] =
+      await Promise.all([
+        getAllActiveGoals(),
+        getAllAchievedGoals(),
+        // Fetch all goals to calculate success rate
+        supabase
+          .from("reading_goals")
+          .select("id, status, created_at")
+          .eq("user_id", user.id),
+      ]);
+
+    if (!activeGoalsResult.success) {
+      timer.end();
+      return {
+        success: false,
+        error: activeGoalsResult.error,
+      };
+    }
+
+    if (!achievedGoalsResult.success) {
+      timer.end();
+      return {
+        success: false,
+        error: achievedGoalsResult.error,
+      };
+    }
+
+    if (allGoalsResult.error) {
+      timer.end();
+      return {
+        success: false,
+        error: "Failed to fetch all goals",
+      };
+    }
+
+    const activeGoals = activeGoalsResult.goals;
+    const achievedGoals = achievedGoalsResult.goals;
+    const allGoals = allGoalsResult.data || [];
+
+    // Calculate success rate: completed goals / total goals
+    const hasStatusColumn = allGoals.length > 0 && "status" in allGoals[0];
+    const completedGoalsCount = hasStatusColumn
+      ? allGoals.filter(
+          (g) => (g as { status?: string }).status === "completed"
+        ).length
+      : achievedGoals.length;
+    const totalGoalsCount = allGoals.length;
+    const successRate =
+      totalGoalsCount > 0
+        ? Math.round((completedGoalsCount / totalGoalsCount) * 100)
+        : 0;
+
+    // Process active goals for insights
+    const now = new Date();
+    const activeGoalInsights: ActiveGoalInsight[] = [];
+    const paceAlerts: PaceAlert[] = [];
+
+    for (const goal of activeGoals) {
+      const config = goal as ReadingGoal;
+      const goalYear = config.year || now.getFullYear();
+      const target = config.target || 0;
+      const current = config.current || 0;
+
+      // Calculate date range for the goal
+      let dateStart: Date;
+      let dateEnd: Date;
+
+      if (config.endDate) {
+        dateEnd = new Date(config.endDate);
+        dateStart = config.startDate
+          ? new Date(config.startDate)
+          : new Date(goalYear, 0, 1);
+      } else if (config.startDate) {
+        dateStart = new Date(config.startDate);
+        if (config.periodMonths) {
+          dateEnd = new Date(dateStart);
+          dateEnd.setMonth(dateEnd.getMonth() + config.periodMonths);
+        } else {
+          dateEnd = new Date(goalYear, 11, 31, 23, 59, 59, 999);
+        }
+      } else if (config.periodMonths) {
+        dateStart = new Date(now);
+        dateEnd = new Date(now);
+        dateEnd.setMonth(dateEnd.getMonth() + config.periodMonths);
+      } else {
+        dateStart = new Date(goalYear, 0, 1);
+        dateEnd = new Date(goalYear, 11, 31, 23, 59, 59, 999);
+      }
+
+      // Ensure dates are valid
+      if (isNaN(dateStart.getTime()) || isNaN(dateEnd.getTime())) {
+        continue;
+      }
+
+      // Calculate time elapsed percentage
+      const totalDuration = dateEnd.getTime() - dateStart.getTime();
+      const elapsedDuration = now.getTime() - dateStart.getTime();
+      const timeElapsedPercent =
+        totalDuration > 0
+          ? Math.min(100, Math.max(0, (elapsedDuration / totalDuration) * 100))
+          : 0;
+
+      // Calculate progress percentage
+      const progressPercent =
+        target > 0 ? Math.min(100, (current / target) * 100) : 0;
+
+      // Calculate required daily pace
+      const daysRemaining = Math.max(
+        0,
+        Math.ceil((dateEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      );
+      const remaining = Math.max(0, target - current);
+      const requiredDailyPace =
+        daysRemaining > 0 ? remaining / daysRemaining : 0;
+
+      // Determine if on track (progress should be >= time elapsed)
+      const isOnTrack = progressPercent >= timeElapsedPercent;
+
+      // Create insight for this goal
+      activeGoalInsights.push({
+        id: goal.id,
+        type: goal.type,
+        target,
+        current,
+        requiredDailyPace: Math.round(requiredDailyPace * 100) / 100,
+        timeElapsedPercent: Math.round(timeElapsedPercent * 100) / 100,
+        progressPercent: Math.round(progressPercent * 100) / 100,
+        isOnTrack,
+        endDate: dateEnd.toISOString().split("T")[0],
+      });
+
+      // Create pace alerts for goals behind schedule
+      if (!isOnTrack && daysRemaining > 0) {
+        const progressGap = timeElapsedPercent - progressPercent;
+        const severity: "warning" | "critical" =
+          progressGap > 20 ? "critical" : "warning";
+
+        let message = "";
+        const goalTypeLabel =
+          goal.type === "books"
+            ? "books"
+            : goal.type === "pages"
+            ? "pages"
+            : goal.type === "genres"
+            ? "genres"
+            : "days";
+
+        if (progressGap > 20) {
+          message = `You're significantly behind on your ${goalTypeLabel} goal. You need to maintain a pace of ${
+            Math.round(requiredDailyPace * 100) / 100
+          } ${
+            goalTypeLabel === "days" ? "reading days" : goalTypeLabel
+          } per day to catch up.`;
+        } else {
+          message = `You're slightly behind on your ${goalTypeLabel} goal. Aim for ${
+            Math.round(requiredDailyPace * 100) / 100
+          } ${
+            goalTypeLabel === "days" ? "reading days" : goalTypeLabel
+          } per day to stay on track.`;
+        }
+
+        paceAlerts.push({
+          goalId: goal.id,
+          goalType: goal.type,
+          severity,
+          message,
+          requiredDailyPace: Math.round(requiredDailyPace * 100) / 100,
+          currentProgress: current,
+          target,
+        });
+      }
+    }
+
+    timer.end();
+
+    return {
+      success: true,
+      activeGoals: activeGoalInsights,
+      successRate,
+      paceAlerts,
+    };
+  } catch (error) {
+    timer.end();
+    console.error("Get goal insights error:", error);
     return {
       success: false,
       error:

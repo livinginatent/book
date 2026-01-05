@@ -52,9 +52,10 @@ export async function getReadingStats(
     
     switch (period) {
       case "1month": {
-        const oneMonthAgo = new Date(now);
-        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-        dateStart = oneMonthAgo.toISOString().split("T")[0];
+        // Use exactly 30 days for consistency with dashboard's "30-Day Rolling Average"
+        const thirtyDaysAgo = new Date(now);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        dateStart = thirtyDaysAgo.toISOString().split("T")[0];
         break;
       }
       case "3months": {

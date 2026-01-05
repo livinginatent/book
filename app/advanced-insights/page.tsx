@@ -1,16 +1,18 @@
 "use client";
 
-import { ArrowLeft,  Dna, CircleGauge } from "lucide-react";
+import { ArrowLeft, Dna, CircleGauge, Target } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { VelocityInsightsClient } from "@/components/insights/velocity";
 import { ReadingDNAClient } from "@/components/insights/reading-dna";
+import { ReadingGoalsClient } from "@/components/insights/reading-goals/reading-goals-client";
+import { VelocityInsightsClient } from "@/components/insights/velocity";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 
 export default function AdvancedInsightsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isDNAOpen, setIsDNAOpen] = useState(false);
+  const [isGoalsOpen, setIsGoalsOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -135,6 +137,57 @@ export default function AdvancedInsightsPage() {
           }
         >
           <ReadingDNAClient isOpen={isDNAOpen} onLoadingChange={setIsLoading} />
+        </CollapsibleSection>
+
+        {/* Reading Goals Section */}
+        <CollapsibleSection
+          className="mb-4 rounded-lg"
+          title="Reading Goals"
+          description="Track your progress and stay on pace"
+          defaultOpen={false}
+          icon={Target}
+          onOpenChange={setIsGoalsOpen}
+          headerContent={
+            <>
+              {/* Description Card */}
+              <div className="mt-4 p-5 rounded-2xl bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 border border-primary/10">
+                <p className="text-sm text-foreground leading-relaxed">
+                  Monitor your reading goals with{" "}
+                  <span className="text-primary">
+                    real-time progress tracking
+                  </span>
+                  , calculate your{" "}
+                  <span className="text-primary">required daily pace</span> to
+                  stay on schedule, and get{" "}
+                  <span className="text-primary">pace alerts</span> when
+                  you&apos;re falling behind. Track your{" "}
+                  <span className="text-primary">success rate</span> across all
+                  goals to see how well you achieve your reading targets.
+                </p>
+              </div>
+
+              {/* Quick Stats Row */}
+              <div className="mt-4 flex flex-wrap gap-4">
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/10 text-orange-600">
+                  <span className="text-sm font-medium">Progress Tracking</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/10 text-orange-600">
+                  <span className="text-sm font-medium">Pace Analysis</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/10 text-orange-600">
+                  <span className="text-sm font-medium">Success Rate</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/10 text-orange-600">
+                  <span className="text-sm font-medium">Smart Alerts</span>
+                </div>
+              </div>
+            </>
+          }
+        >
+          <ReadingGoalsClient
+            isOpen={isGoalsOpen}
+            onLoadingChange={setIsLoading}
+          />
         </CollapsibleSection>
       </main>
     </div>
