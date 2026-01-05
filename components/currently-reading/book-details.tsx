@@ -119,7 +119,7 @@ export function BookDetailCard({
           </div>
           <div className="h-3 bg-muted rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-500"
+              className="h-full bg-primary rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -153,17 +153,15 @@ export function BookDetailCard({
             )}
           </div>
           <div className="flex gap-2">
-            {(["physical", "ebook", "audiobook"] as BookFormat[]).map(
-              (format) => (
-                <FormatBadge
-                  key={format}
-                  format={format}
-                  selectable
-                  selected={selectedFormat === format}
-                  onClick={() => handleFormatChange(format)}
-                />
-              )
-            )}
+            {(["physical", "ebook"] as BookFormat[]).map((format) => (
+              <FormatBadge
+                key={format}
+                format={format}
+                selectable
+                selected={selectedFormat === format}
+                onClick={() => handleFormatChange(format)}
+              />
+            ))}
           </div>
         </div>
 

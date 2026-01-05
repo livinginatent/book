@@ -10,6 +10,7 @@ import {
   updateBookStatus,
 } from "@/app/actions/book-actions";
 import { getBookDetail } from "@/app/actions/book-detail";
+import { getVelocityStats } from "@/app/actions/insights";
 import {
   getJournalEntries,
   createJournalEntry,
@@ -65,6 +66,10 @@ export default function CurrentlyReadingDetailPage() {
     averagePagesPerDay: number;
     weeklyData: { day: string; pages: number }[];
     totalReadingTime: string;
+  } | null>(null);
+  const [velocityStats, setVelocityStats] = useState<{
+    currentStreak: number;
+    bestStreak: number;
   } | null>(null);
   const [upNextBooks, setUpNextBooks] = useState<
     Array<{
@@ -143,6 +148,15 @@ export default function CurrentlyReadingDetailPage() {
         const analyticsResult = await getReadingAnalytics(bookId);
         if (analyticsResult.success) {
           setAnalytics(analyticsResult);
+        }
+
+        // Fetch velocity stats for streak
+        const velocityResult = await getVelocityStats();
+        if (velocityResult.success) {
+          setVelocityStats({
+            currentStreak: velocityResult.currentStreak,
+            bestStreak: velocityResult.bestStreak,
+          });
         }
 
         // Fetch up-next books
@@ -349,7 +363,7 @@ export default function CurrentlyReadingDetailPage() {
             <PaceCalculator
               pagesRemaining={pagesRemaining}
               averagePagesPerDay={averagePagesPerDay}
-              currentStreak={6}
+              currentStreak={velocityStats?.currentStreak || 0}
             />
           </div>
 
@@ -358,17 +372,22 @@ export default function CurrentlyReadingDetailPage() {
             {/* Reading Streak */}
             <DashboardCard title="Reading Streak">
               <ReadingStreak
-                currentStreak={6}
-                longestStreak={14}
-                weekData={[
-                  { day: "M", active: (analytics?.pagesReadToday || 0) > 0 },
-                  { day: "T", active: false },
-                  { day: "W", active: false },
-                  { day: "T", active: false },
-                  { day: "F", active: false },
-                  { day: "S", active: false },
-                  { day: "S", active: false },
-                ]}
+                currentStreak={velocityStats?.currentStreak || 0}
+                longestStreak={velocityStats?.bestStreak || 0}
+                weekData={
+                  analytics?.weeklyData.map((d) => ({
+                    day: d.day.charAt(0),
+                    active: d.pages > 0,
+                  })) || [
+                    { day: "M", active: false },
+                    { day: "T", active: false },
+                    { day: "W", active: false },
+                    { day: "T", active: false },
+                    { day: "F", active: false },
+                    { day: "S", active: false },
+                    { day: "S", active: false },
+                  ]
+                }
               />
             </DashboardCard>
 

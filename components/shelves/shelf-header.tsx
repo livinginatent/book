@@ -7,6 +7,8 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { ShareYearModal } from "./share-year-modal";
+
 type ShelfType =
   | "currently-reading"
   | "want-to-read"
@@ -43,6 +45,8 @@ interface ShelfHeaderProps {
   currentYear?: number | null;
   onShareYear?: () => void;
   isPremium?: boolean;
+  averageRating?: string | number;
+  onGenerateShareText?: () => string;
 }
 
 // Default sort options for currently-reading
@@ -126,10 +130,13 @@ export function ShelfHeader({
   currentYear,
   onShareYear,
   isPremium = false,
+  averageRating,
+  onGenerateShareText,
 }: ShelfHeaderProps) {
   // Use provided sortOptions or determine from shelfType
   const effectiveSortOptions = sortOptions || getSortOptionsForShelf(shelfType);
   const [showYearDropdown, setShowYearDropdown] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const yearDropdownRef = useRef<HTMLDivElement>(null);
   const currentYearValue = new Date().getFullYear();
   const lastYearValue = currentYearValue - 1;
@@ -186,15 +193,25 @@ export function ShelfHeader({
             </div>
           </div>
           {onShareYear && isPremium && (
-            <Button
-              onClick={onShareYear}
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
-              <Share2 className="w-4 h-4" />
-              Share My Year
-            </Button>
+            <>
+              <Button
+                onClick={() => setShowShareModal(true)}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                Share My Year
+              </Button>
+              <ShareYearModal
+                open={showShareModal}
+                onOpenChange={setShowShareModal}
+                year={currentYear || currentYearValue}
+                bookCount={bookCount}
+                averageRating={averageRating}
+                onGenerateShareText={onGenerateShareText}
+              />
+            </>
           )}
         </div>
 

@@ -129,48 +129,38 @@ export default function ReadShelfPage() {
     };
   }, [selectedYear]);
 
-  const handleShareYear = useCallback(() => {
-    if (!isPremium) return;
-
-    const year = selectedYear || new Date().getFullYear();
+  // Calculate average rating for the current year's books
+  const averageRating = useMemo(() => {
     const yearBooks = books;
-    const totalBooks = yearBooks.length;
-    const avgRating =
-      yearBooks.filter((b) => b.rating && b.rating > 0).length > 0
-        ? (
-            yearBooks
-              .filter((b) => b.rating && b.rating > 0)
-              .reduce((sum, b) => sum + (b.rating || 0), 0) /
-            yearBooks.filter((b) => b.rating && b.rating > 0).length
-          ).toFixed(1)
-        : "N/A";
+    const ratedBooks = yearBooks.filter((b) => b.rating && b.rating > 0);
+    if (ratedBooks.length === 0) return "N/A";
+    const avg =
+      ratedBooks.reduce((sum, b) => sum + (b.rating || 0), 0) /
+      ratedBooks.length;
+    return avg.toFixed(1);
+  }, [books]);
 
-    // Generate share text
-    const shareText =
+  // Generate share text callback
+  const generateShareText = useCallback(() => {
+    const year = selectedYear || new Date().getFullYear();
+    const totalBooks = books.length;
+    const avgRatingText =
+      averageRating && averageRating !== "N/A"
+        ? `⭐ Average rating: ${averageRating}\n\n`
+        : "";
+
+    return (
       `📚 My ${year} Reading Year 📚\n\n` +
       `📖 ${totalBooks} books read\n` +
-      `⭐ Average rating: ${avgRating}\n\n` +
-      `What was your reading year like?`;
+      avgRatingText +
+      `What was your reading year like?`
+    );
+  }, [books, selectedYear, averageRating]);
 
-    // Try to share using Web Share API, fallback to clipboard
-    if (navigator.share) {
-      navigator
-        .share({
-          title: `My ${year} Reading Year`,
-          text: shareText,
-        })
-        .catch((err) => {
-          console.error("Error sharing:", err);
-          // Fallback to clipboard
-          navigator.clipboard.writeText(shareText);
-          alert("Reading summary copied to clipboard!");
-        });
-    } else {
-      // Fallback to clipboard
-      navigator.clipboard.writeText(shareText);
-      alert("Reading summary copied to clipboard!");
-    }
-  }, [books, selectedYear, isPremium]);
+  const handleShareYear = useCallback(() => {
+    if (!isPremium) return;
+    // This is now handled by the modal, but we keep it for backward compatibility
+  }, [isPremium]);
 
   // Handle rating update
   const handleRatingUpdate = useCallback(
@@ -290,6 +280,8 @@ export default function ReadShelfPage() {
         currentYear={selectedYear}
         onShareYear={handleShareYear}
         isPremium={isPremium}
+        averageRating={averageRating}
+        onGenerateShareText={generateShareText}
       />
 
       {/* Main Content */}

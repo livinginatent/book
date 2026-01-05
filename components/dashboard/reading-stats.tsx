@@ -1,7 +1,7 @@
 "use client";
 
-import { Clock, Calendar, Loader2, Hash } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Clock, Calendar, Loader2, Hash, ChevronDown } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { IoStatsChart } from "react-icons/io5";
 
 import {
@@ -33,6 +33,8 @@ export function ReadingStats() {
   const [stats, setStats] = useState<ReadingStatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
+  const periodDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function fetchStats() {
@@ -73,6 +75,27 @@ export function ReadingStats() {
     };
   }, [period]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        periodDropdownRef.current &&
+        !periodDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowPeriodDropdown(false);
+      }
+    }
+
+    if (showPeriodDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showPeriodDropdown]);
+
+  const selectedPeriodLabel =
+    periods.find((p) => p.value === period)?.label || "1 Month";
+
   return (
     <DashboardCard
       title="Reading Stats"
@@ -80,22 +103,46 @@ export function ReadingStats() {
       icon={IoStatsChart}
     >
       <div className="space-y-4">
-        {/* Period Toggles */}
-        <div className="flex flex-wrap gap-2">
-          {periods.map((p) => (
+        {/* Period Dropdown */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+            Period:
+          </span>
+          <div className="relative" ref={periodDropdownRef}>
             <Button
-              key={p.value}
-              variant={period === p.value ? "default" : "outline"}
+              variant="outline"
               size="sm"
-              onClick={() => setPeriod(p.value)}
-              className={cn(
-                "text-xs",
-                period === p.value && "bg-primary text-primary-foreground"
-              )}
+              onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
+              className="gap-2 min-w-[140px] justify-between"
             >
-              {p.label}
+              {selectedPeriodLabel}
+              <ChevronDown
+                className={cn(
+                  "w-4 h-4 transition-transform",
+                  showPeriodDropdown && "rotate-180"
+                )}
+              />
             </Button>
-          ))}
+            {showPeriodDropdown && (
+              <div className="absolute top-full left-0 mt-1 w-full bg-background border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+                {periods.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setPeriod(option.value);
+                      setShowPeriodDropdown(false);
+                    }}
+                    className={cn(
+                      "w-full px-3 py-2 text-left text-sm hover:bg-accent transition-colors",
+                      period === option.value && "bg-accent font-medium"
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Stats Grid */}
