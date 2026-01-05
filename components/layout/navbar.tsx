@@ -78,7 +78,7 @@ export function Navbar({ initialAuth }: NavbarProps) {
               <div className="h-9 w-20 bg-secondary animate-pulse rounded-md" />
             ) : user ? (
               <>
-                <Link href="/profile">
+                <Link href="/settings">
                   <Button
                     variant="ghost"
                     className="text-muted-foreground hover:text-foreground"
@@ -152,7 +152,7 @@ export function Navbar({ initialAuth }: NavbarProps) {
                 <div className="h-9 bg-secondary animate-pulse rounded-md" />
               ) : user ? (
                 <>
-                  <Link href="/profile">
+                  <Link href="/settings">
                     <Button variant="ghost" className="justify-start w-full">
                       <User className="w-4 h-4 mr-2" />
                       {displayName}

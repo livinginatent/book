@@ -8,8 +8,8 @@ export default function SettingsLayout({
 }) {
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex gap-8">
+      <div className="container mx-auto px-4 py-6 md:py-8">
+        <div className="flex flex-col md:flex-row gap-6 md:gap-8">
           <SettingsSidebar />
           {children}
         </div>

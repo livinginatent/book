@@ -30,6 +30,7 @@ export interface Database {
           username: string | null;
           full_name: string | null;
           avatar_url: string | null;
+          bio: string | null;
           subscription_tier: SubscriptionTier;
           dodo_customer_id: string | null;
           want_to_read: string[];
@@ -46,6 +47,7 @@ export interface Database {
           username?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
+          bio?: string | null;
           subscription_tier?: SubscriptionTier;
           dodo_customer_id?: string | null;
           want_to_read?: string[];
@@ -62,6 +64,7 @@ export interface Database {
           username?: string | null;
           full_name?: string | null;
           avatar_url?: string | null;
+          bio?: string | null;
           subscription_tier?: SubscriptionTier;
           dodo_customer_id?: string | null;
           want_to_read?: string[];

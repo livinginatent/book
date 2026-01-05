@@ -1,9 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
 import {
   User,
   CreditCard,
@@ -14,6 +10,11 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+
+import { cn } from "@/lib/utils";
 
 const settingsItems = [
   { href: "/settings/profile-account", label: "Profile & Account", icon: User },
@@ -50,7 +51,7 @@ export function SettingsSidebar() {
       <div className="md:hidden flex items-center gap-2 mb-4">
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 hover:bg-slate-800/50 rounded-lg transition-colors text-slate-400"
+          className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground"
         >
           {mobileMenuOpen ? (
             <X className="w-5 h-5" />
@@ -58,15 +59,18 @@ export function SettingsSidebar() {
             <Menu className="w-5 h-5" />
           )}
         </button>
-        <span className="text-sm text-slate-400">Settings</span>
+        <span className="text-sm font-medium text-foreground">Settings</span>
       </div>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 border-r border-slate-800 pr-6">
+      <aside className="hidden md:flex flex-col w-64 border-r border-border pr-6">
         <nav className="space-y-1">
           {settingsItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive =
+              pathname === item.href ||
+              (pathname === "/settings" &&
+                item.href === "/settings/profile-account");
             return (
               <Link
                 key={item.href}
@@ -74,8 +78,8 @@ export function SettingsSidebar() {
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all border-l-2 -ml-1",
                   isActive
-                    ? "border-l-slate-400 bg-slate-800/40 "
-                    : "border-l-transparent text-primary  hover:bg-slate-800/20"
+                    ? "border-l-primary bg-primary/10 text-primary"
+                    : "border-l-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 <Icon className="w-4 h-4" />
@@ -92,7 +96,10 @@ export function SettingsSidebar() {
           <nav className="flex gap-2 pb-2">
             {settingsItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive =
+                pathname === item.href ||
+                (pathname === "/settings" &&
+                  item.href === "/settings/profile-account");
               return (
                 <Link
                   key={item.href}
@@ -101,8 +108,8 @@ export function SettingsSidebar() {
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
                     isActive
-                      ? "bg-slate-700 "
-                      : "bg-slate-800/40  hover:text-slate-300"
+                      ? "bg-primary/10 text-primary border border-primary/20"
+                      : "bg-card border border-border hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <Icon className="w-4 h-4" />

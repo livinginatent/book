@@ -14,11 +14,11 @@ export function SettingsContent({
   children,
 }: SettingsContentProps) {
   return (
-    <main className="flex-1">
-      <div className="max-w-2xl">
+    <main className="flex-1 w-full">
+      <div className="max-w-2xl w-full">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">{title}</h1>
-          <p className="">{description}</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">{title}</h1>
+          <p className="text-muted-foreground">{description}</p>
         </div>
         {children}
       </div>
