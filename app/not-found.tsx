@@ -1,8 +1,8 @@
 "use client";
 
-
+import { BookOpen, Home,} from "lucide-react";
 import Link from "next/link";
-import { BookOpen, Home, Search } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
