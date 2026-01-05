@@ -111,6 +111,12 @@ export async function POST(request: Request) {
         break;
       }
 
+      // Subscription expired - explicitly handle expiration
+      case "subscription.expired": {
+        await handleSubscriptionExpired(event);
+        break;
+      }
+
       default:
         console.log(`[Dodo Webhook] Unhandled event type: ${event.type}`);
     }
@@ -280,7 +286,28 @@ async function handlePaymentFailed(event: DodoWebhookEvent) {
 }
 
 /**
+ * Subscription expired - downgrade user to free tier
+ */
+async function handleSubscriptionExpired(event: DodoWebhookEvent) {
+  const profile = await findUserProfile(event);
+
+  if (!profile) {
+    console.error("[Dodo Webhook] No user found for subscription.expired");
+    return;
+  }
+
+  await supabaseAdmin
+    .from("profiles")
+    .update({ subscription_tier: "free" })
+    .eq("id", profile.id);
+
+  console.log(`[Dodo Webhook] User ${profile.email} downgraded (subscription expired)`);
+}
+
+/**
  * Subscription updated (can include cancellations)
+ * IMPORTANT: Only downgrade on "expired", not "cancelled"
+ * Cancelled subscriptions remain active until the end of the billing period
  */
 async function handleSubscriptionUpdated(event: DodoWebhookEvent) {
   const profile = await findUserProfile(event);
@@ -291,13 +318,18 @@ async function handleSubscriptionUpdated(event: DodoWebhookEvent) {
     return;
   }
 
-  // Handle based on new status
-  if (status === "cancelled" || status === "expired") {
+  // Only downgrade when subscription is actually expired
+  // Cancelled subscriptions should remain active until period ends
+  if (status === "expired") {
     await supabaseAdmin
       .from("profiles")
       .update({ subscription_tier: "free" })
       .eq("id", profile.id);
-    console.log(`[Dodo Webhook] User ${profile.email} downgraded (subscription ${status})`);
+    console.log(`[Dodo Webhook] User ${profile.email} downgraded (subscription expired via updated event)`);
+  } else if (status === "cancelled") {
+    // Subscription is cancelled but still active until period ends
+    // Keep user on bibliophile tier - don't downgrade yet
+    console.log(`[Dodo Webhook] User ${profile.email} subscription cancelled but remains active until period end`);
   } else {
     console.log(`[Dodo Webhook] User ${profile.email} subscription updated to status: ${status}`);
   }
