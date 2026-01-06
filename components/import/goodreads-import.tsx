@@ -152,6 +152,28 @@ export function GoodreadsImport({
       setImportedCount(result.imported);
       setFailedCount(result.failed);
       setStatus("complete");
+
+      // Persist lightweight import history locally (per browser)
+      try {
+        const entry = {
+          id: `goodreads-${Date.now()}`,
+          source: "goodreads" as const,
+          fileName: fileName ?? "Goodreads export",
+          imported: result.imported,
+          failed: result.failed,
+          totalSelected: selectedBooks.length,
+          createdAt: new Date().toISOString(),
+        };
+
+        const raw = window.localStorage.getItem("bookly_import_history");
+        const existing: typeof entry[] = raw ? JSON.parse(raw) : [];
+        const next = [entry, ...existing].slice(0, 10);
+        window.localStorage.setItem("bookly_import_history", JSON.stringify(next));
+        window.dispatchEvent(new CustomEvent("import-history-updated"));
+      } catch (historyError) {
+        console.error("Failed to update import history:", historyError);
+      }
+
       onImportComplete?.(result.imported, result.failed);
 
       // Dispatch event to refresh currently reading

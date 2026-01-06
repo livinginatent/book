@@ -28,7 +28,7 @@ const settingsItems = [
     label: "Data & Migration",
     icon: ArrowLeftRight,
   },
-  {
+/*   {
     href: "/settings/reading-preferences",
     label: "Reading Preferences",
     icon: BookOpen,
@@ -38,7 +38,7 @@ const settingsItems = [
     label: "Privacy & Security",
     icon: ShieldCheck,
   },
-  { href: "/settings/notifications", label: "Notifications", icon: Bell },
+  { href: "/settings/notifications", label: "Notifications", icon: Bell }, */
 ];
 
 export function SettingsSidebar() {
@@ -76,7 +76,7 @@ export function SettingsSidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all border-l-2 -ml-1",
+                  "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all  -ml-1",
                   isActive
                     ? "border-l-primary bg-primary/10 text-primary"
                     : "border-l-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
