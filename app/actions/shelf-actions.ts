@@ -8,6 +8,9 @@ import type { ReadingStatus, Shelf } from "@/types/database.types";
 
 export type ShelfType = "default" | "custom";
 
+const FREE_SHELF_LIMIT = 3;
+const PREMIUM_SHELF_LIMIT = 12;
+
 export interface ShelfWithCount extends Shelf {
   book_count: number;
 }
@@ -23,13 +26,34 @@ export interface ShelvesError {
   error: string;
 }
 
+async function getUserShelfLimit(userId: string): Promise<number> {
+  const supabase = await createClient(cookies());
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("subscription_tier")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching subscription tier:", error);
+    return FREE_SHELF_LIMIT;
+  }
+
+  const tier = data?.subscription_tier;
+
+  if (tier === "premium" || tier === "bibliophile") return PREMIUM_SHELF_LIMIT;
+
+  return FREE_SHELF_LIMIT;
+}
+
 /**
  * Get shelves for the authenticated user, including book counts
  * Optimized with parallel queries
  */
 export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
   const timer = createTimer("getShelves");
-  
+
   try {
     const cookieStore = cookies();
     const supabase = await createClient(cookieStore);
@@ -55,10 +79,7 @@ export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
         .eq("user_id", user.id)
         .order("type", { ascending: true })
         .order("name", { ascending: true }),
-      supabase
-        .from("user_books")
-        .select("status")
-        .eq("user_id", user.id),
+      supabase.from("user_books").select("status").eq("user_id", user.id),
     ]);
     queryTimer.end();
 
@@ -132,13 +153,13 @@ export async function createCustomShelf(
   { success: true; shelf: ShelfWithCount } | { success: false; error: string }
 > {
   try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
     const trimmedName = name.trim();
     if (!trimmedName) {
       return { success: false, error: "Shelf name is required" };
     }
-
-    const cookieStore = cookies();
-    const supabase = await createClient(cookieStore);
 
     const {
       data: { user },
@@ -147,6 +168,27 @@ export async function createCustomShelf(
 
     if (authError || !user) {
       return { success: false, error: "You must be logged in" };
+    }
+
+    const { count: customShelfCount, error: countError } = await supabase
+      .from("shelves")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("type", "custom");
+
+    if (countError) {
+      console.error("Error counting custom shelves:", countError);
+      return { success: false, error: "Failed to create shelf" };
+    }
+
+    const limit = await getUserShelfLimit(user.id);
+
+    if ((customShelfCount ?? 0) >= limit) {
+      return {
+        success: false,
+        error:
+          "Limit reached. Upgrade to Bibliophile for unlimited private shelves.",
+      };
     }
 
     const { data, error: insertError } = await supabase

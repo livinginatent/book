@@ -6,14 +6,16 @@ import { useEffect, useState, useTransition } from "react";
 
 import type { ShelfData } from "@/app/actions/dashboard-data";
 import { refreshShelves } from "@/app/actions/dashboard-data";
-import { createCustomShelf } from "@/app/actions/shelf-actions";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { createCustomShelf } from "@/app/actions/shelf-actions";
 
 interface PrivateShelvesProps {
   locked?: boolean;
+  subscriptionTier?: "free" | "premium" | "bibliophile" | null;
+  totalCustomShelves?: number;
   initialShelves?: {
     default: ShelfData[];
     custom: ShelfData[];
@@ -22,6 +24,8 @@ interface PrivateShelvesProps {
 
 export function PrivateShelves({
   locked = false,
+  subscriptionTier,
+  totalCustomShelves,
   initialShelves,
 }: PrivateShelvesProps) {
   // Initialize from server data if available
@@ -118,6 +122,12 @@ export function PrivateShelves({
   };
 
   const hasCustomShelves = customShelves.length > 0;
+
+  const effectiveCustomCount = totalCustomShelves ?? customShelves.length;
+  const isFreeTier = subscriptionTier === "free" || !subscriptionTier;
+  const freeTierLimit = 3;
+  const isAtFreeLimit = isFreeTier && effectiveCustomCount >= freeTierLimit;
+  const isOverFreeLimit = isFreeTier && effectiveCustomCount > freeTierLimit;
 
   // Map reading status to shelf routes
   const statusToRoute: Record<string, string> = {
@@ -242,6 +252,14 @@ export function PrivateShelves({
               )}
             >
               <div className="px-4 pb-3 space-y-2">
+                {isOverFreeLimit && (
+                  <div className="mb-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                    <p className="text-xs text-amber-900 dark:text-amber-200">
+                      You have exceeded the free shelf limit. Your existing
+                      shelves are safe, but creation is disabled.
+                    </p>
+                  </div>
+                )}
                 {loading && !hasCustomShelves ? (
                   <p className="text-xs text-muted-foreground py-2">
                     Loading shelves...
@@ -264,27 +282,41 @@ export function PrivateShelves({
                   </p>
                 )}
 
-                {/* Create shelf form */}
-                <form
-                  onSubmit={handleCreateShelf}
-                  className="flex items-center gap-2 pt-1"
-                >
-                  <Input
-                    value={newShelfName}
-                    onChange={(e) => setNewShelfName(e.target.value)}
-                    placeholder="New shelf name"
-                    className="h-8 bg-muted/50 hover:bg-muted transition-colors text-sm"
-                  />
-                  <Button
-                    type="submit"
-                    size="icon"
-                    variant="outline"
-                    className="h-8 w-8  rounded-xl"
-                    disabled={isPending || !newShelfName.trim()}
+                {/* Create shelf form / limit message */}
+                {isAtFreeLimit ? (
+                  <div className="mt-1 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+                    <span>
+                      Free tier limit reached (3/3).{" "}
+                      <Link
+                        href="/checkout"
+                        className="font-medium text-amber-900 underline underline-offset-2 hover:text-amber-700 dark:text-amber-200 dark:hover:text-amber-100"
+                      >
+                        Upgrade to unlock more
+                      </Link>
+                    </span>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={handleCreateShelf}
+                    className="flex items-center gap-2 pt-1"
                   >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </form>
+                    <Input
+                      value={newShelfName}
+                      onChange={(e) => setNewShelfName(e.target.value)}
+                      placeholder="New shelf name"
+                      className="h-8 bg-muted/50 hover:bg-muted transition-colors text-sm"
+                    />
+                    <Button
+                      type="submit"
+                      size="icon"
+                      variant="outline"
+                      className="h-8 w-8 rounded-xl"
+                      disabled={isPending || !newShelfName.trim()}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </form>
+                )}
               </div>
             </div>
           </div>

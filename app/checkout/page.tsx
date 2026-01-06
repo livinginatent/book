@@ -1,6 +1,13 @@
 "use client";
 
-import { ArrowLeft, CreditCard, Shield, Sparkles, Check, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CreditCard,
+  Shield,
+  Sparkles,
+  Check,
+  Loader2,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -40,15 +47,31 @@ export default function CheckoutPage() {
         },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to create checkout session");
+      // Handle non-JSON responses
+      let data;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(
+          `Payment provider error (${response.status}): ${
+            text || "No error details available"
+          }`
+        );
       }
 
-      // Redirect to Stripe Checkout
+      if (!response.ok) {
+        throw new Error(
+          data.error || `Failed to create checkout session (${response.status})`
+        );
+      }
+
+      // Redirect to Dodo Payments Checkout
       if (data.url) {
         window.location.href = data.url;
+      } else {
+        throw new Error("No checkout URL received from payment provider");
       }
     } catch (err) {
       console.error("Checkout error:", err);
@@ -119,7 +142,9 @@ export default function CheckoutPage() {
           </div>
 
           {/* Error message */}
-          {error && <FormMessage type="error" message={error} className="mb-4" />}
+          {error && (
+            <FormMessage type="error" message={error} className="mb-4" />
+          )}
 
           {/* Checkout button */}
           <div className="space-y-4">

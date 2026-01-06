@@ -42,10 +42,50 @@ export async function POST() {
     const customerEmail = user.email || "";
     const customerName = user.email?.split("@")[0] || "Customer";
 
+    // Verify environment configuration
+    const isLiveMode = process.env.DODO_LIVE_MODE === "true";
+    const hasApiKey = !!process.env.DODO_PAYMENTS_API_KEY;
+    const hasProductId = !!BIBLIOPHILE_PRODUCT_ID;
+    const hasSiteUrl = !!process.env.NEXT_PUBLIC_SITE_URL;
+
+    console.log(`[Checkout] Configuration check:`, {
+      environment: isLiveMode ? "live" : "test",
+      hasApiKey,
+      hasProductId,
+      hasSiteUrl,
+      productId: BIBLIOPHILE_PRODUCT_ID,
+      siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+    });
+
+    if (!hasApiKey) {
+      console.error("[Checkout] Missing DODO_PAYMENTS_API_KEY");
+      return NextResponse.json(
+        { error: "Payment system configuration error" },
+        { status: 500 }
+      );
+    }
+
+    if (!hasProductId) {
+      console.error("[Checkout] Missing DODO_BIBLIOPHILE_PRODUCT_ID");
+      return NextResponse.json(
+        { error: "Product configuration error" },
+        { status: 500 }
+      );
+    }
+
+    if (!hasSiteUrl) {
+      console.error("[Checkout] Missing NEXT_PUBLIC_SITE_URL");
+      return NextResponse.json(
+        { error: "Site URL configuration error" },
+        { status: 500 }
+      );
+    }
+
     const dodo = getDodo();
 
     console.log(`[Checkout] Creating session for user ${user.id} (${customerEmail})`);
     console.log(`[Checkout] Product ID: ${BIBLIOPHILE_PRODUCT_ID}`);
+    console.log(`[Checkout] Return URL: ${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success`);
 
     // Create a Dodo Payments Checkout Session (correct API per docs)
     try {
@@ -79,10 +119,34 @@ export async function POST() {
       return NextResponse.json({ url: session.checkout_url });
     } catch (paymentError: unknown) {
       console.error("Error creating Dodo checkout session:", paymentError);
-      const errorMessage = paymentError instanceof Error ? paymentError.message : "Unknown error";
+      
+      // Extract more detailed error information
+      let errorMessage = "Unknown error";
+      let statusCode = 500;
+      
+      if (paymentError instanceof Error) {
+        errorMessage = paymentError.message;
+        
+        // Check if it's a 401 error (authentication issue)
+        if (errorMessage.includes("401") || errorMessage.toLowerCase().includes("unauthorized")) {
+          statusCode = 401;
+          errorMessage = "Authentication failed with payment provider. Please verify your API key is correct for live mode.";
+          console.error("[Checkout] 401 Error - Possible causes:");
+          console.error("  1. API key doesn't match the environment (test vs live)");
+          console.error("  2. API key is incorrect or expired");
+          console.error("  3. Product ID doesn't exist in live mode");
+          console.error(`  Current mode: ${isLiveMode ? "live" : "test"}`);
+        }
+      }
+      
+      // Log the full error for debugging
+      if (paymentError && typeof paymentError === "object") {
+        console.error("[Checkout] Full error object:", JSON.stringify(paymentError, null, 2));
+      }
+      
       return NextResponse.json(
         { error: `Checkout creation failed: ${errorMessage}` },
-        { status: 500 }
+        { status: statusCode }
       );
     }
   } catch (error: unknown) {
