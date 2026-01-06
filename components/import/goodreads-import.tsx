@@ -165,10 +165,10 @@ export function GoodreadsImport({
           createdAt: new Date().toISOString(),
         };
 
-        const raw = window.localStorage.getItem("bookly_import_history");
+        const raw = window.localStorage.getItem("booktab_import_history");
         const existing: typeof entry[] = raw ? JSON.parse(raw) : [];
         const next = [entry, ...existing].slice(0, 10);
-        window.localStorage.setItem("bookly_import_history", JSON.stringify(next));
+        window.localStorage.setItem("booktab_import_history", JSON.stringify(next));
         window.dispatchEvent(new CustomEvent("import-history-updated"));
       } catch (historyError) {
         console.error("Failed to update import history:", historyError);
@@ -214,7 +214,7 @@ export function GoodreadsImport({
           Import from Goodreads
         </h2>
         <p className="text-muted-foreground">
-          Bring your reading history to Bookly in just a few clicks
+          Bring your reading history to Booktab in just a few clicks
         </p>
       </div>
 

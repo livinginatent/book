@@ -1,4 +1,5 @@
-import { BookOpenText, Heart } from "lucide-react";
+import { Heart } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 
 const footerLinks = {
@@ -27,10 +28,15 @@ export function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
-                <BookOpenText className="w-5 h-5 text-primary-foreground" />
+              <div className="  group-hover:rotate-6 transition-transform">
+                <Image
+                  src="/booktab-Photoroom.png"
+                  alt="Booktab logo"
+                  width={110}
+                  height={110}
+                  className="object-contain"
+                />
               </div>
-              <span className="font-bold text-xl text-foreground">Bookly</span>
             </Link>
             <p className="text-muted-foreground text-sm leading-relaxed">
               Track your reading journey with joy. Discover new books, set
@@ -91,7 +97,7 @@ export function Footer() {
         {/* Bottom */}
         <div className="mt-12 pt-6 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            © 2025 Bookly. All rights reserved.
+            © 2025 Booktab. All rights reserved.
           </p>
           <p className="text-sm text-muted-foreground flex items-center gap-1">
             Made with <Heart className="w-4 h-4 text-primary fill-primary" />{" "}

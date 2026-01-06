@@ -24,7 +24,7 @@ const merriweather = Merriweather({
 });
 
 export const metadata: Metadata = {
-  title: "Bookly - Track Your Reading Journey",
+  title: "Booktab - Track Your Reading Journey",
   description:
     "A joyful way to track your books, discover new reads, and celebrate your reading journey.",
 };

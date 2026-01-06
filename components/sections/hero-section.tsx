@@ -1,7 +1,6 @@
 "use client";
 
-
-import {   Users } from "lucide-react";
+import { Users } from "lucide-react";
 import Link from "next/link";
 import { RiBook2Fill } from "react-icons/ri";
 
@@ -23,7 +22,7 @@ export function HeroSection() {
       </div>
 
       {/* Floating book illustrations */}
-  {/*     {floatingBooks.map((book, i) => (
+      {/*     {floatingBooks.map((book, i) => (
         <div
           key={i}
           className="absolute hidden lg:block opacity-20 animate-bounce"
@@ -72,24 +71,28 @@ export function HeroSection() {
 
           {/* Subheadline */}
           <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto text-pretty leading-relaxed">
-            Bookly makes reading tracking feel like a celebration. Set goals,
+            Booktab makes reading tracking feel like a celebration. Set goals,
             discover new favorites, and watch your library grow.
           </p>
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
             <Link href="#pricing">
-            <Button
-              size="lg"
-              className="rounded-full px-8 py-6 text-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5"
+              <Button
+                size="lg"
+                className="rounded-full px-8 py-6 text-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5"
               >
-              Start tracking free
-            </Button>
-              </Link>
+                Start tracking free
+              </Button>
+            </Link>
             <Button
               size="lg"
               variant="outline"
-              className="rounded-full px-8 py-6 text-lg border-2 hover:bg-secondary hover:text-white bg-transparent"
+              className="rounded-full px-8 py-6 text-lg border-2 hover:bg-secondary hover:text-primary bg-transparent"
+              onClick={() => {
+                const element = document.getElementById("how-it-works");
+                element?.scrollIntoView({ behavior: "smooth" });
+              }}
             >
               See how it works
             </Button>
@@ -109,7 +112,6 @@ export function HeroSection() {
                 <strong className="text-foreground">20k+</strong> books tracked
               </span>
             </div>
-        
           </div>
         </div>
       </div>

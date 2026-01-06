@@ -125,7 +125,7 @@ export function PrivateShelves({
 
   const effectiveCustomCount = totalCustomShelves ?? customShelves.length;
   const isFreeTier = subscriptionTier === "free" || !subscriptionTier;
-  const freeTierLimit = 3;
+  const freeTierLimit = 4;
   const isAtFreeLimit = isFreeTier && effectiveCustomCount >= freeTierLimit;
   const isOverFreeLimit = isFreeTier && effectiveCustomCount > freeTierLimit;
 

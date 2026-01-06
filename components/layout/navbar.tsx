@@ -1,6 +1,7 @@
 "use client";
 
-import { BookOpenText, LogOut, Menu, User, X } from "lucide-react";
+import { LogOut, Menu, User, X } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -52,10 +53,15 @@ export function Navbar({ initialAuth }: NavbarProps) {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center group-hover:rotate-6 transition-transform">
-              <BookOpenText className="w-5 h-5 text-primary-foreground" />
+            <div className="relative  group-hover:rotate-6 transition-transform">
+              <Image
+                src="/booktab-Photoroom.png"
+                alt="Booktab logo"
+                width={110}
+                height={110}
+                className="object-contain"
+              />
             </div>
-            <span className="font-bold text-xl text-foreground">Bookly</span>
           </Link>
 
           {/* Desktop Nav */}
@@ -142,6 +148,7 @@ export function Navbar({ initialAuth }: NavbarProps) {
               <Link
                 key={link.href}
                 href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
                 className="px-4 py-3 text-muted-foreground hover:text-foreground rounded-lg hover:bg-secondary transition-colors"
               >
                 {link.label}
@@ -152,7 +159,10 @@ export function Navbar({ initialAuth }: NavbarProps) {
                 <div className="h-9 bg-secondary animate-pulse rounded-md" />
               ) : user ? (
                 <>
-                  <Link href="/settings">
+                  <Link
+                    href="/settings"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
                     <Button variant="ghost" className="justify-start w-full">
                       <User className="w-4 h-4 mr-2" />
                       {displayName}
@@ -160,7 +170,10 @@ export function Navbar({ initialAuth }: NavbarProps) {
                   </Link>
                   <Button
                     variant="ghost"
-                    onClick={handleSignOut}
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleSignOut();
+                    }}
                     className="justify-start w-full"
                   >
                     <LogOut className="w-4 h-4 mr-2" />
@@ -169,12 +182,15 @@ export function Navbar({ initialAuth }: NavbarProps) {
                 </>
               ) : (
                 <>
-                  <Link href="/login">
+                  <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
                     <Button variant="ghost" className="justify-start w-full">
                       Sign in
                     </Button>
                   </Link>
-                  <Link href="/register">
+                  <Link
+                    href="/register"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
                     <Button className="bg-primary text-primary-foreground w-full">
                       Get Started
                     </Button>

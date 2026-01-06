@@ -1,7 +1,6 @@
 import { BookOpenText, ArrowRight } from "lucide-react";
 import { Button } from "../ui/button";
 
-
 export function CTASection() {
   return (
     <section className="py-20 md:py-32">
@@ -20,7 +19,7 @@ export function CTASection() {
               Ready to fall in love with reading again?
             </h2>
             <p className="text-xl text-primary-foreground/80 mb-8 max-w-2xl mx-auto text-pretty">
-              Join 50,000+ readers who track their books with Bookly. Free
+              Join 50,000+ readers who track their books with Booktab. Free
               forever, no credit card required.
             </p>
 

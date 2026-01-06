@@ -22,8 +22,8 @@ export function FeatureCard({
     <div
       className={cn(
         "group relative p-6 rounded-2xl bg-card border border-border",
-        "hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1",
-        "transition-all duration-300 ease-out",
+        "hover:shadow-lg hover:shadow-primary/5 ",
+      
         className
       )}
     >

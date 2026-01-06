@@ -46,7 +46,7 @@ export default function DataMigrationPage() {
       try {
         const raw =
           typeof window !== "undefined"
-            ? window.localStorage.getItem("bookly_import_history")
+            ? window.localStorage.getItem("booktab_import_history")
             : null;
         if (!raw) {
           setImportHistory([]);
@@ -327,7 +327,7 @@ function ResetLibraryCard() {
     setConfirmationText("");
 
     try {
-      window.localStorage.removeItem("bookly_import_history");
+      window.localStorage.removeItem("booktab_import_history");
       window.dispatchEvent(new CustomEvent("import-history-updated"));
     } catch {
       // ignore localStorage errors

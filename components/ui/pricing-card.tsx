@@ -1,6 +1,6 @@
-import { Check, Sparkles } from "lucide-react";
+import { Check,  } from "lucide-react";
 import Link from "next/link";
-
+import { TiThumbsOk } from "react-icons/ti";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +41,7 @@ export function PricingCard({
       {popular && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
           <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
-            <Sparkles className="w-4 h-4" />
+            <TiThumbsOk className="w-4 h-4" />
             Most Popular
           </span>
         </div>

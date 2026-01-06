@@ -384,7 +384,7 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
                       <p className="text-sm text-muted-foreground">
                         {shouldHighlightImport
                           ? "Get started by importing your reading history"
-                          : "Bring your reading history to Bookly"}
+                          : "Bring your reading history to Booktab"}
                       </p>
                     </div>
                   </div>

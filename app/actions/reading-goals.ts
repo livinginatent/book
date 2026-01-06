@@ -52,8 +52,8 @@ const PREMIUM_TIER_TYPES: GoalWizardType[] = [
 ];
 
 // Multi-goal system limits
-const FREE_TIER_GOAL_LIMIT = 3; // Bookworm users can have 3 active goals
-const PREMIUM_TIER_GOAL_LIMIT = 12; // Bibliophile users can have 12 active goals
+const FREE_TIER_GOAL_LIMIT = 6; // Bookworm users can have 3 active goals
+const PREMIUM_TIER_GOAL_LIMIT = 14; // Bibliophile users can have 12 active goals
 
 /**
  * Resolve the subscription tier for a given user ID.

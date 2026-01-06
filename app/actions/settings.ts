@@ -437,7 +437,7 @@ export async function exportUserLibrary(): Promise<
 
     const csv = lines.join("\n");
     const today = new Date().toISOString().slice(0, 10);
-    const fileName = `bookly-library-${today}.csv`;
+    const fileName = `booktab-library-${today}.csv`;
 
     return { success: true, fileName, csv };
   } catch (error) {

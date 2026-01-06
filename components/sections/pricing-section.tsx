@@ -6,14 +6,16 @@ const plans = [
   {
     name: "Bookworm",
     price: "Free",
-    description: "Perfect for casual readers who want to track their journey",
+    description: "For readers who just want to track their journey",
     features: [
       "Track unlimited books",
-      "Set yearly reading goals",
+      "Set up to 6 simple reading goals",
       "Basic reading stats",
-      "Catalog books based on mood",
-      "Rate and review books",
-      "Migration tool - import your books from other sites"
+      "Find books you might like",
+      "Create custom shelves (up to 4)",
+      "Rate and review books & log journal entries",
+      "Migrate your books from other sites",
+      "Export your data anytime"
     ],
     buttonText: "Start Reading Free",
     href: "/register",
@@ -21,16 +23,16 @@ const plans = [
   },
   {
     name: "Bibliophile",
-    price: "$4.99",
+    price: "$3.99",
     period: "month",
-    description: "For passionate readers who want the full experience",
+    description: "Perfect for readers who want the full experience",
     features: [
       "Everything in Bookworm",
+      "Set up to 14 advanced reading goals",
       "Advanced reading insights",
+      "Smart book recommendations based on your reading history",
       "Mood & pace tracking",
       "Unlimited private shelves",
-      "Priority book recommendations",
-      "Export your data anytime",
       "Early access to new features",
     ],
     buttonText: "Upgrade to Bibliophile",

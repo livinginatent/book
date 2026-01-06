@@ -1,6 +1,14 @@
 "use client";
 
-import { Eye, EyeOff, User, Lock, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  User,
+  Lock,
+  ArrowRight,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -18,10 +26,10 @@ interface LoginFormProps {
   initialRedirect?: string;
 }
 
-export function LoginForm({ 
-  initialMessage, 
-  initialError, 
-  initialRedirect 
+export function LoginForm({
+  initialMessage,
+  initialError,
+  initialRedirect,
 }: LoginFormProps = {}) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -50,7 +58,7 @@ export function LoginForm({
   const validateField = (field: string, value: string) => {
     const data = { identifier, password, [field]: value };
     const result = loginSchema.safeParse(data);
-    
+
     if (!result.success) {
       const errors = result.error.flatten().fieldErrors;
       return errors[field as keyof typeof errors] || [];
@@ -60,7 +68,10 @@ export function LoginForm({
 
   const handleBlur = (field: string) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
-    const errors = validateField(field, field === "identifier" ? identifier : password);
+    const errors = validateField(
+      field,
+      field === "identifier" ? identifier : password
+    );
     setFieldErrors((prev) => ({ ...prev, [field]: errors }));
   };
 
@@ -108,23 +119,22 @@ export function LoginForm({
       <div className="relative space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25 mb-4">
-            <Sparkles className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
+        
+          <h1 className="text-4xl font-bold tracking-tight">Welcome back</h1>
           <p className="text-muted-foreground">
             Sign in to continue your reading journey
           </p>
         </div>
 
         {/* Success message */}
-        {successText && (
-          <FormMessage type="success" message={successText} />
-        )}
+        {successText && <FormMessage type="success" message={successText} />}
 
         {/* Error message from URL */}
         {errorMessage && !error && (
-          <FormMessage type="error" message={decodeURIComponent(errorMessage)} />
+          <FormMessage
+            type="error"
+            message={decodeURIComponent(errorMessage)}
+          />
         )}
 
         {/* Redirect notice */}
@@ -138,7 +148,8 @@ export function LoginForm({
                 Sign in to continue to checkout
               </p>
               <p className="text-xs text-muted-foreground">
-                You&apos;ll be redirected to complete your Bibliophile subscription
+                You&apos;ll be redirected to complete your Bibliophile
+                subscription
               </p>
             </div>
           </div>
@@ -266,7 +277,7 @@ export function LoginForm({
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-background px-2 text-muted-foreground">
-              New to Bookly?
+              New to Booktab?
             </span>
           </div>
         </div>

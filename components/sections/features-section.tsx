@@ -29,9 +29,9 @@ const features: Feature[] = [
   },
   {
     icon: IoStatsChart,
-    title: "Fun Statistics",
+    title: "Advanced Statistics",
     description:
-      "Discover your reading patterns with playful charts. Pages read, genres explored, and more.",
+      "Discover your reading patterns with advanced charts. Pages read, genres explored, and more.",
   },
   {
     icon: GlobeLock,
@@ -59,7 +59,7 @@ export function FeaturesSection() {
       <div className="container mx-auto px-4">
         <SectionHeading
           title="Everything you need to love reading again"
-          subtitle="We built Bookly to make tracking your reading journey feel less like homework and more like a hobby."
+          subtitle="We built Booktab to make tracking your reading journey feel less like homework and more like a hobby."
         />
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-16">
