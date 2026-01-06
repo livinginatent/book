@@ -327,3 +327,244 @@ export async function changePassword(
   }
 }
 
+export interface ExportLibraryResult {
+  success: true;
+  fileName: string;
+  csv: string;
+}
+
+export interface ExportLibraryError {
+  success: false;
+  error: string;
+}
+
+function escapeCsvValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const str = String(value);
+  if (str === "") return "";
+  if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  return str;
+}
+
+export async function exportUserLibrary(): Promise<
+  ExportLibraryResult | ExportLibraryError
+> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    const { data: userBooks, error: userBooksError } = await supabase
+      .from("user_books")
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (userBooksError) {
+      console.error("Error fetching user_books for export:", userBooksError);
+      return { success: false, error: "Failed to load your library" };
+    }
+
+    const safeUserBooks = userBooks ?? [];
+
+    const bookIds = Array.from(
+      new Set(safeUserBooks.map((ub) => ub.book_id))
+    ).filter(Boolean);
+
+    const { data: books, error: booksError } = await supabase
+      .from("books")
+      .select("*")
+      .in("id", bookIds);
+
+    if (booksError) {
+      console.error("Error fetching books for export:", booksError);
+      return { success: false, error: "Failed to load book details" };
+    }
+
+    const bookMap = new Map<string, (typeof books)[number]>();
+    for (const book of books || []) {
+      bookMap.set(book.id, book);
+    }
+
+    const headers = [
+      "Title",
+      "Authors",
+      "Status",
+      "Rating",
+      "Date Added",
+      "Date Started",
+      "Date Finished",
+      "Page Count",
+      "ISBN-10",
+      "ISBN-13",
+      "Language",
+    ] as const;
+
+    const lines: string[] = [];
+    lines.push(headers.join(","));
+
+    for (const ub of safeUserBooks) {
+      const book = bookMap.get(ub.book_id);
+
+      const rowValues: Record<(typeof headers)[number], string | number | null> =
+        {
+          Title: book?.title ?? "",
+          Authors: book?.authors?.join(", ") ?? "",
+          Status: ub.status,
+          Rating: ub.rating ?? null,
+          "Date Added": ub.date_added,
+          "Date Started": ub.date_started,
+          "Date Finished": ub.date_finished,
+          "Page Count": book?.page_count ?? null,
+          "ISBN-10": (book?.isbn_10 ?? []).join(", "),
+          "ISBN-13": (book?.isbn_13 ?? []).join(", "),
+          Language: book?.language ?? "",
+        };
+
+      const line = headers
+        .map((header) => escapeCsvValue(rowValues[header]))
+        .join(",");
+
+      lines.push(line);
+    }
+
+    const csv = lines.join("\n");
+    const today = new Date().toISOString().slice(0, 10);
+    const fileName = `bookly-library-${today}.csv`;
+
+    return { success: true, fileName, csv };
+  } catch (error) {
+    console.error("Error in exportUserLibrary:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to export your library",
+    };
+  }
+}
+
+export interface ResetLibraryResult {
+  success: true;
+  message: string;
+}
+
+export interface ResetLibraryError {
+  success: false;
+  error: string;
+}
+
+export async function resetLibrary(): Promise<
+  ResetLibraryResult | ResetLibraryError
+> {
+  try {
+    const cookieStore = cookies();
+    const supabase = await createClient(cookieStore);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    const userId = user.id;
+
+    // Delete reading-related data but keep profile and goals
+    const { error: sessionsError } = await supabaseAdmin
+      .from("reading_sessions")
+      .delete()
+      .eq("user_id", userId);
+
+    if (sessionsError) {
+      console.error("Error deleting reading_sessions for reset:", sessionsError);
+      return {
+        success: false,
+        error: "Failed to delete reading sessions",
+      };
+    }
+
+    const { error: journalError } = await supabaseAdmin
+      .from("reading_journal")
+      .delete()
+      .eq("user_id", userId);
+
+    if (journalError) {
+      console.error("Error deleting reading_journal for reset:", journalError);
+      return {
+        success: false,
+        error: "Failed to delete reading journal entries",
+      };
+    }
+
+    const { error: progressError } = await supabaseAdmin
+      .from("reading_progress")
+      .delete()
+      .eq("user_id", userId);
+
+    if (progressError) {
+      console.error("Error deleting reading_progress for reset:", progressError);
+      return {
+        success: false,
+        error: "Failed to delete reading progress",
+      };
+    }
+
+    const { error: userBooksError } = await supabaseAdmin
+      .from("user_books")
+      .delete()
+      .eq("user_id", userId);
+
+    if (userBooksError) {
+      console.error("Error deleting user_books for reset:", userBooksError);
+      return {
+        success: false,
+        error: "Failed to delete your books",
+      };
+    }
+
+    // Clear legacy shelf arrays on profile but keep goals/profile
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        want_to_read: [],
+        currently_reading: [],
+        up_next: [],
+        did_not_finish: [],
+      })
+      .eq("id", userId);
+
+    if (profileError) {
+      console.error("Error clearing profile shelf arrays on reset:", profileError);
+      return {
+        success: false,
+        error: "Failed to clean up your profile shelves",
+      };
+    }
+
+    revalidatePath("/settings/data-migration");
+
+    return {
+      success: true,
+      message: "Your library has been reset. Your profile and goals are intact.",
+    };
+  } catch (error) {
+    console.error("Error in resetLibrary:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to reset your library",
+    };
+  }
+}
+
