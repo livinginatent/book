@@ -1,9 +1,8 @@
 "use server";
 
-import { Resend } from "resend";
 import { z } from "zod";
 
-import { ContactEmail } from "@/components/email";
+import { sendContactFormEmail } from "@/app/actions/email";
 
 const contactSchema = z.object({
   name: z
@@ -37,61 +36,43 @@ export interface ContactResult {
 export async function sendContactEmail(
   data: ContactFormData
 ): Promise<ContactResult> {
+  console.warn("[Contact] ========== START ==========");
+  console.warn("[Contact] Received data:", {
+    name: data.name,
+    email: data.email,
+    subject: data.subject,
+    messageLength: data.message?.length,
+  });
+
   // Validate input
   const validatedFields = contactSchema.safeParse(data);
 
   if (!validatedFields.success) {
+    console.error(
+      "[Contact] Validation failed:",
+      validatedFields.error.flatten().fieldErrors
+    );
     return {
       errors: validatedFields.error.flatten().fieldErrors,
     };
   }
 
+  console.warn("[Contact] Validation passed");
+
   const { name, email, subject, message } = validatedFields.data;
 
-  try {
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const recipientEmail =
-      process.env.CONTACT_RECEIVING_EMAIL || "contact@iemiigio.resend.app";
-    const fromEmail =
-      process.env.RESEND_FROM_EMAIL || "Booktab <onboarding@resend.dev>";
+  // Use the reusable email action
+  console.warn("[Contact] Calling sendContactFormEmail...");
+  const result = await sendContactFormEmail({ name, email, subject, message });
+  console.warn("[Contact] sendContactFormEmail result:", result);
 
-    if (!resendApiKey) {
-      console.error("[Contact Form] RESEND_API_KEY is not configured");
-      return {
-        error: "Email service is not configured. Please try again later.",
-      };
-    }
-
-    const resend = new Resend(resendApiKey);
-
-    const { data: emailData, error: resendError } = await resend.emails.send({
-      from: fromEmail,
-      to: [recipientEmail],
-      replyTo: email,
-      subject: `Contact Form: ${subject}`,
-      react: ContactEmail({ name, email, subject, message }),
-    });
-
-    if (resendError) {
-      console.error("[Contact Form] Resend API error:", resendError);
-      return {
-        error: `Failed to send email: ${
-          resendError.message || "Unknown error"
-        }. Please try again later.`,
-      };
-    }
-
-    if (emailData) {
-      console.warn("[Contact Form] Email sent successfully:", emailData.id);
-    }
-
-    return { success: true };
-  } catch (error) {
-    console.error("[Contact Form] Unexpected error:", error);
+  if (!result.success) {
+    console.error("[Contact] Email sending failed:", result.error);
     return {
-      error: `An unexpected error occurred: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }. Please try again later.`,
+      error: result.error || "Failed to send email. Please try again later.",
     };
   }
+
+  console.warn("[Contact] ========== SUCCESS ==========");
+  return { success: true };
 }
