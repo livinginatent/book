@@ -1,6 +1,9 @@
+"use client";
+
 import { Heart } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
+
+import { Logo } from "@/components/layout/logo";
 
 const footerLinks = {
   product: [
@@ -27,16 +30,8 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="  group-hover:rotate-6 transition-transform">
-                <Image
-                  src="/booktab-Photoroom.png"
-                  alt="Booktab logo"
-                  width={110}
-                  height={110}
-                  className="object-contain"
-                />
-              </div>
+            <Link href="/" className="flex items-center gap-2 mb-4 group">
+              <Logo />
             </Link>
             <p className="text-muted-foreground text-sm leading-relaxed">
               Track your reading journey with joy. Discover new books, set

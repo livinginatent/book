@@ -54,7 +54,7 @@ export function HowItWorksSection() {
   }, [isAutoPlay]);
 
   return (
-    <section className="relative py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+    <section id="how-it-works" className="relative py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
       {/* Background elements */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute top-20 right-1/4 w-72 h-72 bg-primary/10 rounded-full blur-3xl"></div>

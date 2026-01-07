@@ -1,12 +1,12 @@
 "use client";
 
 import { LogOut, Menu, User, X } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -53,15 +53,7 @@ export function Navbar({ initialAuth }: NavbarProps) {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="relative  group-hover:rotate-6 transition-transform">
-              <Image
-                src="/booktab-Photoroom.png"
-                alt="Booktab logo"
-                width={110}
-                height={110}
-                className="object-contain"
-              />
-            </div>
+            <Logo />
           </Link>
 
           {/* Desktop Nav */}

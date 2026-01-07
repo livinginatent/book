@@ -103,7 +103,6 @@ function PublicHomepage() {
         <FeaturesSection />
         <PricingSection />
         <HowItWorksSection />
-        <CTASection />
       </main>
     </div>
   );

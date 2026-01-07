@@ -32,9 +32,7 @@ export const metadata: Metadata = {
   description:
     "A joyful way to track your books, discover new reads, and celebrate your reading journey.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://booktab.app"),
-  verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
-  },
+ 
 };
 
 // Server-side auth data type
@@ -84,6 +82,12 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <meta
+          name="google-site-verification"
+          content="8mHCWylAGeRBH8mYU-mIhHRK_86qeHVADtsaghfdsac"
+        />
+      </head>
       <body
         className={`${nunito.variable} ${merriweather.variable} font-sans antialiased`}
       >
