@@ -3,6 +3,7 @@ import { Nunito, Merriweather } from "next/font/google";
 import { cookies } from "next/headers";
 import type React from "react";
 
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
 import { AuthProvider } from "@/components/providers/auth-provider";
@@ -24,9 +25,16 @@ const merriweather = Merriweather({
 });
 
 export const metadata: Metadata = {
-  title: "Booktab - Track Your Reading Journey",
+  title: {
+    default: "Booktab - Track Your Reading Journey",
+    template: "%s | Booktab",
+  },
   description:
     "A joyful way to track your books, discover new reads, and celebrate your reading journey.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://booktab.app"),
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+  },
 };
 
 // Server-side auth data type
@@ -79,6 +87,7 @@ export default async function RootLayout({
       <body
         className={`${nunito.variable} ${merriweather.variable} font-sans antialiased`}
       >
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

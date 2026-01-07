@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 
@@ -9,6 +10,77 @@ import { HeroSection } from "@/components/sections/hero-section";
 import { HowItWorksSection } from "@/components/sections/how-it-works";
 import { PricingSection } from "@/components/sections/pricing-section";
 import { createClient } from "@/lib/supabase/server";
+
+// SEO Metadata for homepage
+export const metadata: Metadata = {
+  title: {
+    default: "Booktab - Track Your Reading Journey with Joy",
+    template: "%s | Booktab",
+  },
+  description:
+    "Booktab makes reading tracking feel like a celebration. Set goals, discover new favorites, track your reading progress, and watch your library grow. The modern way to track books.",
+  keywords: [
+    "reading tracker",
+    "book tracking",
+    "reading goals",
+    "reading statistics",
+    "book journal",
+    "reading app",
+    "book organizer",
+    "reading progress",
+    "book library",
+    "reading insights",
+    "book recommendations",
+    "reading analytics",
+  ],
+  authors: [{ name: "Booktab" }],
+  creator: "Booktab",
+  publisher: "Booktab",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://booktab.app"
+  ),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    title: "Booktab - Track Your Reading Journey with Joy",
+    description:
+      "Booktab makes reading tracking feel like a celebration. Set goals, discover new favorites, and watch your library grow.",
+    siteName: "Booktab",
+    images: [
+      {
+        url: "/booktab-Photoroom.png",
+        width: 1200,
+        height: 630,
+        alt: "Booktab - Reading Tracker",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Booktab - Track Your Reading Journey with Joy",
+    description:
+      "Booktab makes reading tracking feel like a celebration. Set goals, discover new favorites, and watch your library grow.",
+    images: ["/booktab-Photoroom.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+  },
+};
 
 // Loading skeleton
 function LoadingSkeleton() {
@@ -33,7 +105,6 @@ function PublicHomepage() {
         <HowItWorksSection />
         <CTASection />
       </main>
-   
     </div>
   );
 }
@@ -43,7 +114,7 @@ async function HomePageServer() {
   // Quick auth check first (server-side, no network latency like client)
   const cookieStore = cookies();
   const supabase = await createClient(cookieStore);
-  
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
