@@ -1,6 +1,6 @@
+import { Check, Sparkles, BookOpen, Target, BarChart3,  BookMarked,  Heart, Zap } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check, Sparkles, BookOpen, Target, BarChart3, Star, Download, BookMarked, TrendingUp, Heart, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
