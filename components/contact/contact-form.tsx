@@ -18,9 +18,7 @@ export function ContactForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<
-    Record<string, string[]>
-  >({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -49,7 +47,7 @@ export function ContactForm() {
         setSubject("");
         setMessage("");
       }
-    } catch (err:any) {
+    } catch (err: any) {
       setError("Something went wrong. Please try again later.");
     } finally {
       setLoading(false);
@@ -182,4 +180,3 @@ export function ContactForm() {
     </form>
   );
 }
-
