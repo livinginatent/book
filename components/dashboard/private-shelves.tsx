@@ -6,11 +6,11 @@ import { useEffect, useState, useTransition } from "react";
 
 import type { ShelfData } from "@/app/actions/dashboard-data";
 import { refreshShelves } from "@/app/actions/dashboard-data";
+import { createCustomShelf } from "@/app/actions/shelf-actions";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { createCustomShelf } from "@/app/actions/shelf-actions";
+import { cn, slugify } from "@/lib/utils";
 
 interface PrivateShelvesProps {
   locked?: boolean;
@@ -129,6 +129,16 @@ export function PrivateShelves({
   const isAtFreeLimit = isFreeTier && effectiveCustomCount >= freeTierLimit;
   const isOverFreeLimit = isFreeTier && effectiveCustomCount > freeTierLimit;
 
+  // Calculate total book counts
+  const totalDefaultBooks = defaultShelves.reduce(
+    (sum, shelf) => sum + shelf.bookCount,
+    0
+  );
+  const totalCustomBooks = customShelves.reduce(
+    (sum, shelf) => sum + shelf.bookCount,
+    0
+  );
+
   // Map reading status to shelf routes
   const statusToRoute: Record<string, string> = {
     currently_reading: "/shelves/currently-reading",
@@ -162,18 +172,23 @@ export function PrivateShelves({
               onClick={() => setShowDefault((prev) => !prev)}
               className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/60 transition-colors"
             >
-              <div className="text-left">
-                <p className="text-sm font-medium text-foreground">
-                  Default shelves
-                </p>
+              <div className="text-left flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">
+                    Default shelves
+                  </p>
+                  <span className="text-xs text-muted-foreground">
+                    {totalDefaultBooks} book{totalDefaultBooks === 1 ? "" : "s"}
+                  </span>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Based on your reading status
                 </p>
               </div>
               {showDefault ? (
-                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                <ChevronUp className="w-4 h-4 text-muted-foreground ml-2" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                <ChevronDown className="w-4 h-4 text-muted-foreground ml-2" />
               )}
             </button>
             <div
@@ -231,18 +246,23 @@ export function PrivateShelves({
               onClick={() => setShowCustom((prev) => !prev)}
               className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/60 transition-colors"
             >
-              <div className="text-left">
-                <p className="text-sm font-medium text-foreground">
-                  Private shelves
-                </p>
+              <div className="text-left flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">
+                    Private shelves
+                  </p>
+                  <span className="text-xs text-muted-foreground">
+                    {totalCustomBooks} book{totalCustomBooks === 1 ? "" : "s"}
+                  </span>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Create your own collections
                 </p>
               </div>
               {showCustom ? (
-                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                <ChevronUp className="w-4 h-4 text-muted-foreground ml-2" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                <ChevronDown className="w-4 h-4 text-muted-foreground ml-2" />
               )}
             </button>
             <div
@@ -265,17 +285,26 @@ export function PrivateShelves({
                     Loading shelves...
                   </p>
                 ) : hasCustomShelves ? (
-                  customShelves.map((shelf) => (
-                    <div
-                      key={shelf.id}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-muted/50 hover:bg-muted transition-colors transition-colors"
-                    >
-                      <span className="text-sm font-medium">{shelf.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {shelf.bookCount} book{shelf.bookCount === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                  ))
+                  customShelves.map((shelf) => {
+                    const shelfSlug = slugify(shelf.name);
+                    const shelfHref = `/shelves/${shelfSlug}`;
+
+                    return (
+                      <Link
+                        key={shelf.id}
+                        href={shelfHref}
+                        className="flex items-center justify-between p-2.5 rounded-xl bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                      >
+                        <span className="text-sm font-medium">
+                          {shelf.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {shelf.bookCount} book
+                          {shelf.bookCount === 1 ? "" : "s"}
+                        </span>
+                      </Link>
+                    );
+                  })
                 ) : (
                   <p className="text-xs text-muted-foreground py-2">
                     No private shelves yet. Create your first one below.

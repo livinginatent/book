@@ -314,6 +314,25 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
       }
     }
 
+    // Get custom shelf book counts
+    const customShelfIds = shelves
+      .filter((s) => s.type === "custom")
+      .map((s) => s.id);
+    
+    let customShelfCounts: Record<string, number> = {};
+    if (customShelfIds.length > 0) {
+      const { data: shelfBooksData } = await supabase
+        .from("shelf_books")
+        .select("shelf_id")
+        .in("shelf_id", customShelfIds);
+      
+      if (shelfBooksData) {
+        for (const sb of shelfBooksData) {
+          customShelfCounts[sb.shelf_id] = (customShelfCounts[sb.shelf_id] || 0) + 1;
+        }
+      }
+    }
+
     const defaultShelves: ShelfData[] = [];
     const customShelves: ShelfData[] = [];
 
@@ -325,7 +344,7 @@ export const getDashboardData = cache(async (): Promise<DashboardData | Dashboar
         bookCount:
           shelf.type === "default" && shelf.status
             ? statusCounts[shelf.status as ReadingStatus] ?? 0
-            : 0,
+            : customShelfCounts[shelf.id] ?? 0,
         status: shelf.status,
       };
 
@@ -752,18 +771,30 @@ export async function refreshShelves(): Promise<{
       return { success: false, error: "Not authenticated" };
     }
 
-    const [shelvesResult, userBooksResult] = await Promise.all([
-      supabase
-        .from("shelves")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("type", { ascending: true })
-        .order("name", { ascending: true }),
+    const shelves = await supabase
+      .from("shelves")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("type", { ascending: true })
+      .order("name", { ascending: true });
+
+    const shelvesData = shelves.data || [];
+    const customShelfIds = shelvesData
+      .filter((s) => s.type === "custom")
+      .map((s) => s.id);
+
+    const [userBooksResult, shelfBooksResult] = await Promise.all([
       supabase.from("user_books").select("status").eq("user_id", user.id),
+      customShelfIds.length > 0
+        ? supabase
+            .from("shelf_books")
+            .select("shelf_id")
+            .in("shelf_id", customShelfIds)
+        : Promise.resolve({ data: [] }),
     ]);
 
-    const shelves = shelvesResult.data || [];
     const userBooks = userBooksResult.data || [];
+    const shelfBooks = shelfBooksResult.data || [];
 
     const statusCounts: Record<ReadingStatus, number> = {
       want_to_read: 0,
@@ -781,10 +812,16 @@ export async function refreshShelves(): Promise<{
       }
     }
 
+    // Count books per custom shelf
+    const customShelfCounts: Record<string, number> = {};
+    for (const sb of shelfBooks) {
+      customShelfCounts[sb.shelf_id] = (customShelfCounts[sb.shelf_id] || 0) + 1;
+    }
+
     const defaultShelves: ShelfData[] = [];
     const customShelves: ShelfData[] = [];
 
-    for (const shelf of shelves) {
+    for (const shelf of shelvesData) {
       const shelfData: ShelfData = {
         id: shelf.id,
         name: shelf.name,
@@ -792,7 +829,7 @@ export async function refreshShelves(): Promise<{
         bookCount:
           shelf.type === "default" && shelf.status
             ? statusCounts[shelf.status as ReadingStatus] ?? 0
-            : 0,
+            : customShelfCounts[shelf.id] ?? 0,
         status: shelf.status,
       };
 
