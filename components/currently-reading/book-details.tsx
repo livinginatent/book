@@ -22,6 +22,12 @@ interface BookDetailCardProps {
     series?: { name: string; number: number; total: number };
     moods: string[];
     pace: string;
+    // Community stats
+    aggregate_rating?: number | null;
+    ratings_count?: number | null;
+    common_moods?: string[] | null;
+    global_pacing?: string | null;
+    global_difficulty?: string | null;
   };
   estimatedFinish: string;
   onFormatChange?: (format: BookFormat) => void;
@@ -129,11 +135,17 @@ export function BookDetailCard({
         <div className="flex flex-wrap gap-4 mb-4 text-sm">
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Calendar className="w-4 h-4" />
-            <span>Started {daysReading} days ago</span>
+            <span>
+              Started {daysReading} {daysReading === 1 ? "day" : "days"} ago
+            </span>
           </div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Clock className="w-4 h-4" />
-            <span>~{estimatedFinish}</span>
+            <span>
+              {book.pagesRead === 0
+                ? "You haven't started yet"
+                : `~${estimatedFinish}`}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <BookOpen className="w-4 h-4" />
@@ -166,7 +178,7 @@ export function BookDetailCard({
         </div>
 
         {/* Moods & Pace */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 mb-4">
           {book.moods.map((mood, i) => (
             <MoodTag
               key={mood}
@@ -176,8 +188,7 @@ export function BookDetailCard({
           ))}
           <MoodTag mood={book.pace} color="purple" />
         </div>
-
-        <Button onClick={onUpdateProgress} className="mt-4 md:w-fit">
+        <Button onClick={onUpdateProgress} className="mt-auto md:w-fit">
           Update Progress
         </Button>
       </div>

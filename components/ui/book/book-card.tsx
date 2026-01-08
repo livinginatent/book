@@ -1,12 +1,14 @@
 "use client";
 
-import { BookOpen, Star, X } from "lucide-react";
+import { BookOpen, Star, X, Users } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
 import type { ReadingStatus } from "@/types/database.types";
+
+import { MoodTag } from "../mood-tag";
 
 import {
   BookProgressEditor,
@@ -47,6 +49,12 @@ interface BookCardProps {
   daysSinceLastRead?: number | null;
   latestJournalEntry?: string | null;
   dateStarted?: string | null;
+  // Community stats
+  aggregate_rating?: number | null;
+  ratings_count?: number | null;
+  common_moods?: string[] | null;
+  global_pacing?: string | null;
+  global_difficulty?: string | null;
 }
 
 export function BookCard({
@@ -74,6 +82,11 @@ export function BookCard({
   daysSinceLastRead,
   latestJournalEntry,
   dateStarted,
+  aggregate_rating,
+  ratings_count,
+  common_moods,
+  global_pacing,
+  global_difficulty,
 }: BookCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
@@ -306,6 +319,73 @@ export function BookCard({
               ? `${latestJournalEntry.substring(0, 60)}...`
               : latestJournalEntry}
           </p>
+        </div>
+      )}
+
+      {/* Community Stats */}
+      {ratings_count !== null && ratings_count !== undefined && (
+        <div className="mt-2 p-2 bg-muted/30 rounded-lg border border-border/50">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Users className="w-3 h-3 text-primary" />
+            <p className="text-xs font-medium text-foreground">Community</p>
+          </div>
+
+          {ratings_count > 0 ? (
+            <div className="space-y-2">
+              {/* Aggregate Rating */}
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center">
+                  {[...Array(5)].map((_, i) => (
+                    <Star
+                      key={i}
+                      className={cn(
+                        "w-3 h-3",
+                        i < Math.floor(aggregate_rating || 0)
+                          ? "fill-primary text-primary"
+                          : i < (aggregate_rating || 0)
+                            ? "fill-primary/50 text-primary"
+                            : "text-muted"
+                      )}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs font-medium text-foreground">
+                  {aggregate_rating?.toFixed(1)}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  ({ratings_count})
+                </span>
+              </div>
+
+              {/* Common Moods */}
+              {common_moods && common_moods.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {common_moods.slice(0, 3).map((mood, i) => (
+                    <MoodTag
+                      key={mood}
+                      mood={mood}
+                      color={
+                        i % 3 === 0 ? "coral" : i % 3 === 1 ? "teal" : "purple"
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Community Consensus */}
+              {(global_pacing || global_difficulty) && (
+                <p className="text-[10px] text-muted-foreground">
+                  {[global_pacing, global_difficulty]
+                    .filter(Boolean)
+                    .join(" & ")}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              Be the first to rate and tag this book!
+            </p>
+          )}
         </div>
       )}
 

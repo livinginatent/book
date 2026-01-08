@@ -96,6 +96,11 @@ export interface Database {
           cover_url_medium: string | null;
           cover_url_large: string | null;
           language: string | null;
+          aggregate_rating: number | null;
+          ratings_count: number | null;
+          common_moods: string[] | null;
+          global_pacing: string | null;
+          global_difficulty: string | null;
           created_at: string;
           updated_at: string;
           last_synced_at: string;
@@ -119,6 +124,11 @@ export interface Database {
           cover_url_medium?: string | null;
           cover_url_large?: string | null;
           language?: string | null;
+          aggregate_rating?: number | null;
+          ratings_count?: number | null;
+          common_moods?: string[] | null;
+          global_pacing?: string | null;
+          global_difficulty?: string | null;
           created_at?: string;
           updated_at?: string;
           last_synced_at?: string;
@@ -142,6 +152,11 @@ export interface Database {
           cover_url_medium?: string | null;
           cover_url_large?: string | null;
           language?: string | null;
+          aggregate_rating?: number | null;
+          ratings_count?: number | null;
+          common_moods?: string[] | null;
+          global_pacing?: string | null;
+          global_difficulty?: string | null;
           created_at?: string;
           updated_at?: string;
           last_synced_at?: string;

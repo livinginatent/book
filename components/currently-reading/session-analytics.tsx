@@ -74,7 +74,7 @@ export function SessionAnalytics({
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div className="p-3 rounded-xl bg-card border border-border text-center">
           <BookOpen className="w-5 h-5 text-primary mx-auto mb-1" />
           <p className="text-lg font-bold text-foreground">{pagesReadToday}</p>
@@ -87,13 +87,7 @@ export function SessionAnalytics({
           </p>
           <p className="text-xs text-muted-foreground">Avg/day</p>
         </div>
-        <div className="p-3 rounded-xl bg-card border border-border text-center">
-          <Clock className="w-5 h-5 text-chart-3 mx-auto mb-1" />
-          <p className="text-lg font-bold text-foreground">
-            {totalReadingTime}
-          </p>
-          <p className="text-xs text-muted-foreground">Total time</p>
-        </div>
+    
       </div>
 
       {/* Weekly Chart */}

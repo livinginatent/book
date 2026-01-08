@@ -15,6 +15,7 @@ export function PaceCalculator({
   currentStreak,
   className,
 }: PaceCalculatorProps) {
+  const hasNotStarted = averagePagesPerDay === 0;
   const daysToFinish =
     averagePagesPerDay > 0 ? Math.ceil(pagesRemaining / averagePagesPerDay) : 0;
   const finishDate = new Date();
@@ -36,44 +37,59 @@ export function PaceCalculator({
         <h4 className="font-semibold text-foreground">Pace Calculator</h4>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Pages remaining</span>
-          <span className="font-semibold text-foreground">
-            {pagesRemaining}
-          </span>
+      {hasNotStarted ? (
+        <div className="py-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            You haven&apos;t started reading yet
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Update your progress to see estimates
+          </p>
         </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            Your daily average
-          </span>
-          <span className="font-semibold text-foreground">
-            {averagePagesPerDay} pages
-          </span>
-        </div>
-
-        <div className="h-px bg-border my-2" />
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-accent" />
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">
-              Estimated finish
+              Pages remaining
+            </span>
+            <span className="font-semibold text-foreground">
+              {pagesRemaining}
             </span>
           </div>
-          <span className="font-bold text-accent">
-            {daysToFinish} days ({formatDate(finishDate)})
-          </span>
-        </div>
 
-        {currentStreak >= 3 && (
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/10 text-primary text-sm">
-            <TrendingUp className="w-4 h-4" />
-            <span>Keep your {currentStreak}-day streak to finish on time!</span>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              Your daily average
+            </span>
+            <span className="font-semibold text-foreground">
+              {averagePagesPerDay} pages
+            </span>
           </div>
-        )}
-      </div>
+
+          <div className="h-px bg-border my-2" />
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-accent" />
+              <span className="text-sm text-muted-foreground">
+                Estimated finish
+              </span>
+            </div>
+            <span className="font-bold text-accent">
+              {daysToFinish} days ({formatDate(finishDate)})
+            </span>
+          </div>
+
+          {currentStreak >= 3 && (
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/10 text-primary text-sm">
+              <TrendingUp className="w-4 h-4" />
+              <span>
+                Keep your {currentStreak}-day streak to finish on time!
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
