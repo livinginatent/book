@@ -32,7 +32,9 @@ export const metadata: Metadata = {
   description:
     "A joyful way to track your books, discover new reads, and celebrate your reading journey.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://booktab.app"),
- 
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 // Server-side auth data type
