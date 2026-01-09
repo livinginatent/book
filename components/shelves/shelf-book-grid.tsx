@@ -5,8 +5,22 @@ import { useRef } from "react";
 
 import { ReadingStatus } from "@/types";
 
+import { Badge } from "../ui/badge";
 import { BookCard } from "../ui/book/book-card";
 import { BookStatus, BookStatusDates } from "../ui/book/book-progress-editor";
+
+// Helper function to format status labels
+function formatStatusLabel(status: ReadingStatus): string {
+  const statusMap: Record<ReadingStatus, string> = {
+    want_to_read: "Want to Read",
+    currently_reading: "Currently Reading",
+    up_next: "Up Next",
+    dnf: "Did Not Finish",
+    paused: "Paused",
+    finished: "Finished",
+  };
+  return statusMap[status] || status;
+}
 
 // Helper function to extract DNF reason from notes
 function extractDNFReason(notes: string | null | undefined): string | null {
@@ -374,6 +388,14 @@ export function ShelfBookGrid({
                   onRatingUpdate={(rating) => onRatingUpdate?.(book.id, rating)}
                   currentStatus={book.status}
                 />
+                {/* Status Badge */}
+                {book.status && (
+                  <div className="mt-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {formatStatusLabel(book.status)}
+                    </Badge>
+                  </div>
+                )}
                 {/* DNF Reason Display */}
                 {isDNFShelf && dnfReason && (
                   <div className="mt-2 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-950/30 text-center rounded-lg border border-red-200 dark:border-red-800/50 w-2/3">

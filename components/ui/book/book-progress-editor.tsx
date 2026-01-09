@@ -202,7 +202,7 @@ export function BookProgressEditor({
         setCheckingSessions(true);
         const result = await hasReadingSessions(bookId);
         setCheckingSessions(false);
-        
+
         if (result.success && !result.hasSessions && result.pageCount > 0) {
           // No sessions found, show modal asking if they want to log pages
           setShowedNoSessionsModal(true);
@@ -307,7 +307,7 @@ export function BookProgressEditor({
   return createPortal(
     <div
       className={cn(
-        "fixed inset-0 z-50 flex items-end sm:items-center justify-center",
+        "fixed inset-0 z-50 flex items-center justify-center",
         "bg-black/40 backdrop-blur-sm",
         "p-2 sm:p-4"
       )}
@@ -529,59 +529,65 @@ export function BookProgressEditor({
         )}
 
         {/* Status Actions */}
-        {!showDatePicker && !showDNFReason && !showFinishPrompt && !showNoSessionsModal && !checkingSessions && (
-          <div className="p-4 border-t border-border bg-muted/30">
-            <p className="text-xs text-muted-foreground mb-3 text-center">
-              Or change status
-            </p>
-            <div
-              className={cn(
-                "grid gap-2",
-                availableActions.length === 0
-                  ? "grid-cols-1"
-                  : availableActions.length === 1
-                  ? "grid-cols-1"
-                  : availableActions.length === 2
-                  ? "grid-cols-2"
-                  : availableActions.length === 3
-                  ? "grid-cols-3"
-                  : "grid-cols-4"
-              )}
-            >
-              {availableActions.map(({ status, label, icon: Icon, color }) => (
-                <button
-                  key={status}
-                  onClick={() => handleStatusChange(status)}
-                  className={cn(
-                    "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-                    "hover:scale-105 active:scale-95",
-                    color
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="text-[10px] font-medium text-center">
-                    {label}
-                  </span>
-                </button>
-              ))}
-              {onRemove && (
-                <button
-                  onClick={handleRemove}
-                  className={cn(
-                    "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
-                    "hover:scale-105 active:scale-95",
-                    "bg-muted/50 text-muted-foreground border border-border hover:bg-muted hover:text-destructive hover:border-destructive/30"
-                  )}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="text-[10px] font-medium text-center">
-                    Remove
-                  </span>
-                </button>
-              )}
+        {!showDatePicker &&
+          !showDNFReason &&
+          !showFinishPrompt &&
+          !showNoSessionsModal &&
+          !checkingSessions && (
+            <div className="p-4 border-t border-border bg-muted/30">
+              <p className="text-xs text-muted-foreground mb-3 text-center">
+                Or change status
+              </p>
+              <div
+                className={cn(
+                  "grid gap-2",
+                  availableActions.length === 0
+                    ? "grid-cols-1"
+                    : availableActions.length === 1
+                      ? "grid-cols-1"
+                      : availableActions.length === 2
+                        ? "grid-cols-2"
+                        : availableActions.length === 3
+                          ? "grid-cols-3"
+                          : "grid-cols-4"
+                )}
+              >
+                {availableActions.map(
+                  ({ status, label, icon: Icon, color }) => (
+                    <button
+                      key={status}
+                      onClick={() => handleStatusChange(status)}
+                      className={cn(
+                        "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+                        "hover:scale-105 active:scale-95",
+                        color
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="text-[10px] font-medium text-center">
+                        {label}
+                      </span>
+                    </button>
+                  )
+                )}
+                {onRemove && (
+                  <button
+                    onClick={handleRemove}
+                    className={cn(
+                      "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+                      "hover:scale-105 active:scale-95",
+                      "bg-muted/50 text-muted-foreground border border-border hover:bg-muted hover:text-destructive hover:border-destructive/30"
+                    )}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="text-[10px] font-medium text-center">
+                      Remove
+                    </span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
       </div>
     </div>,
     document.body

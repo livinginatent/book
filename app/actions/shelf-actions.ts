@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
-import { createTimer } from "@/lib/utils/perf";
 import { slugify } from "@/lib/utils";
 import type { ReadingStatus, Shelf } from "@/types/database.types";
 
@@ -28,25 +27,45 @@ export interface ShelvesError {
   error: string;
 }
 
-async function getUserShelfLimit(userId: string): Promise<number> {
-  const supabase = await createClient(cookies());
+/**
+ * Check if a string is a UUID
+ */
+function isUUID(str: string): boolean {
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("subscription_tier")
-    .eq("id", userId)
-    .single();
-
-  if (error) {
-    console.error("Error fetching subscription tier:", error);
-    return FREE_SHELF_LIMIT;
+/**
+ * Find shelf by ID or slug - optimized to avoid fetching all shelves
+ * Returns the shelf ID if found
+ */
+async function findShelfByIdOrSlug(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  shelfIdOrSlug: string
+): Promise<{ id: string } | null> {
+  if (isUUID(shelfIdOrSlug)) {
+    const { data } = await supabase
+      .from("shelves")
+      .select("id")
+      .eq("id", shelfIdOrSlug)
+      .eq("user_id", userId)
+      .single();
+    return data;
   }
 
-  const tier = data?.subscription_tier;
+  // For slugs, fetch only id and name columns
+  const { data: shelves } = await supabase
+    .from("shelves")
+    .select("id, name")
+    .eq("user_id", userId);
 
-  if (tier === "premium" || tier === "bibliophile") return PREMIUM_SHELF_LIMIT;
+  if (!shelves) return null;
 
-  return FREE_SHELF_LIMIT;
+  const normalizedSlug = shelfIdOrSlug.toLowerCase();
+  const match = shelves.find((s) => slugify(s.name) === normalizedSlug);
+  return match ? { id: match.id } : null;
 }
 
 /**
@@ -54,40 +73,31 @@ async function getUserShelfLimit(userId: string): Promise<number> {
  * Optimized with parallel queries
  */
 export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
-  const timer = createTimer("getShelves");
-
   try {
-    const cookieStore = cookies();
-    const supabase = await createClient(cookieStore);
+    const supabase = await createClient(cookies());
 
-    const authTimer = createTimer("getShelves.auth");
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
-    authTimer.end();
 
     if (authError || !user) {
-      timer.end();
       return { success: false, error: "You must be logged in" };
     }
 
-    // Parallel queries for shelves and user_books
-    const queryTimer = createTimer("getShelves.queries");
+    // Parallel queries for shelves and status counts
     const [shelvesResult, userBooksResult] = await Promise.all([
       supabase
         .from("shelves")
-        .select("*")
+        .select("id, name, type, status, user_id, created_at, updated_at")
         .eq("user_id", user.id)
         .order("type", { ascending: true })
         .order("name", { ascending: true }),
       supabase.from("user_books").select("status").eq("user_id", user.id),
     ]);
-    queryTimer.end();
 
     if (shelvesResult.error) {
       console.error("Error fetching shelves:", shelvesResult.error);
-      timer.end();
       return { success: false, error: "Failed to fetch shelves" };
     }
 
@@ -104,9 +114,7 @@ export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
     if (!userBooksResult.error) {
       for (const row of userBooksResult.data || []) {
         const status = row.status as ReadingStatus;
-        if (status in countMap) {
-          countMap[status] += 1;
-        }
+        if (status in countMap) countMap[status] += 1;
       }
     }
 
@@ -118,7 +126,7 @@ export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
         ...shelf,
         book_count:
           shelf.type === "default" && shelf.status
-            ? countMap[shelf.status as ReadingStatus] ?? 0
+            ? (countMap[shelf.status as ReadingStatus] ?? 0)
             : 0,
       };
 
@@ -129,14 +137,8 @@ export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
       }
     }
 
-    timer.end();
-    return {
-      success: true,
-      defaultShelves,
-      customShelves,
-    };
+    return { success: true, defaultShelves, customShelves };
   } catch (error) {
-    timer.end();
     console.error("Get shelves error:", error);
     return {
       success: false,
@@ -148,20 +150,20 @@ export async function getShelves(): Promise<ShelvesResult | ShelvesError> {
 
 /**
  * Create a custom shelf for the authenticated user
+ * Optimized with parallel limit check
  */
 export async function createCustomShelf(
   name: string
 ): Promise<
   { success: true; shelf: ShelfWithCount } | { success: false; error: string }
 > {
-  try {
-    const cookieStore = cookies();
-    const supabase = await createClient(cookieStore);
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    return { success: false, error: "Shelf name is required" };
+  }
 
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      return { success: false, error: "Shelf name is required" };
-    }
+  try {
+    const supabase = await createClient(cookies());
 
     const {
       data: { user },
@@ -172,20 +174,32 @@ export async function createCustomShelf(
       return { success: false, error: "You must be logged in" };
     }
 
-    const { count: customShelfCount, error: countError } = await supabase
-      .from("shelves")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("type", "custom");
+    // Parallel: check shelf count and subscription tier
+    const [countResult, profileResult] = await Promise.all([
+      supabase
+        .from("shelves")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("type", "custom"),
+      supabase
+        .from("profiles")
+        .select("subscription_tier")
+        .eq("id", user.id)
+        .single(),
+    ]);
 
-    if (countError) {
-      console.error("Error counting custom shelves:", countError);
+    if (countResult.error) {
+      console.error("Error counting custom shelves:", countResult.error);
       return { success: false, error: "Failed to create shelf" };
     }
 
-    const limit = await getUserShelfLimit(user.id);
+    const tier = profileResult.data?.subscription_tier;
+    const limit =
+      tier === "premium" || tier === "bibliophile"
+        ? PREMIUM_SHELF_LIMIT
+        : FREE_SHELF_LIMIT;
 
-    if ((customShelfCount ?? 0) >= limit) {
+    if ((countResult.count ?? 0) >= limit) {
       return {
         success: false,
         error:
@@ -200,7 +214,7 @@ export async function createCustomShelf(
         name: trimmedName,
         type: "custom",
       })
-      .select()
+      .select("id, name, type, status, user_id, created_at, updated_at")
       .single();
 
     if (insertError || !data) {
@@ -210,10 +224,7 @@ export async function createCustomShelf(
 
     return {
       success: true,
-      shelf: {
-        ...data,
-        book_count: 0,
-      },
+      shelf: { ...data, book_count: 0 },
     };
   } catch (error) {
     console.error("Create custom shelf error:", error);
@@ -226,26 +237,16 @@ export async function createCustomShelf(
 }
 
 /**
- * Check if a string is a UUID
- */
-function isUUID(str: string): boolean {
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(str);
-}
-
-/**
  * Get shelf details by ID or slug
+ * Optimized with parallel book count query
  */
 export async function getShelfById(
   shelfIdOrSlug: string
 ): Promise<
-  | { success: true; shelf: ShelfWithCount }
-  | { success: false; error: string }
+  { success: true; shelf: ShelfWithCount } | { success: false; error: string }
 > {
   try {
-    const cookieStore = cookies();
-    const supabase = await createClient(cookieStore);
+    const supabase = await createClient(cookies());
 
     const {
       data: { user },
@@ -256,79 +257,47 @@ export async function getShelfById(
       return { success: false, error: "You must be logged in" };
     }
 
-    // Check if it's a UUID (ID) or a slug (name)
-    let shelfQuery = supabase
-      .from("shelves")
-      .select("*")
-      .eq("user_id", user.id);
-
-    if (isUUID(shelfIdOrSlug)) {
-      // It's an ID, look up by ID
-      shelfQuery = shelfQuery.eq("id", shelfIdOrSlug);
-    } else {
-      // It's a slug, look up by name (case-insensitive, after normalizing)
-      // We need to find shelves where the slugified name matches
-      const { data: allShelves } = await supabase
-        .from("shelves")
-        .select("*")
-        .eq("user_id", user.id);
-
-      if (!allShelves) {
-        return { success: false, error: "Shelf not found" };
-      }
-
-      // Find shelf where slugified name matches
-      const matchingShelf = allShelves.find((s) => {
-        const shelfSlug = s.name
-          .toLowerCase()
-          .trim()
-          .replace(/[^\w\s-]/g, "")
-          .replace(/[\s_-]+/g, "-")
-          .replace(/^-+|-+$/g, "");
-        return shelfSlug === shelfIdOrSlug.toLowerCase();
-      });
-
-      if (!matchingShelf) {
-        return { success: false, error: "Shelf not found" };
-      }
-
-      shelfQuery = supabase
-        .from("shelves")
-        .select("*")
-        .eq("id", matchingShelf.id)
-        .eq("user_id", user.id);
+    // Find shelf ID (optimized for slugs)
+    const shelfRef = await findShelfByIdOrSlug(
+      supabase,
+      user.id,
+      shelfIdOrSlug
+    );
+    if (!shelfRef) {
+      return { success: false, error: "Shelf not found" };
     }
 
-    const { data: shelf, error: shelfError } = await shelfQuery.single();
+    // Fetch full shelf data
+    const { data: shelf, error: shelfError } = await supabase
+      .from("shelves")
+      .select("id, name, type, status, user_id, created_at, updated_at")
+      .eq("id", shelfRef.id)
+      .single();
 
     if (shelfError || !shelf) {
       return { success: false, error: "Shelf not found" };
     }
 
-    // For default shelves, count books by status
+    // Get book count based on shelf type
     let bookCount = 0;
     if (shelf.type === "default" && shelf.status) {
-      const { count, error: countError } = await supabase
+      const { count } = await supabase
         .from("user_books")
-        .select("*", { count: "exact", head: true })
+        .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("status", shelf.status);
-
-      if (!countError) {
-        bookCount = count ?? 0;
-      }
+      bookCount = count ?? 0;
     } else if (shelf.type === "custom") {
-      // For custom shelves, we'll need to implement shelf_books relationship
-      // For now, return 0 - this can be extended when shelf_books table is added
-      bookCount = 0;
+      const { count } = await supabase
+        .from("shelf_books")
+        .select("id", { count: "exact", head: true })
+        .eq("shelf_id", shelf.id);
+      bookCount = count ?? 0;
     }
 
     return {
       success: true,
-      shelf: {
-        ...shelf,
-        book_count: bookCount,
-      },
+      shelf: { ...shelf, book_count: bookCount },
     };
   } catch (error) {
     console.error("Get shelf by ID error:", error);
@@ -340,33 +309,30 @@ export async function getShelfById(
   }
 }
 
+export interface ShelfBookData {
+  id: string;
+  title: string;
+  author: string;
+  cover: string;
+  totalPages: number;
+  pagesRead: number;
+  rating?: number | null;
+  status?: ReadingStatus;
+  date_added?: string;
+  dateFinished?: string | null;
+}
+
 /**
  * Get books for a shelf by ID or slug
- * For default shelves, uses status; for custom shelves, would use shelf_books table
+ * Optimized with parallel queries and minimal data fetching
  */
 export async function getShelfBooks(
   shelfIdOrSlug: string
 ): Promise<
-  | {
-      success: true;
-      books: Array<{
-        id: string;
-        title: string;
-        author: string;
-        cover: string;
-        totalPages: number;
-        pagesRead: number;
-        rating?: number | null;
-        status?: ReadingStatus;
-        date_added?: string;
-        dateFinished?: string | null;
-      }>;
-    }
-  | { success: false; error: string }
+  { success: true; books: ShelfBookData[] } | { success: false; error: string }
 > {
   try {
-    const cookieStore = cookies();
-    const supabase = await createClient(cookieStore);
+    const supabase = await createClient(cookies());
 
     const {
       data: { user },
@@ -377,67 +343,52 @@ export async function getShelfBooks(
       return { success: false, error: "You must be logged in" };
     }
 
-    // Get shelf to determine type (support both ID and slug)
-    let shelfQuery = supabase
-      .from("shelves")
-      .select("*")
-      .eq("user_id", user.id);
-
-    if (isUUID(shelfIdOrSlug)) {
-      shelfQuery = shelfQuery.eq("id", shelfIdOrSlug);
-    } else {
-      // It's a slug, look up by name
-      const { data: allShelves } = await supabase
-        .from("shelves")
-        .select("*")
-        .eq("user_id", user.id);
-
-      if (!allShelves) {
-        return { success: false, error: "Shelf not found" };
-      }
-
-      const matchingShelf = allShelves.find((s) => {
-        const shelfSlug = s.name
-          .toLowerCase()
-          .trim()
-          .replace(/[^\w\s-]/g, "")
-          .replace(/[\s_-]+/g, "-")
-          .replace(/^-+|-+$/g, "");
-        return shelfSlug === shelfIdOrSlug.toLowerCase();
-      });
-
-      if (!matchingShelf) {
-        return { success: false, error: "Shelf not found" };
-      }
-
-      shelfQuery = supabase
-        .from("shelves")
-        .select("*")
-        .eq("id", matchingShelf.id)
-        .eq("user_id", user.id);
+    // Find shelf (optimized)
+    const shelfRef = await findShelfByIdOrSlug(
+      supabase,
+      user.id,
+      shelfIdOrSlug
+    );
+    if (!shelfRef) {
+      return { success: false, error: "Shelf not found" };
     }
 
-    const { data: shelf, error: shelfError } = await shelfQuery.single();
+    // Get shelf type and status
+    const { data: shelf, error: shelfError } = await supabase
+      .from("shelves")
+      .select("id, type, status")
+      .eq("id", shelfRef.id)
+      .single();
 
     if (shelfError || !shelf) {
       return { success: false, error: "Shelf not found" };
     }
 
-    let userBooks;
-    let userBooksError;
+    // Fetch user_books based on shelf type
+    let userBooks: Array<{
+      id: string;
+      book_id: string;
+      rating: number | null;
+      status: string;
+      date_added: string;
+      date_finished: string | null;
+    }> | null = null;
+    let sortOrderMap: Map<string, number> | null = null;
 
     if (shelf.type === "default" && shelf.status) {
-      // For default shelves, filter by status
-      const result = await supabase
+      const { data, error } = await supabase
         .from("user_books")
-        .select("*")
+        .select("id, book_id, rating, status, date_added, date_finished")
         .eq("user_id", user.id)
         .eq("status", shelf.status);
-      
-      userBooks = result.data;
-      userBooksError = result.error;
+
+      if (error) {
+        console.error("Error fetching user books:", error);
+        return { success: false, error: "Failed to fetch books" };
+      }
+      userBooks = data;
     } else if (shelf.type === "custom") {
-      // For custom shelves, join with shelf_books table
+      // Fetch shelf_books first
       const { data: shelfBooks, error: shelfBooksError } = await supabase
         .from("shelf_books")
         .select("user_book_id, sort_order")
@@ -449,51 +400,44 @@ export async function getShelfBooks(
         return { success: false, error: "Failed to fetch books" };
       }
 
-      if (!shelfBooks || shelfBooks.length === 0) {
+      if (!shelfBooks?.length) {
         return { success: true, books: [] };
       }
 
+      sortOrderMap = new Map(
+        shelfBooks.map((sb) => [sb.user_book_id, sb.sort_order])
+      );
       const userBookIds = shelfBooks.map((sb) => sb.user_book_id);
 
-      // Fetch the actual user_books
-      const result = await supabase
+      const { data, error } = await supabase
         .from("user_books")
-        .select("*")
+        .select("id, book_id, rating, status, date_added, date_finished")
         .eq("user_id", user.id)
         .in("id", userBookIds);
 
-      userBooks = result.data;
-      userBooksError = result.error;
-
-      // Sort userBooks according to shelf_books sort_order
-      if (userBooks) {
-        const sortOrderMap = new Map(
-          shelfBooks.map((sb) => [sb.user_book_id, sb.sort_order])
-        );
-        userBooks.sort((a, b) => {
-          const orderA = sortOrderMap.get(a.id) ?? 0;
-          const orderB = sortOrderMap.get(b.id) ?? 0;
-          return orderA - orderB;
-        });
+      if (error) {
+        console.error("Error fetching user books:", error);
+        return { success: false, error: "Failed to fetch books" };
       }
+      userBooks = data;
     } else {
       return { success: true, books: [] };
     }
 
-    if (userBooksError) {
-      console.error("Error fetching user books:", userBooksError);
-      return { success: false, error: "Failed to fetch books" };
-    }
-
-    if (!userBooks || userBooks.length === 0) {
+    if (!userBooks?.length) {
       return { success: true, books: [] };
     }
 
     const bookIds = userBooks.map((ub) => ub.book_id);
 
-    // Fetch books and reading progress in parallel
+    // Parallel: fetch books and reading progress
     const [booksResult, progressResult] = await Promise.all([
-      supabase.from("books").select("*").in("id", bookIds),
+      supabase
+        .from("books")
+        .select(
+          "id, title, authors, page_count, cover_url_large, cover_url_medium, cover_url_small"
+        )
+        .in("id", bookIds),
       supabase
         .from("reading_progress")
         .select("book_id, pages_read")
@@ -510,11 +454,25 @@ export async function getShelfBooks(
       (progressResult.data || []).map((p) => [p.book_id, p.pages_read])
     );
 
-    const books = (booksResult.data || []).map((book) => {
-      const userBook = userBooks.find((ub) => ub.book_id === book.id);
-      const pagesRead = progressMap.get(book.id) ?? 0;
+    // Create book lookup for efficient mapping
+    const bookLookup = new Map(booksResult.data?.map((b) => [b.id, b]) || []);
 
-      return {
+    // Map userBooks to maintain order (important for custom shelves)
+    let orderedUserBooks = userBooks;
+    if (sortOrderMap) {
+      orderedUserBooks = [...userBooks].sort((a, b) => {
+        const orderA = sortOrderMap!.get(a.id) ?? 0;
+        const orderB = sortOrderMap!.get(b.id) ?? 0;
+        return orderA - orderB;
+      });
+    }
+
+    const books: ShelfBookData[] = [];
+    for (const userBook of orderedUserBooks) {
+      const book = bookLookup.get(userBook.book_id);
+      if (!book) continue;
+
+      books.push({
         id: book.id,
         title: book.title,
         author: book.authors?.join(", ") || "Unknown Author",
@@ -524,17 +482,203 @@ export async function getShelfBooks(
           book.cover_url_small ||
           "",
         totalPages: book.page_count || 0,
-        pagesRead,
-        rating: userBook?.rating ?? null,
-        status: userBook?.status as ReadingStatus | undefined,
-        date_added: userBook?.date_added,
-        dateFinished: userBook?.date_finished ?? null,
-      };
-    });
+        pagesRead: progressMap.get(book.id) ?? 0,
+        rating: userBook.rating,
+        status: userBook.status as ReadingStatus,
+        date_added: userBook.date_added,
+        dateFinished: userBook.date_finished,
+      });
+    }
 
     return { success: true, books };
   } catch (error) {
     console.error("Get shelf books error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
+ * Combined action: Get shelf details AND books in a single call
+ * Major optimization for shelf detail pages
+ */
+export async function getShelfWithBooks(
+  shelfIdOrSlug: string
+): Promise<
+  | { success: true; shelf: ShelfWithCount; books: ShelfBookData[] }
+  | { success: false; error: string }
+> {
+  try {
+    const supabase = await createClient(cookies());
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    // Find shelf (optimized)
+    const shelfRef = await findShelfByIdOrSlug(
+      supabase,
+      user.id,
+      shelfIdOrSlug
+    );
+    if (!shelfRef) {
+      return { success: false, error: "Shelf not found" };
+    }
+
+    // Get full shelf data
+    const { data: shelf, error: shelfError } = await supabase
+      .from("shelves")
+      .select("id, name, type, status, user_id, created_at, updated_at")
+      .eq("id", shelfRef.id)
+      .single();
+
+    if (shelfError || !shelf) {
+      return { success: false, error: "Shelf not found" };
+    }
+
+    // Fetch user_books and sort order based on shelf type
+    let userBooks: Array<{
+      id: string;
+      book_id: string;
+      rating: number | null;
+      status: string;
+      date_added: string;
+      date_finished: string | null;
+    }> | null = null;
+    let sortOrderMap: Map<string, number> | null = null;
+
+    if (shelf.type === "default" && shelf.status) {
+      const { data, error } = await supabase
+        .from("user_books")
+        .select("id, book_id, rating, status, date_added, date_finished")
+        .eq("user_id", user.id)
+        .eq("status", shelf.status);
+
+      if (error) {
+        console.error("Error fetching user books:", error);
+        return { success: false, error: "Failed to fetch books" };
+      }
+      userBooks = data;
+    } else if (shelf.type === "custom") {
+      const { data: shelfBooks, error: shelfBooksError } = await supabase
+        .from("shelf_books")
+        .select("user_book_id, sort_order")
+        .eq("shelf_id", shelf.id)
+        .order("sort_order", { ascending: true });
+
+      if (shelfBooksError) {
+        console.error("Error fetching shelf_books:", shelfBooksError);
+        return { success: false, error: "Failed to fetch books" };
+      }
+
+      if (!shelfBooks?.length) {
+        return {
+          success: true,
+          shelf: { ...shelf, book_count: 0 },
+          books: [],
+        };
+      }
+
+      sortOrderMap = new Map(
+        shelfBooks.map((sb) => [sb.user_book_id, sb.sort_order])
+      );
+      const userBookIds = shelfBooks.map((sb) => sb.user_book_id);
+
+      const { data, error } = await supabase
+        .from("user_books")
+        .select("id, book_id, rating, status, date_added, date_finished")
+        .eq("user_id", user.id)
+        .in("id", userBookIds);
+
+      if (error) {
+        console.error("Error fetching user books:", error);
+        return { success: false, error: "Failed to fetch books" };
+      }
+      userBooks = data;
+    }
+
+    if (!userBooks?.length) {
+      return {
+        success: true,
+        shelf: { ...shelf, book_count: 0 },
+        books: [],
+      };
+    }
+
+    const bookIds = userBooks.map((ub) => ub.book_id);
+
+    // Parallel: fetch books and reading progress
+    const [booksResult, progressResult] = await Promise.all([
+      supabase
+        .from("books")
+        .select(
+          "id, title, authors, page_count, cover_url_large, cover_url_medium, cover_url_small"
+        )
+        .in("id", bookIds),
+      supabase
+        .from("reading_progress")
+        .select("book_id, pages_read")
+        .eq("user_id", user.id)
+        .in("book_id", bookIds),
+    ]);
+
+    if (booksResult.error) {
+      console.error("Error fetching books:", booksResult.error);
+      return { success: false, error: "Failed to fetch books" };
+    }
+
+    const progressMap = new Map(
+      (progressResult.data || []).map((p) => [p.book_id, p.pages_read])
+    );
+    const bookLookup = new Map(booksResult.data?.map((b) => [b.id, b]) || []);
+
+    let orderedUserBooks = userBooks;
+    if (sortOrderMap) {
+      orderedUserBooks = [...userBooks].sort((a, b) => {
+        const orderA = sortOrderMap!.get(a.id) ?? 0;
+        const orderB = sortOrderMap!.get(b.id) ?? 0;
+        return orderA - orderB;
+      });
+    }
+
+    const books: ShelfBookData[] = [];
+    for (const userBook of orderedUserBooks) {
+      const book = bookLookup.get(userBook.book_id);
+      if (!book) continue;
+
+      books.push({
+        id: book.id,
+        title: book.title,
+        author: book.authors?.join(", ") || "Unknown Author",
+        cover:
+          book.cover_url_large ||
+          book.cover_url_medium ||
+          book.cover_url_small ||
+          "",
+        totalPages: book.page_count || 0,
+        pagesRead: progressMap.get(book.id) ?? 0,
+        rating: userBook.rating,
+        status: userBook.status as ReadingStatus,
+        date_added: userBook.date_added,
+        dateFinished: userBook.date_finished,
+      });
+    }
+
+    return {
+      success: true,
+      shelf: { ...shelf, book_count: books.length },
+      books,
+    };
+  } catch (error) {
+    console.error("Get shelf with books error:", error);
     return {
       success: false,
       error:
@@ -558,12 +702,10 @@ export interface AddBookToShelfError {
 export async function getUserBookId(
   bookId: string
 ): Promise<
-  | { success: true; userBookId: string }
-  | { success: false; error: string }
+  { success: true; userBookId: string } | { success: false; error: string }
 > {
   try {
-    const cookieStore = cookies();
-    const supabase = await createClient(cookieStore);
+    const supabase = await createClient(cookies());
 
     const {
       data: { user },
@@ -598,19 +740,15 @@ export async function getUserBookId(
 
 /**
  * Add a book to a custom shelf
- * @param shelfId - The shelf ID
- * @param userBookId - The user_book ID
- * @returns Success or error result
+ * Optimized with parallel verification queries
  */
 export async function addBookToShelf(
   shelfId: string,
   userBookId: string
 ): Promise<AddBookToShelfResult | AddBookToShelfError> {
   try {
-    const cookieStore = cookies();
-    const supabase = await createClient(cookieStore);
+    const supabase = await createClient(cookies());
 
-    // Verify authentication
     const {
       data: { user },
       error: authError,
@@ -620,85 +758,66 @@ export async function addBookToShelf(
       return { success: false, error: "You must be logged in" };
     }
 
-    // Verify shelf belongs to user
-    const { data: shelf, error: shelfError } = await supabase
-      .from("shelves")
-      .select("id, name, user_id")
-      .eq("id", shelfId)
-      .eq("user_id", user.id)
-      .single();
+    // Parallel: verify shelf, user_book, and get sort_order
+    const [shelfResult, userBookResult, sortOrderResult] = await Promise.all([
+      supabase
+        .from("shelves")
+        .select("id, name")
+        .eq("id", shelfId)
+        .eq("user_id", user.id)
+        .single(),
+      supabase
+        .from("user_books")
+        .select("id")
+        .eq("id", userBookId)
+        .eq("user_id", user.id)
+        .single(),
+      supabase
+        .from("shelf_books")
+        .select("sort_order")
+        .eq("shelf_id", shelfId)
+        .order("sort_order", { ascending: false })
+        .limit(1),
+    ]);
 
-    if (shelfError || !shelf) {
+    if (shelfResult.error || !shelfResult.data) {
       return { success: false, error: "Shelf not found or access denied" };
     }
 
-    // Verify user_book belongs to user
-    const { data: userBook, error: userBookError } = await supabase
-      .from("user_books")
-      .select("id, user_id")
-      .eq("id", userBookId)
-      .eq("user_id", user.id)
-      .single();
-
-    if (userBookError || !userBook) {
-      return {
-        success: false,
-        error: "Book not found or access denied",
-      };
+    if (userBookResult.error || !userBookResult.data) {
+      return { success: false, error: "Book not found or access denied" };
     }
 
-    // Get the highest current sort_order for this shelf
-    const { data: existingBooks, error: sortOrderError } = await supabase
-      .from("shelf_books")
-      .select("sort_order")
-      .eq("shelf_id", shelfId)
-      .order("sort_order", { ascending: false })
-      .limit(1);
-
-    if (sortOrderError) {
-      console.error("Error fetching sort_order:", sortOrderError);
+    if (sortOrderResult.error) {
+      console.error("Error fetching sort_order:", sortOrderResult.error);
       return { success: false, error: "Failed to fetch shelf order" };
     }
 
-    // Calculate new sort_order (highest + 1, or 0 if shelf is empty)
     const newSortOrder =
-      existingBooks && existingBooks.length > 0
-        ? (existingBooks[0].sort_order ?? 0) + 1
+      sortOrderResult.data?.length > 0
+        ? (sortOrderResult.data[0].sort_order ?? 0) + 1
         : 0;
 
-    // Insert new row into shelf_books
-    const { error: insertError } = await supabase
-      .from("shelf_books")
-      .insert({
-        shelf_id: shelfId,
-        user_book_id: userBookId,
-        sort_order: newSortOrder,
-      });
+    const { error: insertError } = await supabase.from("shelf_books").insert({
+      shelf_id: shelfId,
+      user_book_id: userBookId,
+      sort_order: newSortOrder,
+    });
 
     if (insertError) {
-      // Handle unique constraint error gracefully
       if (
         insertError.code === "23505" ||
         insertError.message.includes("unique") ||
         insertError.message.includes("duplicate")
       ) {
-        return {
-          success: false,
-          error: "This book is already in this shelf",
-        };
+        return { success: false, error: "This book is already in this shelf" };
       }
-
       console.error("Error adding book to shelf:", insertError);
-      return {
-        success: false,
-        error: "Failed to add book to shelf",
-      };
+      return { success: false, error: "Failed to add book to shelf" };
     }
 
-    // Revalidate paths
-    revalidatePath("/", "layout"); // Dashboard
-    const shelfSlug = slugify(shelf.name);
-    revalidatePath(`/shelves/${shelfSlug}`); // Specific shelf page
+    revalidatePath("/", "layout");
+    revalidatePath(`/shelves/${slugify(shelfResult.data.name)}`);
 
     return { success: true };
   } catch (error) {

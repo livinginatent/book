@@ -10,6 +10,7 @@ import { createCustomShelf } from "@/app/actions/shelf-actions";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import { Input } from "@/components/ui/input";
+import { useShelfLoading } from "@/hooks/use-shelf-loading";
 import { cn, slugify } from "@/lib/utils";
 
 interface PrivateShelvesProps {
@@ -28,6 +29,8 @@ export function PrivateShelves({
   totalCustomShelves,
   initialShelves,
 }: PrivateShelvesProps) {
+  const { withLoading } = useShelfLoading();
+
   // Initialize from server data if available
   const [defaultShelves, setDefaultShelves] = useState<ShelfData[]>(
     () => initialShelves?.default || []
@@ -102,7 +105,10 @@ export function PrivateShelves({
     if (!newShelfName.trim()) return;
 
     startTransition(async () => {
-      const result = await createCustomShelf(newShelfName);
+      const result = await withLoading(
+        () => createCustomShelf(newShelfName),
+        "Creating shelf..."
+      );
       if (result.success) {
         setCustomShelves((prev) => [
           ...prev,

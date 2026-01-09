@@ -13,6 +13,7 @@ import {
   X,
   BookOpen,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -33,7 +34,7 @@ import {
 import { searchBooks } from "@/app/actions/books";
 import { updateBookReview } from "@/app/actions/reviews";
 import {
-  getShelfById,
+  getShelfWithBooks,
   getShelfBooks,
   addBookToShelf,
   getUserBookId,
@@ -48,6 +49,7 @@ import type {
 } from "@/components/ui/book/book-progress-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useShelfLoading } from "@/hooks/use-shelf-loading";
 import type { Book, ReadingStatus } from "@/types/database.types";
 
 interface ShelfBook {
@@ -74,10 +76,24 @@ type SortOption =
 
 type ViewMode = "grid" | "list";
 
+// Helper function to format status labels
+function formatStatusLabel(status: ReadingStatus): string {
+  const statusMap: Record<ReadingStatus, string> = {
+    want_to_read: "Want to Read",
+    currently_reading: "Currently Reading",
+    up_next: "Up Next",
+    dnf: "Did Not Finish",
+    paused: "Paused",
+    finished: "Finished",
+  };
+  return statusMap[status] || status;
+}
+
 export default function ShelfDetailPage() {
   const params = useParams();
   const router = useRouter();
   const shelfId = params.id as string;
+  const { withLoading } = useShelfLoading();
 
   const [shelf, setShelf] = useState<{
     id: string;
@@ -103,32 +119,23 @@ export default function ShelfDetailPage() {
   >({});
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch shelf and books
+  // Fetch shelf and books - single optimized call
   useEffect(() => {
     let isMounted = true;
 
     async function fetchShelfData() {
       setLoading(true);
-      const [shelfResult, booksResult] = await Promise.all([
-        getShelfById(shelfId),
-        getShelfBooks(shelfId),
-      ]);
+      const result = await getShelfWithBooks(shelfId);
 
       if (!isMounted) return;
 
-      if (shelfResult.success) {
-        setShelf(shelfResult.shelf);
+      if (result.success) {
+        setShelf(result.shelf);
+        setBooks(result.books);
       } else {
-        console.error("Failed to load shelf:", shelfResult.error);
+        console.error("Failed to load shelf:", result.error);
         router.push("/");
         return;
-      }
-
-      if (booksResult.success) {
-        setBooks(booksResult.books);
-      } else {
-        console.error("Failed to load books:", booksResult.error);
-        setBooks([]);
       }
 
       setLoading(false);
@@ -308,22 +315,25 @@ export default function ShelfDetailPage() {
 
   const handleRatingUpdate = useCallback(
     async (bookId: string, rating: number) => {
+      // Optimistic update
       setBooks((prev) =>
         prev.map((book) => (book.id === bookId ? { ...book, rating } : book))
       );
 
-      const result = await updateBookReview(bookId, rating, {});
+      const result = await withLoading(
+        () => updateBookReview(bookId, rating, {}),
+        "Saving rating..."
+      );
 
       if (!result.success) {
         console.error("Failed to update rating:", result.error);
-        // Revert by refetching
         const booksResult = await getShelfBooks(shelfId);
         if (booksResult.success) {
           setBooks(booksResult.books);
         }
       }
     },
-    [shelfId]
+    [shelfId, withLoading]
   );
 
   // Handle adding book to shelf from search
@@ -333,37 +343,35 @@ export default function ShelfDetailPage() {
         return false;
       }
 
-      // Get the user_book_id using server action
-      const userBookIdResult = await getUserBookId(bookId);
+      return withLoading(async () => {
+        const userBookIdResult = await getUserBookId(bookId);
 
-      if (!userBookIdResult.success) {
-        console.error("Failed to get user book ID:", userBookIdResult.error);
-        return false;
-      }
-
-      // Add to shelf
-      const shelfResult = await addBookToShelf(
-        shelf.id,
-        userBookIdResult.userBookId
-      );
-
-      if (shelfResult.success) {
-        // Refresh shelf books
-        const booksResult = await getShelfBooks(shelfId);
-        if (booksResult.success) {
-          setBooks(booksResult.books);
+        if (!userBookIdResult.success) {
+          console.error("Failed to get user book ID:", userBookIdResult.error);
+          return false;
         }
-        return true;
-      } else {
-        // If error is about book already in shelf, that's okay
+
+        const shelfResult = await addBookToShelf(
+          shelf.id,
+          userBookIdResult.userBookId
+        );
+
+        if (shelfResult.success) {
+          const booksResult = await getShelfBooks(shelfId);
+          if (booksResult.success) {
+            setBooks(booksResult.books);
+          }
+          return true;
+        }
+
         if (shelfResult.error?.includes("already in this shelf")) {
           return true;
         }
         console.error("Failed to add book to shelf:", shelfResult.error);
         return false;
-      }
+      }, "Adding to shelf...");
     },
-    [shelf, shelfId]
+    [shelf, shelfId, withLoading]
   );
 
   const handleSearchBookAction = useCallback(
@@ -396,13 +404,27 @@ export default function ShelfDetailPage() {
   );
 
   const handleSearchStatusChange = useCallback(
-    (bookId: string, newStatus: ReadingStatus) => {
+    async (bookId: string, newStatus: ReadingStatus) => {
       setUserBookStatuses((prev) => ({
         ...prev,
         [bookId]: newStatus,
       }));
+
+      // For custom shelves, also add the book to the shelf
+      // This handles cases where BookSearchResultCard doesn't call onAction
+      // (e.g., "finished", "paused", "dnf" statuses)
+      if (shelf?.type === "custom") {
+        const addedToShelf = await handleAddBookToShelfOnly(bookId);
+
+        if (addedToShelf) {
+          // Clear search after successfully adding to shelf
+          setSearchQuery("");
+          setSearchResults([]);
+          setHasSearched(false);
+        }
+      }
     },
-    []
+    [shelf, handleAddBookToShelfOnly]
   );
 
   // Close menu when clicking outside
@@ -482,9 +504,9 @@ export default function ShelfDetailPage() {
       {/* Toolbar */}
       <div className="sticky top-[120px] z-40 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex flex-col gap-3">
             {/* Search */}
-            <div className="flex-1">
+            <div className="w-full">
               <Input
                 type="text"
                 placeholder="Search for books to add..."
@@ -516,67 +538,72 @@ export default function ShelfDetailPage() {
               />
             </div>
 
-            {/* Sort Dropdown */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                Sort:
-              </span>
-              <div className="flex gap-1 bg-muted rounded-lg p-1">
-                {[
-                  { value: "newest", label: "Newest" },
-                  { value: "oldest", label: "Oldest" },
-                  { value: "title", label: "Title" },
-                  { value: "progress", label: "Progress" },
-                  { value: "shortest", label: "Shortest" },
-                ].map((option) => {
-                  const isActive = sortBy === option.value;
-                  return (
-                    <Button
-                      key={option.value}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSortBy(option.value as SortOption)}
-                      className={`rounded-lg text-xs ${
-                        isActive
-                          ? "bg-background text-foreground shadow-sm font-medium"
-                          : ""
-                      }`}
-                    >
-                      {option.label}
-                    </Button>
-                  );
-                })}
+            {/* Sort and View Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              {/* Sort Dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground whitespace-nowrap hidden sm:inline">
+                  Sort:
+                </span>
+                <div className="bg-muted rounded-lg p-1 flex-1 sm:flex-initial">
+                  <div className="grid grid-cols-3 sm:flex gap-1">
+                    {[
+                      { value: "newest", label: "Newest" },
+                      { value: "oldest", label: "Oldest" },
+                      { value: "title", label: "Title" },
+                      { value: "progress", label: "Progress" },
+                      { value: "shortest", label: "Shortest" },
+                    ].map((option) => {
+                      const isActive = sortBy === option.value;
+                      return (
+                        <Button
+                          key={option.value}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSortBy(option.value as SortOption)}
+                          className={`rounded-lg text-xs whitespace-nowrap ${
+                            isActive
+                              ? "bg-background text-foreground shadow-sm font-medium"
+                              : ""
+                          }`}
+                        >
+                          {option.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* View Toggle */}
-            <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setViewMode("grid")}
-                className={`rounded-lg ${
-                  viewMode === "grid"
-                    ? "bg-background text-foreground shadow-sm"
-                    : ""
-                }`}
-                aria-label="Grid view"
-              >
-                <Grid3x3 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setViewMode("list")}
-                className={`rounded-lg ${
-                  viewMode === "list"
-                    ? "bg-background text-foreground shadow-sm"
-                    : ""
-                }`}
-                aria-label="List view"
-              >
-                <List className="w-4 h-4" />
-              </Button>
+              {/* View Toggle */}
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-1 self-start sm:self-auto">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode("grid")}
+                  className={`rounded-lg ${
+                    viewMode === "grid"
+                      ? "bg-background text-foreground shadow-sm"
+                      : ""
+                  }`}
+                  aria-label="Grid view"
+                >
+                  <Grid3x3 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode("list")}
+                  className={`rounded-lg ${
+                    viewMode === "list"
+                      ? "bg-background text-foreground shadow-sm"
+                      : ""
+                  }`}
+                  aria-label="List view"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -688,9 +715,11 @@ export default function ShelfDetailPage() {
                     >
                       {/* Book Cover */}
                       <div className="relative w-20 h-30 flex-shrink-0 rounded-lg overflow-hidden bg-muted">
-                        <img
+                        <Image
                           src={book.cover || "/placeholder.svg"}
                           alt={book.title}
+                          width={80}
+                          height={120}
                           className="w-full h-full object-cover"
                         />
                         {isFinished && book.rating && (
@@ -759,6 +788,13 @@ export default function ShelfDetailPage() {
                               {book.rating}
                             </span>
                           </div>
+                        )}
+
+                        {/* Status Badge */}
+                        {book.status && (
+                          <Badge variant="secondary" className="text-xs">
+                            {formatStatusLabel(book.status)}
+                          </Badge>
                         )}
                       </div>
 

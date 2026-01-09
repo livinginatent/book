@@ -5,17 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { useAuth } from "@/components/providers/auth-provider";
 import { Logo } from "@/components/layout/logo";
+import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types/database.types";
 
 const navLinks = [
-  { href: "/discover", label: "Discover" },
-  { href: "/community", label: "Community" },
-  { href: "/challenges", label: "Challenges" },
+  { href: "/coming-soon", label: "Discover" },
+  { href: "/coming-soon", label: "Community" },
+  { href: "/coming-soon", label: "Challenges" },
 ];
 
 interface NavbarProps {
@@ -60,7 +60,7 @@ export function Navbar({ initialAuth }: NavbarProps) {
           <nav className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
               <Link
-                key={link.href}
+                key={link.label}
                 href={link.href}
                 className="px-4 py-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-secondary transition-colors"
               >
@@ -138,7 +138,7 @@ export function Navbar({ initialAuth }: NavbarProps) {
           <nav className="flex flex-col gap-1">
             {navLinks.map((link) => (
               <Link
-                key={link.href}
+                key={link.label}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
                 className="px-4 py-3 text-muted-foreground hover:text-foreground rounded-lg hover:bg-secondary transition-colors"

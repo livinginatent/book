@@ -9,12 +9,11 @@ const footerLinks = {
   product: [
     { href: "/features", label: "Features" },
     { href: "/pricing", label: "Pricing" },
-    { href: "/mobile", label: "Mobile App" },
   ],
   community: [
-    { href: "/discover", label: "Discover Books" },
-    { href: "/challenges", label: "Reading Challenges" },
-    { href: "/book-clubs", label: "Book Clubs" },
+    { href: "/coming-soon", label: "Discover Books" },
+    { href: "/coming-soon", label: "Reading Challenges" },
+    { href: "/coming-soon", label: "Book Clubs" },
   ],
   company: [
     { href: "/about", label: "About Us" },
@@ -44,7 +43,7 @@ export function Footer() {
             <h4 className="font-semibold text-foreground mb-4">Product</h4>
             <ul className="space-y-2">
               {footerLinks.product.map((link) => (
-                <li key={link.href}>
+                <li key={link.label}>
                   <Link
                     href={link.href}
                     className="text-muted-foreground hover:text-foreground text-sm transition-colors"
@@ -60,7 +59,7 @@ export function Footer() {
             <h4 className="font-semibold text-foreground mb-4">Community</h4>
             <ul className="space-y-2">
               {footerLinks.community.map((link) => (
-                <li key={link.href}>
+                <li key={link.label}>
                   <Link
                     href={link.href}
                     className="text-muted-foreground hover:text-foreground text-sm transition-colors"
@@ -76,7 +75,7 @@ export function Footer() {
             <h4 className="font-semibold text-foreground mb-4">Company</h4>
             <ul className="space-y-2">
               {footerLinks.company.map((link) => (
-                <li key={link.href}>
+                <li key={link.label}>
                   <Link
                     href={link.href}
                     className="text-muted-foreground hover:text-foreground text-sm transition-colors"
