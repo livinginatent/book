@@ -378,6 +378,38 @@ export interface Database {
           updated_at?: string;
         };
       };
+      recommendation_cache: {
+        Row: {
+          id: string;
+          user_id: string;
+          tier: SubscriptionTier;
+          recommendations: Json;
+          generated_at: string;
+          expires_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          tier: SubscriptionTier;
+          recommendations: Json;
+          generated_at?: string;
+          expires_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          tier?: SubscriptionTier;
+          recommendations?: Json;
+          generated_at?: string;
+          expires_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: object;
     Functions: object;
@@ -399,6 +431,13 @@ export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 export type Book = Database["public"]["Tables"]["books"]["Row"];
 export type BookInsert = Database["public"]["Tables"]["books"]["Insert"];
 export type BookUpdate = Database["public"]["Tables"]["books"]["Update"];
+
+export type RecommendationCache =
+  Database["public"]["Tables"]["recommendation_cache"]["Row"];
+export type RecommendationCacheInsert =
+  Database["public"]["Tables"]["recommendation_cache"]["Insert"];
+export type RecommendationCacheUpdate =
+  Database["public"]["Tables"]["recommendation_cache"]["Update"];
 
 export type ReadingProgress =
   Database["public"]["Tables"]["reading_progress"]["Row"];

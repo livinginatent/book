@@ -44,6 +44,21 @@ function BookSearchComponent({ className }: BookSearchProps) {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
 
+  // Listen for recommendation clicks to populate search
+  useEffect(() => {
+    const handlePopulateSearch = (event: Event) => {
+      const customEvent = event as CustomEvent<{ query: string }>;
+      if (customEvent.detail?.query) {
+        setQuery(customEvent.detail.query);
+      }
+    };
+
+    window.addEventListener("populate-book-search", handlePopulateSearch);
+    return () => {
+      window.removeEventListener("populate-book-search", handlePopulateSearch);
+    };
+  }, []);
+
   // Memoize user ID
   const userId = user?.id;
 
