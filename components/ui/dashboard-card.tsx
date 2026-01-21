@@ -6,7 +6,7 @@ import type React from "react";
 import { cn } from "@/lib/utils";
 
 interface DashboardCardProps {
-  title: string;
+  title: React.ReactNode;
   description?: string;
   icon?: LucideIcon | IconType;
   locked?: boolean;

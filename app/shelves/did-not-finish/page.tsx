@@ -71,6 +71,46 @@ export default function DNFShelfPage() {
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
 
+  // Transform function for books
+  const transformBooks = useCallback((result: Awaited<ReturnType<typeof getDNFBooks>>) => {
+    if (!result.success) return [];
+    return result.books.map((book) => {
+      const reviewAttrs = book.userBook.review_attributes as
+        | {
+            moods?: string[];
+            pacing?: string | null;
+            difficulty?: string | null;
+            diverse_cast?: boolean;
+            character_development?: boolean;
+            plot_driven?: boolean;
+            strong_prose?: boolean;
+            world_building?: boolean;
+            twist_ending?: boolean;
+            multiple_pov?: boolean;
+          }
+        | null;
+      return {
+        id: book.id,
+        title: book.title,
+        author: book.authors?.join(", ") || "Unknown Author",
+        cover:
+          book.cover_url_medium ||
+          book.cover_url_large ||
+          book.cover_url_small ||
+          "",
+        pagesSaved: book.pages_saved,
+        totalPages: book.page_count || 0,
+        rating: book.userBook.rating,
+        reviewAttributes: reviewAttrs || {},
+        notes: book.notes,
+        date_added: book.date_added,
+        updated_at: book.updated_at,
+        days_before_quitting: book.days_before_quitting,
+        status: book.userBook.status,
+      };
+    });
+  }, []);
+
   // Fetch DNF books from the database
   useEffect(() => {
     let isMounted = true;
@@ -82,43 +122,7 @@ export default function DNFShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => {
-          const reviewAttrs = book.userBook.review_attributes as
-            | {
-                moods?: string[];
-                pacing?: string | null;
-                difficulty?: string | null;
-                diverse_cast?: boolean;
-                character_development?: boolean;
-                plot_driven?: boolean;
-                strong_prose?: boolean;
-                world_building?: boolean;
-                twist_ending?: boolean;
-                multiple_pov?: boolean;
-              }
-            | null;
-          return {
-            id: book.id,
-            title: book.title,
-            author: book.authors?.join(", ") || "Unknown Author",
-            cover:
-              book.cover_url_medium ||
-              book.cover_url_large ||
-              book.cover_url_small ||
-              "",
-            pagesSaved: book.pages_saved,
-            totalPages: book.page_count || 0,
-            rating: book.userBook.rating,
-            reviewAttributes: reviewAttrs || {},
-            notes: book.notes,
-            date_added: book.date_added,
-            updated_at: book.updated_at,
-            days_before_quitting: book.days_before_quitting,
-            status: book.userBook.status,
-          };
-        });
-
-        setBooks(transformed);
+        setBooks(transformBooks(result));
       } else {
         console.error("Failed to load DNF books shelf:", result.error);
         setBooks([]);
@@ -133,6 +137,117 @@ export default function DNFShelfPage() {
 
     return () => {
       isMounted = false;
+    };
+  }, [transformBooks]);
+
+  // Listen for book changes from search/other components
+  useEffect(() => {
+    const handleBookAdded = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        action?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { action, book } = customEvent.detail || {};
+      
+      // If book is being added as did-not-finish, add optimistically
+      if (action === "did-not-finish" && book) {
+        const now = new Date().toISOString();
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          pagesSaved: book.page_count || 0,
+          totalPages: book.page_count || 0,
+          rating: null,
+          reviewAttributes: {},
+          notes: null,
+          date_added: now,
+          updated_at: now,
+          days_before_quitting: null,
+          status: "dnf",
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
+      }
+    };
+
+    const handleStatusChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        newStatus?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { bookId, newStatus, book } = customEvent.detail || {};
+      
+      // If changing TO dnf, add optimistically
+      if (newStatus === "dnf" && book) {
+        const now = new Date().toISOString();
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          pagesSaved: book.page_count || 0,
+          totalPages: book.page_count || 0,
+          rating: null,
+          reviewAttributes: {},
+          notes: null,
+          date_added: now,
+          updated_at: now,
+          days_before_quitting: null,
+          status: "dnf",
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
+      } else if (bookId && newStatus && newStatus !== "dnf") {
+        // If changing FROM dnf, remove optimistically
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    // Handle error events - remove optimistically added books on failure
+    const handleAddFailed = (e: Event) => {
+      const customEvent = e as CustomEvent<{ bookId?: string; action?: string }>;
+      const { bookId, action } = customEvent.detail || {};
+      if (action === "did-not-finish" && bookId) {
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    window.addEventListener("book-added", handleBookAdded);
+    window.addEventListener("book-status-changed", handleStatusChanged);
+    window.addEventListener("book-add-failed", handleAddFailed);
+
+    return () => {
+      window.removeEventListener("book-added", handleBookAdded);
+      window.removeEventListener("book-status-changed", handleStatusChanged);
+      window.removeEventListener("book-add-failed", handleAddFailed);
     };
   }, []);
 

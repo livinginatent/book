@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { TrendingUp, Clock, BookOpen, Target } from "lucide-react";
+import { TrendingUp,  BookOpen} from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
+import { GiTargetArrows } from "react-icons/gi";
 import {
   ChartContainer,
   ChartTooltip,
@@ -51,7 +52,7 @@ export function SessionAnalytics({
       <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Target className="w-5 h-5 text-primary" />
+            <GiTargetArrows className="w-5 h-5 text-primary" />
             <span className="font-semibold text-foreground">
               Today&apos;s Goal
             </span>

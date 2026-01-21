@@ -3,6 +3,7 @@
 import { Sparkles, Star, Lock, Loader2, BookOpen, Zap } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { FaHatWizard } from "react-icons/fa";
 
 import {
   getSmartRecommendations,
@@ -11,13 +12,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
-
 interface BookRecommendationsProps {
   locked?: boolean;
+  isPriority?: boolean;
 }
 
 export function BookRecommendations({
   locked = false,
+  isPriority: _isPriority = false,
 }: BookRecommendationsProps) {
   const [recommendations, setRecommendations] = useState<BookRecommendation[]>(
     []
@@ -132,7 +134,7 @@ export function BookRecommendations({
           ? "Curated picks matching your reading DNA"
           : "Personalized suggestions based on your reading history"
       }
-      icon={Sparkles}
+      icon={FaHatWizard}
       locked={locked}
       action={
         isPremium ? (
@@ -150,7 +152,7 @@ export function BookRecommendations({
             onClick={() => handleRecommendationClick(book.title)}
             className="group flex items-start gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
           >
-            <div className="w-10 h-14 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center shrink-0">
+            <div className="w-10 h-14 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <span className="text-xs font-bold text-primary">
                 {index + 1}
               </span>
@@ -176,9 +178,9 @@ export function BookRecommendations({
               )}
             </div>
             <div className="flex items-center gap-1 text-primary shrink-0">
-              <Star className="w-3 h-3 fill-current" />
+             
               <span className="text-xs font-medium">
-                {book.matchPercentage}%
+                {book.matchPercentage}% match
               </span>
             </div>
           </div>

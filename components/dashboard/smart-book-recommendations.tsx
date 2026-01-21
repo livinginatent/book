@@ -1,6 +1,6 @@
 "use client";
 
-import { Aperture, Loader2, Sparkles, Star, RefreshCw } from "lucide-react";
+import { Loader2, Sparkles, Star, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -8,9 +8,9 @@ import {
   clearRecommendationCache,
   type BookRecommendation,
 } from "@/app/actions/recommendations";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DashboardCard } from "@/components/ui/dashboard-card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface SmartBookRecommendationsProps {
@@ -19,7 +19,7 @@ interface SmartBookRecommendationsProps {
 }
 
 export function SmartBookRecommendations({
-  isPriority = false,
+  isPriority: _isPriority = false,
   locked = false,
 }: SmartBookRecommendationsProps) {
   const [recommendations, setRecommendations] = useState<BookRecommendation[]>(
@@ -110,14 +110,7 @@ export function SmartBookRecommendations({
 
   return (
     <DashboardCard
-      title={
-        <div className="flex items-center gap-2">
-          <span>Smart Recommendations</span>
-          <Badge variant={tier === "bibliophile" ? "default" : "secondary"} className="text-xs">
-            {tier === "bibliophile" ? "Premium" : "Free"}
-          </Badge>
-        </div>
-      }
+      title="Smart Recommendations"
       description="AI-powered suggestions based on your reading DNA"
       icon={Sparkles}
       locked={locked}
@@ -134,6 +127,14 @@ export function SmartBookRecommendations({
       }
     >
       <div className="space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <Badge
+            variant={tier === "bibliophile" ? "default" : "secondary"}
+            className="text-xs"
+          >
+            {tier === "bibliophile" ? "Premium" : "Free"}
+          </Badge>
+        </div>
         {displayedRecommendations.map((book, index) => (
           <div
             key={`${book.title}-${index}`}

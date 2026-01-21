@@ -1,5 +1,6 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 import type { BookAction } from "@/components/ui/book/book-actions";
@@ -261,6 +262,113 @@ export async function hasReadingSessions(
 }
 
 /**
+ * Internal helper: Finish a book by bookId (skips redundant userBook lookup)
+ * Used by updateBookStatus to avoid extra DB round-trip
+ */
+async function finishBookByBookId(
+  supabase: SupabaseClient,
+  userId: string,
+  bookId: string,
+  finishDate: string,
+  dateStarted?: string | null,
+  createSession: boolean = true
+): Promise<BookActionResult | BookActionError> {
+  try {
+    // Fetch book page_count and reading sessions in PARALLEL
+    const [bookResult, sessionsResult] = await Promise.all([
+      supabase
+        .from("books")
+        .select("page_count")
+        .eq("id", bookId)
+        .single(),
+      // Only fetch sessions if we need to create one
+      createSession
+        ? supabase
+            .from("reading_sessions")
+            .select("pages_read")
+            .eq("user_id", userId)
+            .eq("book_id", bookId)
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    if (bookResult.error || !bookResult.data) {
+      console.error("Error fetching book:", bookResult.error);
+      return { success: false, error: "Book not found" };
+    }
+
+    const pageCount = bookResult.data.page_count || 0;
+
+    // Calculate remaining pages only if createSession is true
+    let remainingPages = 0;
+    if (createSession && sessionsResult.data) {
+      const totalPagesRead = sessionsResult.data.reduce(
+        (sum, session) => sum + (session.pages_read || 0),
+        0
+      );
+      remainingPages = pageCount - totalPagesRead;
+    }
+
+    // Normalize finishDate to YYYY-MM-DD format
+    const finishDateObj = new Date(finishDate);
+    const normalizedFinishDate = finishDateObj.toISOString().split("T")[0];
+
+    // Update user_books status to finished
+    const updateData: Record<string, unknown> = {
+      status: "finished",
+      date_finished: finishDate,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (dateStarted) {
+      updateData.date_started = dateStarted;
+    }
+
+    const { error: updateError } = await supabase
+      .from("user_books")
+      .update(updateData)
+      .eq("user_id", userId)
+      .eq("book_id", bookId);
+
+    if (updateError) {
+      console.error("Error updating user_book:", updateError);
+      return { success: false, error: "Failed to update book status" };
+    }
+
+    // If remaining_pages > 0 and createSession is true, insert a reading session
+    if (remainingPages > 0 && createSession) {
+      // Fire-and-forget: Don't wait for session creation
+      supabase
+        .from("reading_sessions")
+        .insert({
+          user_id: userId,
+          book_id: bookId,
+          pages_read: remainingPages,
+          session_date: normalizedFinishDate,
+          started_at: new Date(finishDate).toISOString(),
+          ended_at: new Date(finishDate).toISOString(),
+        })
+        .then(({ error: sessionError }) => {
+          if (sessionError) {
+            console.error("Error creating reading session:", sessionError);
+          }
+        });
+    }
+
+    return {
+      success: true,
+      message: "Book marked as finished",
+    };
+  } catch (error) {
+    console.error("Finish book error:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "An unexpected error occurred",
+    };
+  }
+}
+
+/**
  * Finish a book with automatic session backfill
  * Calculates remaining pages and creates a reading session if needed
  *
@@ -304,45 +412,45 @@ export async function finishBook(
 
     const bookId = userBook.book_id;
 
-    // Step 2: Get book page_count
-    const { data: book, error: bookError } = await supabase
-      .from("books")
-      .select("page_count")
-      .eq("id", bookId)
-      .single();
+    // Step 2 & 3: Fetch book page_count and reading sessions in PARALLEL
+    const [bookResult, sessionsResult] = await Promise.all([
+      supabase
+        .from("books")
+        .select("page_count")
+        .eq("id", bookId)
+        .single(),
+      // Only fetch sessions if we need to create one
+      createSession
+        ? supabase
+            .from("reading_sessions")
+            .select("pages_read")
+            .eq("user_id", user.id)
+            .eq("book_id", bookId)
+        : Promise.resolve({ data: null, error: null }),
+    ]);
 
-    if (bookError || !book) {
-      console.error("Error fetching book:", bookError);
+    if (bookResult.error || !bookResult.data) {
+      console.error("Error fetching book:", bookResult.error);
       return { success: false, error: "Book not found" };
     }
 
-    const pageCount = book.page_count || 0;
+    const pageCount = bookResult.data.page_count || 0;
 
-    // Step 3: Sum all pages_read from reading_sessions for this book
-    const { data: sessions, error: sessionsError } = await supabase
-      .from("reading_sessions")
-      .select("pages_read")
-      .eq("user_id", user.id)
-      .eq("book_id", bookId);
-
-    if (sessionsError) {
-      console.error("Error fetching reading sessions:", sessionsError);
-      return { success: false, error: "Failed to fetch reading sessions" };
+    // Calculate remaining pages only if createSession is true
+    let remainingPages = 0;
+    if (createSession && sessionsResult.data) {
+      const totalPagesRead = sessionsResult.data.reduce(
+        (sum, session) => sum + (session.pages_read || 0),
+        0
+      );
+      remainingPages = pageCount - totalPagesRead;
     }
 
-    const totalPagesRead = (sessions || []).reduce(
-      (sum, session) => sum + (session.pages_read || 0),
-      0
-    );
-
-    // Step 4: Calculate remaining pages
-    const remainingPages = pageCount - totalPagesRead;
-
-    // Step 5: Normalize finishDate to YYYY-MM-DD format
+    // Normalize finishDate to YYYY-MM-DD format
     const finishDateObj = new Date(finishDate);
     const normalizedFinishDate = finishDateObj.toISOString().split("T")[0];
 
-    // Step 6: Update user_books status to finished
+    // Update user_books status to finished
     const updateData: Record<string, unknown> = {
       status: "finished",
       date_finished: finishDate,
@@ -363,9 +471,10 @@ export async function finishBook(
       return { success: false, error: "Failed to update book status" };
     }
 
-    // Step 7: If remaining_pages > 0 and createSession is true, insert a reading session
+    // If remaining_pages > 0 and createSession is true, insert a reading session
     if (remainingPages > 0 && createSession) {
-      const { error: sessionError } = await supabase
+      // Fire-and-forget: Don't wait for session creation
+      supabase
         .from("reading_sessions")
         .insert({
           user_id: user.id,
@@ -374,16 +483,13 @@ export async function finishBook(
           session_date: normalizedFinishDate,
           started_at: new Date(finishDate).toISOString(),
           ended_at: new Date(finishDate).toISOString(),
+        })
+        .then(({ error: sessionError }) => {
+          if (sessionError) {
+            console.error("Error creating reading session:", sessionError);
+          }
         });
-
-      if (sessionError) {
-        console.error("Error creating reading session:", sessionError);
-        // Log but don't fail - the book was already marked as finished
-        // This is a non-critical operation
-      }
     }
-    // Edge case: If remaining_pages is negative, we don't insert a session
-    // (user logged more pages than the book has - just mark as finished)
 
     return {
       success: true,
@@ -449,26 +555,15 @@ export async function updateBookStatus(
       updateData.date_started = dateStarted || new Date().toISOString();
       updateData.date_finished = null;
     } else if (status === "finished") {
-      // For finished status, look up userBookId first, then call finishBook
-      const { data: userBook, error: userBookError } = await supabase
-        .from("user_books")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("book_id", bookId)
-        .single();
-
-      if (userBookError || !userBook) {
-        console.error("Error fetching user_book:", userBookError);
-        return { success: false, error: "Book not found in your library" };
-      }
-
-      // Use the finishBook function which handles backfill
+      // Use the optimized finishBookByBookId function which handles backfill
       // Default to creating session if not specified (backward compatibility)
       const finishDate = dateFinished || new Date().toISOString();
       const shouldCreateSession =
         createSession !== undefined ? createSession : true;
-      return finishBook(
-        userBook.id,
+      return finishBookByBookId(
+        supabase,
+        user.id,
+        bookId,
         finishDate,
         dateStarted,
         shouldCreateSession

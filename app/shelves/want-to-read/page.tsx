@@ -90,6 +90,43 @@ export default function WantToReadShelfPage() {
   const pathname = usePathname();
   const router = useRouter();
 
+  // Transform function for books
+  const transformBooks = useCallback((result: Awaited<ReturnType<typeof getWantToReadBooks>>) => {
+    if (!result.success) return [];
+    return result.books.map((book) => {
+      const reviewAttrs = book.userBook?.review_attributes as
+        | {
+            moods?: string[];
+            pacing?: string | null;
+            difficulty?: string | null;
+            diverse_cast?: boolean;
+            character_development?: boolean;
+            plot_driven?: boolean;
+            strong_prose?: boolean;
+            world_building?: boolean;
+            twist_ending?: boolean;
+            multiple_pov?: boolean;
+          }
+        | null
+        | undefined;
+      return {
+        id: book.id,
+        title: book.title,
+        author: book.authors?.join(", ") || "Unknown Author",
+        cover:
+          book.cover_url_large ||
+          book.cover_url_medium ||
+          book.cover_url_small ||
+          "",
+        totalPages: book.page_count || 0,
+        rating: book.userBook?.rating,
+        reviewAttributes: reviewAttrs || {},
+        date_added: book.date_added,
+        isPrioritized: book.isPrioritized,
+      };
+    });
+  }, []);
+
   // Fetch want-to-read books from the database
   useEffect(() => {
     let isMounted = true;
@@ -101,40 +138,7 @@ export default function WantToReadShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => {
-          const reviewAttrs = book.userBook?.review_attributes as
-            | {
-                moods?: string[];
-                pacing?: string | null;
-                difficulty?: string | null;
-                diverse_cast?: boolean;
-                character_development?: boolean;
-                plot_driven?: boolean;
-                strong_prose?: boolean;
-                world_building?: boolean;
-                twist_ending?: boolean;
-                multiple_pov?: boolean;
-              }
-            | null
-            | undefined;
-          return {
-            id: book.id,
-            title: book.title,
-            author: book.authors?.join(", ") || "Unknown Author",
-            cover:
-              book.cover_url_large ||
-              book.cover_url_medium ||
-              book.cover_url_small ||
-              "",
-            totalPages: book.page_count || 0,
-            rating: book.userBook?.rating,
-            reviewAttributes: reviewAttrs || {},
-            date_added: book.date_added,
-            isPrioritized: book.isPrioritized,
-          };
-        });
-
-        setBooks(transformed);
+        setBooks(transformBooks(result));
       } else {
         console.error("Failed to load want-to-read shelf:", result.error);
         setBooks([]);
@@ -149,6 +153,107 @@ export default function WantToReadShelfPage() {
 
     return () => {
       isMounted = false;
+    };
+  }, [transformBooks]);
+
+  // Listen for book changes from search/other components
+  useEffect(() => {
+    const handleBookAdded = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        action?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { action, book } = customEvent.detail || {};
+      
+      // If book is being added as want-to-read, add optimistically
+      if (action === "want-to-read" && book) {
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_large || book.cover_url_medium || book.cover_url_small || "",
+          totalPages: book.page_count || 0,
+          rating: null,
+          reviewAttributes: {},
+          date_added: new Date().toISOString(),
+          isPrioritized: false,
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
+      }
+    };
+
+    const handleStatusChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        newStatus?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { bookId, newStatus, book } = customEvent.detail || {};
+      
+      // If changing TO want_to_read, add optimistically
+      if (newStatus === "want_to_read" && book) {
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_large || book.cover_url_medium || book.cover_url_small || "",
+          totalPages: book.page_count || 0,
+          rating: null,
+          reviewAttributes: {},
+          date_added: new Date().toISOString(),
+          isPrioritized: false,
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
+      } else if (bookId && newStatus && newStatus !== "want_to_read") {
+        // If changing FROM want_to_read, remove optimistically
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    // Handle error events - remove optimistically added books on failure
+    const handleAddFailed = (e: Event) => {
+      const customEvent = e as CustomEvent<{ bookId?: string; action?: string }>;
+      const { bookId, action } = customEvent.detail || {};
+      if (action === "want-to-read" && bookId) {
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    window.addEventListener("book-added", handleBookAdded);
+    window.addEventListener("book-status-changed", handleStatusChanged);
+    window.addEventListener("book-add-failed", handleAddFailed);
+
+    return () => {
+      window.removeEventListener("book-added", handleBookAdded);
+      window.removeEventListener("book-status-changed", handleStatusChanged);
+      window.removeEventListener("book-add-failed", handleAddFailed);
     };
   }, []);
 

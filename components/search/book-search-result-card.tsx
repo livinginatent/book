@@ -245,10 +245,10 @@ export function BookSearchResultCard({
             if (result.success) {
               // Notify parent component
               onStatusChange?.(book.id, "finished");
-              // Dispatch events
+              // Dispatch events with book data for optimistic updates
               window.dispatchEvent(
                 new CustomEvent("book-status-changed", {
-                  detail: { bookId: book.id, newStatus: "finished" },
+                  detail: { bookId: book.id, newStatus: "finished", book },
                 })
               );
             } else {
@@ -282,7 +282,7 @@ export function BookSearchResultCard({
               onStatusChange?.(book.id, "finished");
               window.dispatchEvent(
                 new CustomEvent("book-status-changed", {
-                  detail: { bookId: book.id, newStatus: "finished" },
+                  detail: { bookId: book.id, newStatus: "finished", book },
                 })
               );
             } else {
@@ -316,34 +316,37 @@ export function BookSearchResultCard({
 
     // Handle DNF with reason
     if (action === "did-not-finish") {
-      const addResult = await addBookToReadingList(book.id, "did-not-finish");
+      // Notify parent component immediately
+      onStatusChange?.(book.id, "dnf");
+      // IMMEDIATELY dispatch events for optimistic updates (before server call)
+      window.dispatchEvent(
+        new CustomEvent("book-status-changed", {
+          detail: { bookId: book.id, newStatus: "dnf", book },
+        })
+      );
+      window.dispatchEvent(
+        new CustomEvent("book-added", {
+          detail: { bookId: book.id, action: "did-not-finish", book },
+        })
+      );
 
-      if (addResult.success) {
-        // If there's a reason, update the status with notes
-        if (reason !== undefined && reason !== null) {
-          const updateResult = await updateBookStatus(book.id, "dnf", {
-            notes: reason,
-          });
-
-          if (!updateResult.success) {
-            // Revert on error
-            setOptimisticStatus(undefined);
-            return;
+      // Run server calls in background (non-blocking)
+      addBookToReadingList(book.id, "did-not-finish").then(async (addResult) => {
+        if (addResult.success) {
+          // If there's a reason, update the status with notes
+          if (reason !== undefined && reason !== null) {
+            await updateBookStatus(book.id, "dnf", { notes: reason });
           }
+        } else {
+          // Revert on error
+          setOptimisticStatus(undefined);
+          window.dispatchEvent(
+            new CustomEvent("book-add-failed", {
+              detail: { bookId: book.id, action: "did-not-finish" },
+            })
+          );
         }
-
-        // Notify parent component
-        onStatusChange?.(book.id, "dnf");
-        // Dispatch events
-        window.dispatchEvent(
-          new CustomEvent("book-status-changed", {
-            detail: { bookId: book.id, newStatus: "dnf" },
-          })
-        );
-      } else {
-        // Revert on error
-        setOptimisticStatus(undefined);
-      }
+      });
       return;
     }
 
@@ -407,30 +410,38 @@ export function BookSearchResultCard({
     // Notify parent component for optimistic update
     onStatusChange?.(book.id, newStatus);
 
-    const result = await updateBookStatus(book.id, newStatus, dates);
-    if (result.success) {
-      // Dispatch events to refresh UI components
-      window.dispatchEvent(
-        new CustomEvent("book-status-changed", {
-          detail: { bookId: book.id, newStatus },
-        })
-      );
-      // Also dispatch book-added event for currently-reading component
+    // IMMEDIATELY dispatch events for optimistic UI updates (before server call)
+    window.dispatchEvent(
+      new CustomEvent("book-status-changed", {
+        detail: { bookId: book.id, newStatus, book },
+      })
+    );
+    // Also dispatch book-added event for currently-reading component
+    if (newStatus === "currently_reading") {
       window.dispatchEvent(
         new CustomEvent("book-added", {
           detail: {
             bookId: book.id,
-            action:
-              newStatus === "currently_reading"
-                ? "currently-reading"
-                : undefined,
+            action: "currently-reading",
+            book,
           },
         })
       );
-    } else {
-      // Revert optimistic update on error
-      setOptimisticStatus(userBookStatus);
     }
+
+    // Run server call in background (non-blocking)
+    updateBookStatus(book.id, newStatus, dates).then((result) => {
+      if (!result.success) {
+        // Revert optimistic update on error
+        setOptimisticStatus(userBookStatus);
+        // Dispatch event to revert shelf changes
+        window.dispatchEvent(
+          new CustomEvent("book-status-change-failed", {
+            detail: { bookId: book.id, previousStatus: userBookStatus },
+          })
+        );
+      }
+    });
   };
 
   const handleDateConfirm = async () => {

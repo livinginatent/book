@@ -1,8 +1,9 @@
+/* eslint-disable import/order */
 "use client";
 
-import { Target, TrendingUp, AlertTriangle } from "lucide-react";
+import { TrendingUp, AlertTriangle } from "lucide-react";
 import { useState, useEffect, useTransition } from "react";
-
+import { GiTargetArrows } from "react-icons/gi";
 import { getGoalInsights } from "@/app/actions/insights";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import { GoalCard } from "./goal-card";
@@ -186,7 +187,7 @@ export function ReadingGoalsClient({
       {activeGoals.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-2">
-            <Target className="w-5 h-5 text-primary" />
+            <GiTargetArrows className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-foreground">
               Active Goals
             </h2>
@@ -224,7 +225,7 @@ export function ReadingGoalsClient({
       {/* Empty State */}
       {activeGoals.length === 0 && (
         <div className="p-8 rounded-2xl bg-card border border-border text-center">
-          <Target className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <GiTargetArrows className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">
             No active goals. Create a goal to start tracking your reading progress!
           </p>

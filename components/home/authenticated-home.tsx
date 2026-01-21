@@ -151,29 +151,120 @@ export function AuthenticatedHome({ initialData }: AuthenticatedHomeProps) {
   useEffect(() => {
     isMountedRef.current = true;
 
-    const refreshData = async () => {
+    // Handle optimistic book additions - immediately update UI
+    const handleBookAdded = (e: Event) => {
       if (!isMountedRef.current) return;
-
-      // Use lightweight refresh instead of full dashboard refetch
-      const booksResult = await refreshCurrentlyReading();
-
-      if (!isMountedRef.current) return;
-
-      if (booksResult.success && booksResult.books) {
-        setCurrentlyReadingBooks(transformBooks(booksResult.books));
+      
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        action?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { action, book } = customEvent.detail || {};
+      
+      // If book data is included and action is currently-reading, add optimistically
+      if (action === "currently-reading" && book) {
+        const newBook: CurrentlyReadingBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          pagesRead: 0,
+          totalPages: book.page_count || 0,
+          rating: null,
+          dateStarted: new Date().toISOString(),
+        };
+        
+        // Add to beginning of list (most recent first)
+        setCurrentlyReadingBooks((prev) => {
+          // Check if book already exists
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
       }
+      
+      // Background refresh to sync with server (non-blocking)
+      refreshCurrentlyReading().then((booksResult) => {
+        if (isMountedRef.current && booksResult.success && booksResult.books) {
+          setCurrentlyReadingBooks(transformBooks(booksResult.books));
+        }
+      });
 
       // Trigger reading stats refresh via custom event
       window.dispatchEvent(new CustomEvent("refresh-reading-stats"));
     };
 
-    window.addEventListener("book-added", refreshData);
-    window.addEventListener("book-status-changed", refreshData);
+    // Handle status changes - remove from currently reading if applicable
+    const handleStatusChanged = (e: Event) => {
+      if (!isMountedRef.current) return;
+      
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        newStatus?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { bookId, newStatus, book } = customEvent.detail || {};
+      
+      // If changing TO currently_reading, add optimistically
+      if (newStatus === "currently_reading" && book) {
+        const newBook: CurrentlyReadingBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          pagesRead: 0,
+          totalPages: book.page_count || 0,
+          rating: null,
+          dateStarted: new Date().toISOString(),
+        };
+        
+        setCurrentlyReadingBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
+      } else if (bookId && newStatus && newStatus !== "currently_reading") {
+        // If changing FROM currently_reading, remove optimistically
+        setCurrentlyReadingBooks((prev) =>
+          prev.filter((b) => b.id !== bookId)
+        );
+      }
+      
+      // Background refresh to sync with server (non-blocking)
+      refreshCurrentlyReading().then((booksResult) => {
+        if (isMountedRef.current && booksResult.success && booksResult.books) {
+          setCurrentlyReadingBooks(transformBooks(booksResult.books));
+        }
+      });
+
+      // Trigger reading stats refresh via custom event
+      window.dispatchEvent(new CustomEvent("refresh-reading-stats"));
+    };
+
+    window.addEventListener("book-added", handleBookAdded);
+    window.addEventListener("book-status-changed", handleStatusChanged);
 
     return () => {
       isMountedRef.current = false;
-      window.removeEventListener("book-added", refreshData);
-      window.removeEventListener("book-status-changed", refreshData);
+      window.removeEventListener("book-added", handleBookAdded);
+      window.removeEventListener("book-status-changed", handleStatusChanged);
     };
   }, []);
 

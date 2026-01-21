@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Target,
+  
   BookOpen,
   FileText,
   Tags,
@@ -15,6 +15,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { GiTargetArrows } from "react-icons/gi";
 
 import { getReadingStats } from "@/app/actions/reading-stats";
 import { Badge } from "@/components/ui/badge";
@@ -270,7 +271,7 @@ export function GoalSettingWizard({
         <DialogHeader className="border-b border-border p-6 pb-4">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" />
+              <GiTargetArrows className="h-5 w-5 text-primary" />
               Set Reading Goal
             </DialogTitle>
             <Button

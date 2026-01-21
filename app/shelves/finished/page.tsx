@@ -12,7 +12,7 @@ import { ShelfBookGrid } from "@/components/shelves/shelf-book-grid";
 import { ShelfHeader } from "@/components/shelves/shelf-header";
 import { ShelfStats } from "@/components/shelves/shelf-stats";
 import { DashboardCard } from "@/components/ui/dashboard-card";
-import { ReadingStatus } from "@/types";
+import type { ReadingStatus } from "@/types/database.types";
 
 interface ShelfBook {
   id: string;
@@ -65,6 +65,44 @@ export default function ReadShelfPage() {
   const pathname = usePathname();
   const { isPremium } = useProfile();
 
+  // Transform function for books
+  const transformBooks = useCallback((result: Awaited<ReturnType<typeof getFinishedBooks>>) => {
+    if (!result.success) return [];
+    return result.books.map((book) => {
+      const reviewAttrs = book.userBook.review_attributes as
+        | {
+            moods?: string[];
+            pacing?: string | null;
+            difficulty?: string | null;
+            diverse_cast?: boolean;
+            character_development?: boolean;
+            plot_driven?: boolean;
+            strong_prose?: boolean;
+            world_building?: boolean;
+            twist_ending?: boolean;
+            multiple_pov?: boolean;
+          }
+        | null;
+      return {
+        id: book.id,
+        title: book.title,
+        author: book.authors?.join(", ") || "Unknown Author",
+        cover:
+          book.cover_url_medium ||
+          book.cover_url_large ||
+          book.cover_url_small ||
+          "",
+        pagesRead: book.page_count || 0,
+        totalPages: book.page_count || 0,
+        rating: book.userBook.rating,
+        reviewAttributes: reviewAttrs || {},
+        subjects: book.subjects,
+        dateFinished: book.userBook.date_finished,
+        status: book.userBook.status,
+      };
+    });
+  }, []);
+
   // Fetch finished books from the database
   useEffect(() => {
     let isMounted = true;
@@ -77,41 +115,7 @@ export default function ReadShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => {
-          const reviewAttrs = book.userBook.review_attributes as
-            | {
-                moods?: string[];
-                pacing?: string | null;
-                difficulty?: string | null;
-                diverse_cast?: boolean;
-                character_development?: boolean;
-                plot_driven?: boolean;
-                strong_prose?: boolean;
-                world_building?: boolean;
-                twist_ending?: boolean;
-                multiple_pov?: boolean;
-              }
-            | null;
-          return {
-            id: book.id,
-            title: book.title,
-            author: book.authors?.join(", ") || "Unknown Author",
-            cover:
-              book.cover_url_medium ||
-              book.cover_url_large ||
-              book.cover_url_small ||
-              "",
-            pagesRead: book.page_count || 0,
-            totalPages: book.page_count || 0,
-            rating: book.userBook.rating,
-            reviewAttributes: reviewAttrs || {},
-            subjects: book.subjects,
-            dateFinished: book.userBook.date_finished,
-            status: book.userBook.status,
-          };
-        });
-
-        setBooks(transformed);
+        setBooks(transformBooks(result));
       } else {
         console.error("Failed to load finished books shelf:", result.error);
         setBooks([]);
@@ -127,7 +131,71 @@ export default function ReadShelfPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedYear]);
+  }, [selectedYear, transformBooks]);
+
+  // Listen for book changes from search/other components
+  useEffect(() => {
+    const handleStatusChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        newStatus?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+          subjects?: string[];
+        };
+      }>;
+      
+      const { bookId, newStatus, book } = customEvent.detail || {};
+      
+      // If changing TO finished, add optimistically
+      if (newStatus === "finished" && book) {
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          pagesRead: book.page_count || 0,
+          totalPages: book.page_count || 0,
+          rating: null,
+          reviewAttributes: {},
+          subjects: book.subjects || null,
+          dateFinished: new Date().toISOString(),
+          status: "finished",
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
+      } else if (bookId && newStatus && newStatus !== "finished") {
+        // If changing FROM finished, remove optimistically
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    // Handle error events - remove optimistically added books on failure
+    const handleStatusChangeFailed = (e: Event) => {
+      const customEvent = e as CustomEvent<{ bookId?: string; previousStatus?: string }>;
+      const { bookId, previousStatus } = customEvent.detail || {};
+      if (previousStatus !== "finished" && bookId) {
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    window.addEventListener("book-status-changed", handleStatusChanged);
+    window.addEventListener("book-status-change-failed", handleStatusChangeFailed);
+
+    return () => {
+      window.removeEventListener("book-status-changed", handleStatusChanged);
+      window.removeEventListener("book-status-change-failed", handleStatusChangeFailed);
+    };
+  }, []);
 
   // Calculate average rating for the current year's books
   const averageRating = useMemo(() => {

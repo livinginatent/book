@@ -67,6 +67,44 @@ export default function PausedShelfPage() {
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
 
+  // Transform function for books
+  const transformBooks = useCallback((result: Awaited<ReturnType<typeof getPausedBooks>>) => {
+    if (!result.success) return [];
+    return result.books.map((book) => {
+      const reviewAttrs = book.userBook.review_attributes as
+        | {
+            moods?: string[];
+            pacing?: string | null;
+            difficulty?: string | null;
+            diverse_cast?: boolean;
+            character_development?: boolean;
+            plot_driven?: boolean;
+            strong_prose?: boolean;
+            world_building?: boolean;
+            twist_ending?: boolean;
+            multiple_pov?: boolean;
+          }
+        | null;
+      return {
+        id: book.id,
+        title: book.title,
+        author: book.authors?.join(", ") || "Unknown Author",
+        cover:
+          book.cover_url_medium ||
+          book.cover_url_large ||
+          book.cover_url_small ||
+          "",
+        pagesRead: book.pages_read,
+        totalPages: book.page_count || 0,
+        rating: book.userBook.rating,
+        reviewAttributes: reviewAttrs || {},
+        days_since_last_read: book.days_since_last_read,
+        latest_journal_entry: book.latest_journal_entry,
+        status: book.userBook.status,
+      };
+    });
+  }, []);
+
   // Fetch paused books from the database
   useEffect(() => {
     let isMounted = true;
@@ -78,41 +116,7 @@ export default function PausedShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => {
-          const reviewAttrs = book.userBook.review_attributes as
-            | {
-                moods?: string[];
-                pacing?: string | null;
-                difficulty?: string | null;
-                diverse_cast?: boolean;
-                character_development?: boolean;
-                plot_driven?: boolean;
-                strong_prose?: boolean;
-                world_building?: boolean;
-                twist_ending?: boolean;
-                multiple_pov?: boolean;
-              }
-            | null;
-          return {
-            id: book.id,
-            title: book.title,
-            author: book.authors?.join(", ") || "Unknown Author",
-            cover:
-              book.cover_url_medium ||
-              book.cover_url_large ||
-              book.cover_url_small ||
-              "",
-            pagesRead: book.pages_read,
-            totalPages: book.page_count || 0,
-            rating: book.userBook.rating,
-            reviewAttributes: reviewAttrs || {},
-            days_since_last_read: book.days_since_last_read,
-            latest_journal_entry: book.latest_journal_entry,
-            status: book.userBook.status,
-          };
-        });
-
-        setBooks(transformed);
+        setBooks(transformBooks(result));
       } else {
         console.error("Failed to load paused books shelf:", result.error);
         setBooks([]);
@@ -127,6 +131,69 @@ export default function PausedShelfPage() {
 
     return () => {
       isMounted = false;
+    };
+  }, [transformBooks]);
+
+  // Listen for book changes from search/other components
+  useEffect(() => {
+    const handleStatusChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        newStatus?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { bookId, newStatus, book } = customEvent.detail || {};
+      
+      // If changing TO paused, add optimistically
+      if (newStatus === "paused" && book) {
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          pagesRead: 0,
+          totalPages: book.page_count || 0,
+          rating: null,
+          reviewAttributes: {},
+          days_since_last_read: 0,
+          latest_journal_entry: null,
+          status: "paused",
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
+      } else if (bookId && newStatus && newStatus !== "paused") {
+        // If changing FROM paused, remove optimistically
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    // Handle error events - remove optimistically added books on failure
+    const handleStatusChangeFailed = (e: Event) => {
+      const customEvent = e as CustomEvent<{ bookId?: string; previousStatus?: string }>;
+      const { bookId, previousStatus } = customEvent.detail || {};
+      if (previousStatus !== "paused" && bookId) {
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    window.addEventListener("book-status-changed", handleStatusChanged);
+    window.addEventListener("book-status-change-failed", handleStatusChangeFailed);
+
+    return () => {
+      window.removeEventListener("book-status-changed", handleStatusChanged);
+      window.removeEventListener("book-status-change-failed", handleStatusChangeFailed);
     };
   }, []);
 

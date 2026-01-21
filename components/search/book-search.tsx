@@ -228,30 +228,41 @@ function BookSearchComponent({ className }: BookSearchProps) {
         }));
       }
 
-      const result = await addBookToReadingList(book.id, action);
+      // IMMEDIATELY dispatch event for optimistic UI updates (before server call)
+      window.dispatchEvent(
+        new CustomEvent("book-added", {
+          detail: { 
+            action: action === "currently-reading" ? "currently-reading" : action,
+            bookId: book.id,
+            book,
+          },
+        })
+      );
 
-      if (result.success) {
-        // If DNF with reason, update status with notes
-        if (action === "did-not-finish" && reason !== undefined && reason !== null) {
-          const { updateBookStatus } = await import("@/app/actions/book-actions");
-          await updateBookStatus(book.id, "dnf", { notes: reason });
+      // Run server call in background (non-blocking)
+      addBookToReadingList(book.id, action).then(async (result) => {
+        if (result.success) {
+          // If DNF with reason, update status with notes
+          if (action === "did-not-finish" && reason !== undefined && reason !== null) {
+            const { updateBookStatus } = await import("@/app/actions/book-actions");
+            await updateBookStatus(book.id, "dnf", { notes: reason });
+          }
+        } else {
+          // Revert optimistic update on error
+          setUserBookStatuses((prev) => {
+            const updated = { ...prev };
+            delete updated[book.id];
+            return updated;
+          });
+          // Dispatch event to remove from shelf on error
+          window.dispatchEvent(
+            new CustomEvent("book-add-failed", {
+              detail: { bookId: book.id, action },
+            })
+          );
+          console.error(result.error);
         }
-
-        // Dispatch event to refresh currently reading component
-        window.dispatchEvent(
-          new CustomEvent("book-added", {
-            detail: { action, bookId: book.id },
-          })
-        );
-      } else {
-        // Revert optimistic update on error
-        setUserBookStatuses((prev) => {
-          const updated = { ...prev };
-          delete updated[book.id];
-          return updated;
-        });
-        console.error(result.error);
-      }
+      });
     },
     []
   );

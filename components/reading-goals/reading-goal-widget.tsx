@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { Target, Flame, Plus, MoreVertical, Trash2, Edit } from "lucide-react";
+import {  Flame, Plus, MoreVertical, Trash2, Edit } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { GiTargetArrows } from "react-icons/gi";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -61,7 +62,7 @@ export function ReadingGoalWidget({
       <Card className={cn("border-dashed h-[360px] flex flex-col", className)}>
         <CardContent className="flex flex-col items-center justify-center py-8 text-center">
           <div className="mb-4 rounded-full bg-secondary p-3">
-            <Target className="h-6 w-6 text-muted-foreground" />
+            <GiTargetArrows className="h-6 w-6 text-muted-foreground" />
           </div>
           <h3 className="mb-1 text-lg font-semibold">Set Your Reading Goal</h3>
           <p className="mb-4 text-sm text-muted-foreground">
@@ -142,7 +143,7 @@ export function ReadingGoalWidget({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-primary/10 p-2">
-                <Target className="h-5 w-5 text-primary" />
+                <GiTargetArrows className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <h3 className="font-semibold">{getGoalName()}</h3>
@@ -199,7 +200,7 @@ export function ReadingGoalWidget({
               variant="outline"
               className="w-full gap-2"
             >
-              <Target className="h-4 w-4" />
+              <GiTargetArrows className="h-4 w-4" />
               Change Goal
               <MoreVertical className="h-4 w-4 ml-auto" />
             </Button>

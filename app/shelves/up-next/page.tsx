@@ -1,10 +1,10 @@
 "use client";
 
-import { BookOpen, Sparkles, Loader2, Calendar, Target } from "lucide-react";
+import { BookOpen, Sparkles, Loader2, Calendar } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
+import { GiTargetArrows } from "react-icons/gi";
 import {
   removeBookFromReadingList,
   updateBookStatus,
@@ -65,6 +65,23 @@ export default function UpNextShelfPage() {
   const [showToast, setShowToast] = useState(false);
   const pathname = usePathname();
 
+  // Transform function for books
+  const transformBooks = useCallback((result: Awaited<ReturnType<typeof getUpNextQueue>>) => {
+    if (!result.success) return [];
+    return result.books.map((book) => ({
+      id: book.id,
+      title: book.title,
+      author: book.authors?.join(", ") || "Unknown Author",
+      cover:
+        book.cover_url_medium ||
+        book.cover_url_large ||
+        book.cover_url_small ||
+        "",
+      totalPages: book.page_count || 0,
+      date_added: book.userBook.date_added,
+    }));
+  }, []);
+
   // Fetch up-next queue from the database
   useEffect(() => {
     let isMounted = true;
@@ -76,20 +93,7 @@ export default function UpNextShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => ({
-          id: book.id,
-          title: book.title,
-          author: book.authors?.join(", ") || "Unknown Author",
-          cover:
-            book.cover_url_medium ||
-            book.cover_url_large ||
-            book.cover_url_small ||
-            "",
-          totalPages: book.page_count || 0,
-          date_added: book.userBook.date_added,
-        }));
-
-        setBooks(transformed);
+        setBooks(transformBooks(result));
         setPageCount(result.pageCount);
         setDailyReadingGoal(result.dailyReadingGoal);
         setCanAdd(result.canAdd);
@@ -108,6 +112,116 @@ export default function UpNextShelfPage() {
 
     return () => {
       isMounted = false;
+    };
+  }, [transformBooks]);
+
+  // Listen for book changes from search/other components
+  useEffect(() => {
+    const handleBookAdded = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        action?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { action, book } = customEvent.detail || {};
+      
+      // If book is being added as up-next, add optimistically
+      if (action === "up-next" && book) {
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          totalPages: book.page_count || 0,
+          date_added: new Date().toISOString(),
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [...prev, newBook];
+        });
+        // Update page count optimistically
+        setPageCount((prev) => (prev || 0) + (book.page_count || 0));
+      }
+    };
+
+    const handleStatusChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        newStatus?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { bookId, newStatus, book } = customEvent.detail || {};
+      
+      // If changing TO up_next, add optimistically
+      if (newStatus === "up_next" && book) {
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          totalPages: book.page_count || 0,
+          date_added: new Date().toISOString(),
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [...prev, newBook];
+        });
+        setPageCount((prev) => (prev || 0) + (book.page_count || 0));
+      } else if (bookId && newStatus && newStatus !== "up_next") {
+        // If changing FROM up_next, remove optimistically
+        setBooks((prev) => {
+          const removedBook = prev.find((b) => b.id === bookId);
+          if (removedBook) {
+            setPageCount((p) => Math.max(0, (p || 0) - (removedBook.totalPages || 0)));
+          }
+          return prev.filter((b) => b.id !== bookId);
+        });
+      }
+    };
+
+    // Handle error events - remove optimistically added books on failure
+    const handleAddFailed = (e: Event) => {
+      const customEvent = e as CustomEvent<{ bookId?: string; action?: string }>;
+      const { bookId, action } = customEvent.detail || {};
+      if (action === "up-next" && bookId) {
+        setBooks((prev) => {
+          const removedBook = prev.find((b) => b.id === bookId);
+          if (removedBook) {
+            setPageCount((p) => Math.max(0, (p || 0) - (removedBook.totalPages || 0)));
+          }
+          return prev.filter((b) => b.id !== bookId);
+        });
+      }
+    };
+
+    window.addEventListener("book-added", handleBookAdded);
+    window.addEventListener("book-status-changed", handleStatusChanged);
+    window.addEventListener("book-add-failed", handleAddFailed);
+
+    return () => {
+      window.removeEventListener("book-added", handleBookAdded);
+      window.removeEventListener("book-status-changed", handleStatusChanged);
+      window.removeEventListener("book-add-failed", handleAddFailed);
     };
   }, []);
 
@@ -405,7 +519,7 @@ export default function UpNextShelfPage() {
                       </p>
                     </div>
                     <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                      <Target className="w-4 h-4" />
+                      <GiTargetArrows className="w-4 h-4" />
                     </div>
                   </div>
                   <Progress

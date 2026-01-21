@@ -6,7 +6,7 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
-  Target,
+  
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, {
@@ -17,6 +17,7 @@ import React, {
   useMemo,
   memo,
 } from "react";
+import { GiTargetArrows } from "react-icons/gi";
 
 import {
   getAllActiveGoals,
@@ -446,7 +447,7 @@ function ReadingGoalsContainerComponent({
       >
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-primary/10 p-2">
-            <Target className="h-5 w-5 text-primary" />
+            <GiTargetArrows className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h3 className="font-semibold">Reading Goals</h3>
@@ -604,7 +605,7 @@ function ReadingGoalsContainerComponent({
           >
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-primary/10 p-2">
-                <Target className="h-5 w-5 text-primary" />
+                <GiTargetArrows className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <h3 className="font-semibold">Achieved Goals</h3>

@@ -5,7 +5,7 @@ import {
   TrendingUp,
   BarChart3,
   BookOpen,
-  Target,
+
   Star,
   Tag,
   Clock,
@@ -13,7 +13,7 @@ import {
   BookMarked,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-
+import { GiTargetArrows } from "react-icons/gi";
 import {
   ChartContainer,
   ChartTooltip,
@@ -361,7 +361,7 @@ export function ShelfStats({
               </p>
             </div>
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-              <Target className="w-4 h-4" />
+              <GiTargetArrows className="w-4 h-4" />
             </div>
           </div>
         </DashboardCard>

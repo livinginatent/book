@@ -72,6 +72,46 @@ export default function CurrentlyReadingShelfPage() {
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
 
+  // Transform function for books
+  const transformBooks = useCallback((result: Awaited<ReturnType<typeof getCurrentlyReadingBooks>>) => {
+    if (!result.success) return [];
+    return result.books.map((book) => {
+      const reviewAttrs = book.userBook?.review_attributes as
+        | {
+            moods?: string[];
+            pacing?: string | null;
+            difficulty?: string | null;
+            diverse_cast?: boolean;
+            character_development?: boolean;
+            plot_driven?: boolean;
+            strong_prose?: boolean;
+            world_building?: boolean;
+            twist_ending?: boolean;
+            multiple_pov?: boolean;
+          }
+        | null
+        | undefined;
+      return {
+        id: book.id,
+        title: book.title,
+        author: book.authors?.join(", ") || "Unknown Author",
+        cover:
+          book.cover_url_medium ||
+          book.cover_url_large ||
+          book.cover_url_small ||
+          "",
+        pagesRead: book.progress?.pages_read || 0,
+        totalPages: book.page_count || 0,
+        rating: book.userBook?.rating,
+        reviewAttributes: reviewAttrs || {},
+        lastReadDate: book.lastReadDate,
+        velocity: book.velocity,
+        pages_left: book.pages_left,
+        date_added: book.date_added,
+      };
+    });
+  }, []);
+
   // Fetch currently reading books from the database
   useEffect(() => {
     let isMounted = true;
@@ -83,43 +123,7 @@ export default function CurrentlyReadingShelfPage() {
       if (!isMounted) return;
 
       if (result.success) {
-        const transformed: ShelfBook[] = result.books.map((book) => {
-          const reviewAttrs = book.userBook?.review_attributes as
-            | {
-                moods?: string[];
-                pacing?: string | null;
-                difficulty?: string | null;
-                diverse_cast?: boolean;
-                character_development?: boolean;
-                plot_driven?: boolean;
-                strong_prose?: boolean;
-                world_building?: boolean;
-                twist_ending?: boolean;
-                multiple_pov?: boolean;
-              }
-            | null
-            | undefined;
-          return {
-            id: book.id,
-            title: book.title,
-            author: book.authors?.join(", ") || "Unknown Author",
-            cover:
-              book.cover_url_medium ||
-              book.cover_url_large ||
-              book.cover_url_small ||
-              "",
-            pagesRead: book.progress?.pages_read || 0,
-            totalPages: book.page_count || 0,
-            rating: book.userBook?.rating,
-            reviewAttributes: reviewAttrs || {},
-            lastReadDate: book.lastReadDate,
-            velocity: book.velocity,
-            pages_left: book.pages_left,
-            date_added: book.date_added,
-          };
-        });
-
-        setBooks(transformed);
+        setBooks(transformBooks(result));
       } else {
         console.error("Failed to load currently reading shelf:", result.error);
         setBooks([]);
@@ -134,6 +138,113 @@ export default function CurrentlyReadingShelfPage() {
 
     return () => {
       isMounted = false;
+    };
+  }, [transformBooks]);
+
+  // Listen for book changes from search/other components
+  useEffect(() => {
+    const handleBookAdded = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        action?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { action, book } = customEvent.detail || {};
+      
+      // If book is being added as currently-reading, add optimistically
+      if (action === "currently-reading" && book) {
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          pagesRead: 0,
+          totalPages: book.page_count || 0,
+          rating: null,
+          reviewAttributes: {},
+          lastReadDate: null,
+          velocity: 0,
+          pages_left: book.page_count || 0,
+          date_added: new Date().toISOString(),
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
+      }
+    };
+
+    const handleStatusChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        bookId?: string;
+        newStatus?: string;
+        book?: {
+          id: string;
+          title: string;
+          authors?: string[];
+          cover_url_medium?: string;
+          cover_url_large?: string;
+          cover_url_small?: string;
+          page_count?: number;
+        };
+      }>;
+      
+      const { bookId, newStatus, book } = customEvent.detail || {};
+      
+      // If changing TO currently_reading, add optimistically
+      if (newStatus === "currently_reading" && book) {
+        const newBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          pagesRead: 0,
+          totalPages: book.page_count || 0,
+          rating: null,
+          reviewAttributes: {},
+          lastReadDate: null,
+          velocity: 0,
+          pages_left: book.page_count || 0,
+          date_added: new Date().toISOString(),
+        };
+        
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newBook, ...prev];
+        });
+      } else if (bookId && newStatus && newStatus !== "currently_reading") {
+        // If changing FROM currently_reading, remove optimistically
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    // Handle error events - remove optimistically added books on failure
+    const handleAddFailed = (e: Event) => {
+      const customEvent = e as CustomEvent<{ bookId?: string; action?: string }>;
+      const { bookId, action } = customEvent.detail || {};
+      if (action === "currently-reading" && bookId) {
+        setBooks((prev) => prev.filter((b) => b.id !== bookId));
+      }
+    };
+
+    window.addEventListener("book-added", handleBookAdded);
+    window.addEventListener("book-status-changed", handleStatusChanged);
+    window.addEventListener("book-add-failed", handleAddFailed);
+
+    return () => {
+      window.removeEventListener("book-added", handleBookAdded);
+      window.removeEventListener("book-status-changed", handleStatusChanged);
+      window.removeEventListener("book-add-failed", handleAddFailed);
     };
   }, []);
 

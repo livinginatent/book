@@ -12,6 +12,7 @@ import {
   BookMarked,
   X,
   BookOpen,
+  ChevronDown,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -90,6 +91,7 @@ function formatStatusLabel(status: ReadingStatus): string {
 }
 
 export default function ShelfDetailPage() {
+  const LOAD_MORE_LIMIT = 10;
   const params = useParams();
   const router = useRouter();
   const shelfId = params.id as string;
@@ -118,6 +120,7 @@ export default function ShelfDetailPage() {
     Record<string, ReadingStatus>
   >({});
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const [currentOffset, setCurrentOffset] = useState(0);
 
   // Fetch shelf and books - single optimized call
   useEffect(() => {
@@ -177,6 +180,7 @@ export default function ShelfDetailPage() {
           setSearchTotal(0);
           setHasSearched(false);
           setUserBookStatuses({});
+          setCurrentOffset(0);
         }, 0);
       }
       return;
@@ -186,12 +190,14 @@ export default function ShelfDetailPage() {
 
     searchDebounceRef.current = setTimeout(() => {
       setHasSearched(true);
+      setCurrentOffset(0);
       startSearchTransition(async () => {
         const result = await searchBooks(trimmedQuery, 10, 0);
 
         if (result.success) {
           setSearchResults(result.books);
           setSearchTotal(result.total);
+          setCurrentOffset(result.books.length);
 
           // Fetch user book statuses
           if (result.books.length > 0) {
@@ -210,6 +216,7 @@ export default function ShelfDetailPage() {
           setSearchResults([]);
           setSearchTotal(0);
           setUserBookStatuses({});
+          setCurrentOffset(0);
         }
       });
     }, 500);
@@ -336,75 +343,85 @@ export default function ShelfDetailPage() {
     [shelfId, withLoading]
   );
 
-  // Handle adding book to shelf from search
-  const handleAddBookToShelfOnly = useCallback(
-    async (bookId: string) => {
-      if (!shelf || shelf.type !== "custom") {
-        return false;
-      }
-
-      return withLoading(async () => {
-        const userBookIdResult = await getUserBookId(bookId);
-
-        if (!userBookIdResult.success) {
-          console.error("Failed to get user book ID:", userBookIdResult.error);
-          return false;
-        }
-
-        const shelfResult = await addBookToShelf(
-          shelf.id,
-          userBookIdResult.userBookId
-        );
-
-        if (shelfResult.success) {
-          const booksResult = await getShelfBooks(shelfId);
-          if (booksResult.success) {
-            setBooks(booksResult.books);
-          }
-          return true;
-        }
-
-        if (shelfResult.error?.includes("already in this shelf")) {
-          return true;
-        }
-        console.error("Failed to add book to shelf:", shelfResult.error);
-        return false;
-      }, "Adding to shelf...");
-    },
-    [shelf, shelfId, withLoading]
-  );
-
   const handleSearchBookAction = useCallback(
     async (action: string, book: Book) => {
-      // First, add the book to user_books with the appropriate status
-      await addBookToReadingList(book.id, action as BookAction);
+      // Map action to status for optimistic update
+      const actionToStatus: Record<string, ReadingStatus> = {
+        "want-to-read": "want_to_read",
+        "currently-reading": "currently_reading",
+        "up-next": "up_next",
+        "did-not-finish": "dnf",
+        "paused": "paused",
+        "finished": "finished",
+      };
+      const newStatus = actionToStatus[action];
 
-      // Update status in UI
-      const statusesResult = await getUserBookStatuses([book.id]);
-      if (statusesResult && !("success" in statusesResult)) {
+      // OPTIMISTIC UPDATE: Update UI immediately
+      if (newStatus) {
         setUserBookStatuses((prev) => ({
           ...prev,
-          [book.id]: statusesResult[book.id],
+          [book.id]: newStatus,
         }));
       }
 
-      // For custom shelves, also add the book to the shelf
+      // For custom shelves, optimistically add the book to the shelf display
       if (shelf?.type === "custom") {
-        const addedToShelf = await handleAddBookToShelfOnly(book.id);
+        const newShelfBook: ShelfBook = {
+          id: book.id,
+          title: book.title,
+          author: book.authors?.join(", ") || "Unknown Author",
+          cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+          totalPages: book.page_count || 0,
+          pagesRead: 0,
+          status: newStatus,
+          date_added: new Date().toISOString(),
+        };
 
-        if (addedToShelf) {
-          // Clear search after successfully adding to shelf
-          setSearchQuery("");
-          setSearchResults([]);
-          setHasSearched(false);
-        }
+        setBooks((prev) => {
+          if (prev.some((b) => b.id === book.id)) return prev;
+          return [newShelfBook, ...prev];
+        });
+
+        // Clear search immediately for better UX
+        setSearchQuery("");
+        setSearchResults([]);
+        setHasSearched(false);
       }
+
+      // Run server calls in background (non-blocking)
+      addBookToReadingList(book.id, action as BookAction).then(async (result) => {
+        if (!result.success) {
+          // Revert optimistic updates on error
+          setUserBookStatuses((prev) => {
+            const updated = { ...prev };
+            delete updated[book.id];
+            return updated;
+          });
+          if (shelf?.type === "custom") {
+            setBooks((prev) => prev.filter((b) => b.id !== book.id));
+          }
+          console.error("Failed to add book:", result.error);
+          return;
+        }
+
+        // For custom shelves, also add the book to the shelf
+        if (shelf?.type === "custom") {
+          const userBookIdResult = await getUserBookId(book.id);
+          if (userBookIdResult.success) {
+            const shelfResult = await addBookToShelf(shelf.id, userBookIdResult.userBookId);
+            if (!shelfResult.success && !shelfResult.error?.includes("already in this shelf")) {
+              console.error("Failed to add to shelf:", shelfResult.error);
+            }
+          }
+        }
+      });
     },
-    [shelf, handleAddBookToShelfOnly]
+    [shelf]
   );
 
   const handleSearchStatusChange = useCallback(
-    async (bookId: string, newStatus: ReadingStatus) => {
+    (bookId: string, newStatus: ReadingStatus) => {
+      // OPTIMISTIC UPDATE: Update UI immediately (synchronous, no await)
       setUserBookStatuses((prev) => ({
         ...prev,
         [bookId]: newStatus,
@@ -414,18 +431,80 @@ export default function ShelfDetailPage() {
       // This handles cases where BookSearchResultCard doesn't call onAction
       // (e.g., "finished", "paused", "dnf" statuses)
       if (shelf?.type === "custom") {
-        const addedToShelf = await handleAddBookToShelfOnly(bookId);
+        // Find the book from search results to get its details
+        const book = searchResults.find((b) => b.id === bookId);
+        if (book) {
+          const newShelfBook: ShelfBook = {
+            id: book.id,
+            title: book.title,
+            author: book.authors?.join(", ") || "Unknown Author",
+            cover: book.cover_url_medium || book.cover_url_large || book.cover_url_small || "",
+            totalPages: book.page_count || 0,
+            pagesRead: 0,
+            status: newStatus,
+            date_added: new Date().toISOString(),
+          };
 
-        if (addedToShelf) {
-          // Clear search after successfully adding to shelf
-          setSearchQuery("");
-          setSearchResults([]);
-          setHasSearched(false);
+          setBooks((prev) => {
+            if (prev.some((b) => b.id === bookId)) return prev;
+            return [newShelfBook, ...prev];
+          });
         }
+
+        // Clear search immediately for better UX
+        setSearchQuery("");
+        setSearchResults([]);
+        setHasSearched(false);
+
+        // Run server calls in background (non-blocking)
+        getUserBookId(bookId).then(async (userBookIdResult) => {
+          if (userBookIdResult.success) {
+            const shelfResult = await addBookToShelf(shelf.id, userBookIdResult.userBookId);
+            if (!shelfResult.success && !shelfResult.error?.includes("already in this shelf")) {
+              console.error("Failed to add to shelf:", shelfResult.error);
+              // Revert optimistic update
+              setBooks((prev) => prev.filter((b) => b.id !== bookId));
+            }
+          }
+        });
       }
     },
-    [shelf, handleAddBookToShelfOnly]
+    [shelf, searchResults]
   );
+
+  const hasMore = searchResults.length < searchTotal;
+
+  const loadMore = useCallback(() => {
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery || trimmedQuery.length < 3) return;
+
+    const newOffset = currentOffset + LOAD_MORE_LIMIT;
+
+    startSearchTransition(async () => {
+      const result = await searchBooks(
+        trimmedQuery,
+        LOAD_MORE_LIMIT,
+        newOffset
+      );
+
+      if (result.success) {
+        setSearchResults((prev) => [...prev, ...result.books]);
+        setCurrentOffset(newOffset);
+
+        // Fetch user book statuses for newly loaded books
+        if (result.books.length > 0) {
+          const bookIds = result.books.map((b) => b.id);
+          const statusesResult = await getUserBookStatuses(bookIds);
+          if (statusesResult && !("success" in statusesResult)) {
+            setUserBookStatuses((prev) => ({
+              ...prev,
+              ...statusesResult,
+            }));
+          }
+        }
+      }
+    });
+  }, [searchQuery, currentOffset, startSearchTransition]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -651,6 +730,31 @@ export default function ShelfDetailPage() {
                         />
                       ))}
                     </div>
+
+                    {/* Load More Button */}
+                    {hasMore && (
+                      <div className="flex justify-center pt-4">
+                        <Button
+                          onClick={loadMore}
+                          disabled={isSearching}
+                          variant="outline"
+                          size="lg"
+                          className="gap-2 rounded-full px-8 bg-transparent"
+                        >
+                          {isSearching ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Loading...
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-4 h-4" />
+                              Load More Books
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
